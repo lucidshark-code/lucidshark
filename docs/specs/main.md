@@ -1,4 +1,4 @@
-# LucidShark — Technical Specification
+# LucidScan
 
 ## 1. Problem Statement
 

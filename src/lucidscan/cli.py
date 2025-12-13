@@ -36,7 +36,7 @@ def _get_version() -> str:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="lucidscan",
-        description="LucidShark unified security scanner.",
+        description="LucidScan unified security scanner.",
     )
 
     # Global options

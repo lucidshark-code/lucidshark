@@ -1,6 +1,6 @@
 ## lucidscan
 
-`lucidscan` is the CLI component of LucidShark, a unified security scanner that
+`lucidscan` is the CLI component of LucidScan, a unified security scanner that
 orchestrates multiple open-source tools (Trivy, Semgrep, Checkov) and exposes a
 consistent command-line interface and unified issue schema.
 
