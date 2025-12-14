@@ -119,11 +119,10 @@ jobs:
               | tar xzf - -C /root/.lucidscan/bin/trivy/${{ steps.versions.outputs.trivy }} \
               && chmod +x /root/.lucidscan/bin/trivy/${{ steps.versions.outputs.trivy }}/trivy
 
-          # Pre-download OpenGrep binary
-          RUN curl -sfL "https://github.com/opengrep/opengrep/releases/download/v${{ steps.versions.outputs.opengrep }}/opengrep-v${{ steps.versions.outputs.opengrep }}-linux-amd64.zip" -o /tmp/opengrep.zip \
-              && unzip /tmp/opengrep.zip -d /root/.lucidscan/bin/opengrep/${{ steps.versions.outputs.opengrep }} \
-              && chmod +x /root/.lucidscan/bin/opengrep/${{ steps.versions.outputs.opengrep }}/opengrep* || true \
-              && rm /tmp/opengrep.zip
+          # Pre-download OpenGrep binary (standalone binary for glibc-based Linux)
+          RUN curl -sfL "https://github.com/opengrep/opengrep/releases/download/v${{ steps.versions.outputs.opengrep }}/opengrep_manylinux_x86" \
+              -o /root/.lucidscan/bin/opengrep/${{ steps.versions.outputs.opengrep }}/opengrep \
+              && chmod +x /root/.lucidscan/bin/opengrep/${{ steps.versions.outputs.opengrep }}/opengrep
 
           # Pre-install Checkov in a venv
           RUN python -m venv /root/.lucidscan/bin/checkov/${{ steps.versions.outputs.checkov }}/venv \
