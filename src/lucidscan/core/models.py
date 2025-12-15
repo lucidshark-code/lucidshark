@@ -67,10 +67,51 @@ class ScanContext:
 
 
 @dataclass
+class ScanMetadata:
+    """Metadata about the scan execution."""
+
+    lucidscan_version: str
+    scan_started_at: str
+    scan_finished_at: str
+    duration_ms: int
+    project_root: str
+    scanners_used: List[Dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class ScanSummary:
+    """Summary statistics for scan results."""
+
+    total: int = 0
+    by_severity: Dict[str, int] = field(default_factory=dict)
+    by_scanner: Dict[str, int] = field(default_factory=dict)
+
+
+@dataclass
 class ScanResult:
     """Aggregated result for a scan over one project or path set."""
 
     issues: List[UnifiedIssue] = field(default_factory=list)
-    schema_version: str = "0.1.0"
+    schema_version: str = "1.0"
+    metadata: Optional[ScanMetadata] = None
+    summary: Optional[ScanSummary] = None
+
+    def compute_summary(self) -> ScanSummary:
+        """Compute summary statistics from issues."""
+        by_severity: Dict[str, int] = {}
+        by_scanner: Dict[str, int] = {}
+
+        for issue in self.issues:
+            sev = issue.severity.value
+            by_severity[sev] = by_severity.get(sev, 0) + 1
+
+            scanner = issue.scanner.value
+            by_scanner[scanner] = by_scanner.get(scanner, 0) + 1
+
+        return ScanSummary(
+            total=len(self.issues),
+            by_severity=by_severity,
+            by_scanner=by_scanner,
+        )
 
 

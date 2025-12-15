@@ -4,7 +4,7 @@ This package provides the plugin discovery and management infrastructure
 for all plugin types:
 - Scanner plugins (lucidscan.scanners)
 - Enricher plugins (lucidscan.enrichers) - future
-- Reporter plugins (lucidscan.reporters) - future
+- Reporter plugins (lucidscan.reporters)
 
 Plugins are discovered via Python entry points.
 """
@@ -14,6 +14,7 @@ from lucidscan.plugins.discovery import (
     get_plugin,
     list_available_plugins,
     SCANNER_ENTRY_POINT_GROUP,
+    REPORTER_ENTRY_POINT_GROUP,
 )
 
 __all__ = [
@@ -21,4 +22,5 @@ __all__ = [
     "get_plugin",
     "list_available_plugins",
     "SCANNER_ENTRY_POINT_GROUP",
+    "REPORTER_ENTRY_POINT_GROUP",
 ]

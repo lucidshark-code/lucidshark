@@ -41,5 +41,5 @@ def test_scan_context_and_result_roundtrip() -> None:
 
     assert context.enabled_domains == [ScanDomain.SCA]
     assert result.issues[0].id == "issue-1"
-    assert result.schema_version.startswith("0.")
+    assert result.schema_version.startswith("1.")
 

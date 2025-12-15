@@ -2,15 +2,25 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Iterable, Optional
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional
 
 from importlib.metadata import version, PackageNotFoundError
 
 from lucidscan.core.logging import configure_logging, get_logger
+from lucidscan.core.models import (
+    ScanContext,
+    ScanDomain,
+    ScanMetadata,
+    ScanResult,
+    UnifiedIssue,
+)
 from lucidscan.bootstrap.paths import get_lucidscan_home, LucidscanPaths
 from lucidscan.bootstrap.platform import get_platform_info
 from lucidscan.bootstrap.validation import validate_binary, ToolStatus
-from lucidscan.scanners import discover_scanner_plugins
+from lucidscan.scanners import discover_scanner_plugins, get_scanner_plugin
+from lucidscan.reporters import get_reporter_plugin
 
 
 LOGGER = get_logger(__name__)
@@ -101,6 +111,31 @@ def build_parser() -> argparse.ArgumentParser:
         help="Enable all scanner plugins.",
     )
 
+    # Target path
+    parser.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="Path to scan (default: current directory).",
+    )
+
+    # Container image targets
+    parser.add_argument(
+        "--image",
+        action="append",
+        dest="images",
+        metavar="IMAGE",
+        help="Container image to scan (can be specified multiple times).",
+    )
+
+    # Severity threshold for exit code
+    parser.add_argument(
+        "--fail-on",
+        choices=["critical", "high", "medium", "low"],
+        default=None,
+        help="Exit with code 1 if issues at or above this severity are found.",
+    )
+
     return parser
 
 
@@ -151,6 +186,153 @@ def _handle_status() -> int:
     return EXIT_SUCCESS
 
 
+def _get_enabled_domains(args: argparse.Namespace) -> List[ScanDomain]:
+    """Determine which scan domains are enabled based on CLI arguments."""
+    domains: List[ScanDomain] = []
+
+    if args.all:
+        # Only enable domains we have plugins for
+        # Currently only SCA and CONTAINER (Trivy)
+        domains = [ScanDomain.SCA, ScanDomain.CONTAINER]
+    else:
+        if args.sca:
+            domains.append(ScanDomain.SCA)
+        if args.container:
+            domains.append(ScanDomain.CONTAINER)
+        if args.iac:
+            domains.append(ScanDomain.IAC)
+        if args.sast:
+            domains.append(ScanDomain.SAST)
+
+    return domains
+
+
+def _run_scan(args: argparse.Namespace) -> ScanResult:
+    """Execute the scan based on CLI arguments.
+
+    Args:
+        args: Parsed CLI arguments.
+
+    Returns:
+        ScanResult containing all issues found.
+    """
+    start_time = datetime.now(timezone.utc)
+    project_root = Path(args.path).resolve()
+
+    if not project_root.exists():
+        raise FileNotFoundError(f"Path does not exist: {project_root}")
+
+    enabled_domains = _get_enabled_domains(args)
+    if not enabled_domains:
+        LOGGER.warning("No scan domains enabled")
+        return ScanResult()
+
+    # Build scan context
+    config: Dict[str, Any] = {}
+    if args.images:
+        config["container_images"] = args.images
+
+    context = ScanContext(
+        project_root=project_root,
+        paths=[project_root],
+        enabled_domains=enabled_domains,
+        config=config,
+    )
+
+    all_issues: List[UnifiedIssue] = []
+    scanners_used: List[Dict[str, Any]] = []
+
+    # Map domains to scanner plugins
+    domain_to_scanner = {
+        ScanDomain.SCA: "trivy",
+        ScanDomain.CONTAINER: "trivy",
+        # ScanDomain.IAC: "checkov",  # Not implemented yet
+        # ScanDomain.SAST: "opengrep",  # Not implemented yet
+    }
+
+    # Collect unique scanners needed
+    needed_scanners: set[str] = set()
+    for domain in enabled_domains:
+        scanner_name = domain_to_scanner.get(domain)
+        if scanner_name:
+            needed_scanners.add(scanner_name)
+        else:
+            LOGGER.warning(f"No scanner available for domain: {domain.value}")
+
+    # Run each scanner
+    for scanner_name in needed_scanners:
+        scanner = get_scanner_plugin(scanner_name)
+        if not scanner:
+            LOGGER.error(f"Scanner plugin '{scanner_name}' not found")
+            continue
+
+        LOGGER.info(f"Running {scanner_name} scanner...")
+
+        try:
+            issues = scanner.scan(context)
+            all_issues.extend(issues)
+
+            scanners_used.append({
+                "name": scanner_name,
+                "version": scanner.get_version(),
+                "domains": [d.value for d in scanner.domains],
+            })
+
+            LOGGER.info(f"{scanner_name}: found {len(issues)} issues")
+
+        except Exception as e:
+            LOGGER.error(f"Scanner {scanner_name} failed: {e}")
+
+    end_time = datetime.now(timezone.utc)
+    duration_ms = int((end_time - start_time).total_seconds() * 1000)
+
+    # Build result
+    result = ScanResult(issues=all_issues)
+    result.metadata = ScanMetadata(
+        lucidscan_version=_get_version(),
+        scan_started_at=start_time.isoformat(),
+        scan_finished_at=end_time.isoformat(),
+        duration_ms=duration_ms,
+        project_root=str(project_root),
+        scanners_used=scanners_used,
+    )
+    result.summary = result.compute_summary()
+
+    return result
+
+
+def _check_severity_threshold(
+    result: ScanResult, threshold: Optional[str]
+) -> bool:
+    """Check if any issues meet or exceed the severity threshold.
+
+    Args:
+        result: Scan result to check.
+        threshold: Severity threshold ('critical', 'high', 'medium', 'low').
+
+    Returns:
+        True if issues at or above threshold exist, False otherwise.
+    """
+    if not threshold or not result.issues:
+        return False
+
+    threshold_order = {
+        "critical": 0,
+        "high": 1,
+        "medium": 2,
+        "low": 3,
+    }
+
+    threshold_level = threshold_order.get(threshold.lower(), 99)
+
+    for issue in result.issues:
+        issue_level = threshold_order.get(issue.severity.value, 99)
+        if issue_level <= threshold_level:
+            return True
+
+    return False
+
+
 def main(argv: Optional[Iterable[str]] = None) -> int:
     """CLI entrypoint.
 
@@ -182,9 +364,30 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
 
     # Scanner execution
     if any([args.sca, args.container, args.iac, args.sast, args.all]):
-        print("lucidscan: scanner plugin execution is not implemented yet.")
-        print("Scanner plugins will automatically download their binaries on first use.")
-        return EXIT_SUCCESS
+        try:
+            result = _run_scan(args)
+
+            # Get reporter plugin
+            reporter = get_reporter_plugin(args.format)
+            if not reporter:
+                LOGGER.error(f"Reporter plugin '{args.format}' not found")
+                return EXIT_SCANNER_ERROR
+
+            # Write output to stdout
+            reporter.report(result, sys.stdout)
+
+            # Check severity threshold for exit code
+            if _check_severity_threshold(result, args.fail_on):
+                return EXIT_ISSUES_FOUND
+
+            return EXIT_SUCCESS
+
+        except FileNotFoundError as e:
+            LOGGER.error(str(e))
+            return EXIT_INVALID_USAGE
+        except Exception as e:
+            LOGGER.error(f"Scan failed: {e}")
+            return EXIT_SCANNER_ERROR
 
     # If no scanners are selected, show help to guide users.
     parser.print_help()

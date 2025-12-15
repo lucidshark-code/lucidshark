@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import subprocess
 import tarfile
 import tempfile
 from pathlib import Path
-from typing import List
+from typing import Any, Dict, List, Optional
 from urllib.request import urlopen
 
 from lucidscan.scanners.base import ScannerPlugin
-from lucidscan.core.models import ScanContext, ScanDomain, UnifiedIssue
+from lucidscan.core.models import ScanContext, ScanDomain, Severity, UnifiedIssue
 from lucidscan.bootstrap.paths import LucidscanPaths
 from lucidscan.bootstrap.platform import get_platform_info
 from lucidscan.core.logging import get_logger
@@ -19,6 +21,15 @@ LOGGER = get_logger(__name__)
 
 # Default version from pyproject.toml [tool.lucidscan.scanners]
 DEFAULT_VERSION = "0.68.1"
+
+# Trivy severity mapping to unified severity
+TRIVY_SEVERITY_MAP: Dict[str, Severity] = {
+    "CRITICAL": Severity.CRITICAL,
+    "HIGH": Severity.HIGH,
+    "MEDIUM": Severity.MEDIUM,
+    "LOW": Severity.LOW,
+    "UNKNOWN": Severity.INFO,
+}
 
 
 class TrivyScanner(ScannerPlugin):
@@ -137,21 +148,33 @@ class TrivyScanner(ScannerPlugin):
             issues.extend(self._run_fs_scan(binary, context, cache_dir))
 
         if ScanDomain.CONTAINER in context.enabled_domains:
-            # Container scanning requires image targets, not implemented yet
-            LOGGER.debug("Container scanning not yet implemented")
+            # Container scanning uses image targets from config
+            image_targets = context.config.get("container_images", [])
+            for image in image_targets:
+                issues.extend(self._run_image_scan(binary, image, cache_dir))
 
         return issues
 
     def _run_fs_scan(
         self, binary: Path, context: ScanContext, cache_dir: Path
     ) -> List[UnifiedIssue]:
-        """Run trivy fs scan for SCA."""
+        """Run trivy fs scan for SCA.
+
+        Args:
+            binary: Path to the Trivy binary.
+            context: Scan context with project root and configuration.
+            cache_dir: Path to the Trivy cache directory.
+
+        Returns:
+            List of unified issues from the filesystem scan.
+        """
         cmd = [
             str(binary),
             "fs",
             "--cache-dir", str(cache_dir),
             "--format", "json",
             "--quiet",
+            "--scanners", "vuln",
             str(context.project_root),
         ]
 
@@ -168,10 +191,209 @@ class TrivyScanner(ScannerPlugin):
             if result.returncode != 0 and result.stderr:
                 LOGGER.warning(f"Trivy stderr: {result.stderr}")
 
-            # TODO: Parse JSON output and convert to UnifiedIssue
-            # For now, return empty list - parsing will be implemented next
-            return []
+            if not result.stdout.strip():
+                LOGGER.debug("Trivy returned empty output")
+                return []
+
+            return self._parse_trivy_json(result.stdout, ScanDomain.SCA)
 
         except Exception as e:
-            LOGGER.error(f"Trivy scan failed: {e}")
+            LOGGER.error(f"Trivy fs scan failed: {e}")
             return []
+
+    def _run_image_scan(
+        self, binary: Path, image: str, cache_dir: Path
+    ) -> List[UnifiedIssue]:
+        """Run trivy image scan for container scanning.
+
+        Args:
+            binary: Path to the Trivy binary.
+            image: Container image reference (e.g., 'nginx:latest').
+            cache_dir: Path to the Trivy cache directory.
+
+        Returns:
+            List of unified issues from the container scan.
+        """
+        cmd = [
+            str(binary),
+            "image",
+            "--cache-dir", str(cache_dir),
+            "--format", "json",
+            "--quiet",
+            "--scanners", "vuln",
+            image,
+        ]
+
+        LOGGER.debug(f"Running: {' '.join(cmd)}")
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            if result.returncode != 0 and result.stderr:
+                LOGGER.warning(f"Trivy stderr: {result.stderr}")
+
+            if not result.stdout.strip():
+                LOGGER.debug(f"Trivy returned empty output for image {image}")
+                return []
+
+            return self._parse_trivy_json(
+                result.stdout, ScanDomain.CONTAINER, image_ref=image
+            )
+
+        except Exception as e:
+            LOGGER.error(f"Trivy image scan failed for {image}: {e}")
+            return []
+
+    def _parse_trivy_json(
+        self,
+        json_output: str,
+        domain: ScanDomain,
+        image_ref: Optional[str] = None,
+    ) -> List[UnifiedIssue]:
+        """Parse Trivy JSON output and convert to UnifiedIssue list.
+
+        Args:
+            json_output: Raw JSON string from Trivy.
+            domain: The scan domain (SCA or CONTAINER).
+            image_ref: Container image reference (for container scans).
+
+        Returns:
+            List of unified issues parsed from the JSON.
+        """
+        try:
+            data = json.loads(json_output)
+        except json.JSONDecodeError as e:
+            LOGGER.error(f"Failed to parse Trivy JSON: {e}")
+            return []
+
+        issues: List[UnifiedIssue] = []
+
+        # Trivy output structure: {"Results": [...]}
+        results = data.get("Results", [])
+
+        for result in results:
+            target = result.get("Target", "unknown")
+            target_type = result.get("Type", "unknown")
+            vulnerabilities = result.get("Vulnerabilities") or []
+
+            for vuln in vulnerabilities:
+                issue = self._vuln_to_unified_issue(
+                    vuln, domain, target, target_type, image_ref
+                )
+                if issue:
+                    issues.append(issue)
+
+        LOGGER.debug(f"Parsed {len(issues)} issues from Trivy output")
+        return issues
+
+    def _vuln_to_unified_issue(
+        self,
+        vuln: Dict[str, Any],
+        domain: ScanDomain,
+        target: str,
+        target_type: str,
+        image_ref: Optional[str] = None,
+    ) -> Optional[UnifiedIssue]:
+        """Convert a single Trivy vulnerability to a UnifiedIssue.
+
+        Args:
+            vuln: Vulnerability dict from Trivy JSON.
+            domain: The scan domain.
+            target: Target file or layer.
+            target_type: Type of target (e.g., 'npm', 'pip', 'alpine').
+            image_ref: Container image reference (for container scans).
+
+        Returns:
+            UnifiedIssue or None if conversion fails.
+        """
+        try:
+            vuln_id = vuln.get("VulnerabilityID", "UNKNOWN")
+            pkg_name = vuln.get("PkgName", "unknown")
+            installed_version = vuln.get("InstalledVersion", "unknown")
+            fixed_version = vuln.get("FixedVersion", "")
+            severity_str = vuln.get("Severity", "UNKNOWN").upper()
+            title = vuln.get("Title", f"Vulnerability in {pkg_name}")
+            description = vuln.get("Description", "No description available.")
+
+            # Map severity
+            severity = TRIVY_SEVERITY_MAP.get(severity_str, Severity.INFO)
+
+            # Generate deterministic issue ID
+            issue_id = self._generate_issue_id(
+                vuln_id, pkg_name, installed_version, target
+            )
+
+            # Build dependency string
+            dependency = f"{pkg_name}@{installed_version}"
+            if target_type:
+                dependency = f"{dependency} ({target_type})"
+
+            # Build recommendation
+            recommendation = None
+            if fixed_version:
+                recommendation = f"Upgrade {pkg_name} to version {fixed_version}"
+
+            # Determine file path
+            file_path = Path(target) if target and domain == ScanDomain.SCA else None
+
+            # Build scanner metadata with raw Trivy data
+            scanner_metadata: Dict[str, Any] = {
+                "vulnerability_id": vuln_id,
+                "pkg_name": pkg_name,
+                "installed_version": installed_version,
+                "fixed_version": fixed_version,
+                "target": target,
+                "target_type": target_type,
+                "references": vuln.get("References", []),
+                "cvss": vuln.get("CVSS", {}),
+                "cwe_ids": vuln.get("CweIDs", []),
+                "published_date": vuln.get("PublishedDate"),
+                "last_modified_date": vuln.get("LastModifiedDate"),
+            }
+
+            if image_ref:
+                scanner_metadata["image_ref"] = image_ref
+
+            return UnifiedIssue(
+                id=issue_id,
+                scanner=domain,
+                source_tool="trivy",
+                severity=severity,
+                title=f"{vuln_id}: {title}",
+                description=description,
+                file_path=file_path,
+                dependency=dependency,
+                recommendation=recommendation,
+                scanner_metadata=scanner_metadata,
+            )
+
+        except Exception as e:
+            LOGGER.warning(f"Failed to convert vulnerability to UnifiedIssue: {e}")
+            return None
+
+    def _generate_issue_id(
+        self,
+        vuln_id: str,
+        pkg_name: str,
+        version: str,
+        target: str,
+    ) -> str:
+        """Generate a deterministic issue ID for deduplication.
+
+        Args:
+            vuln_id: Vulnerability ID (e.g., CVE-2021-1234).
+            pkg_name: Package name.
+            version: Installed version.
+            target: Target file or layer.
+
+        Returns:
+            A stable hash-based ID string.
+        """
+        components = f"trivy:{vuln_id}:{pkg_name}:{version}:{target}"
+        hash_digest = hashlib.sha256(components.encode()).hexdigest()[:16]
+        return f"trivy-{hash_digest}"

@@ -11,6 +11,8 @@ env:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/voldeq/lucidscan:latest
 
     steps:
       - name: Checkout repository
@@ -27,9 +29,16 @@ jobs:
           pip install -e .
           pip install -r requirements-dev.txt
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: |
-          pytest
+          pytest tests/ --cov=lucidscan --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
 
   # Verify bundle build process works (Linux only for speed)
   verify-bundle-build:
@@ -48,13 +57,13 @@ jobs:
         id: versions
         run: |
           echo "trivy=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['tool']['lucidscan']['scanners']['trivy'])")" >> $GITHUB_OUTPUT
-          echo "semgrep=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['tool']['lucidscan']['scanners']['semgrep'])")" >> $GITHUB_OUTPUT
+          echo "opengrep=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['tool']['lucidscan']['scanners']['opengrep'])")" >> $GITHUB_OUTPUT
           echo "checkov=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['tool']['lucidscan']['scanners']['checkov'])")" >> $GITHUB_OUTPUT
 
       - name: Verify version parsing
         run: |
           echo "Trivy: ${{ steps.versions.outputs.trivy }}"
-          echo "Semgrep: ${{ steps.versions.outputs.semgrep }}"
+          echo "OpenGrep: ${{ steps.versions.outputs.opengrep }}"
           echo "Checkov: ${{ steps.versions.outputs.checkov }}"
 
       - name: Verify Trivy download URL

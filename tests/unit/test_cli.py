@@ -40,11 +40,13 @@ class TestMainCommand:
         assert exit_code == 0
         assert "usage:" in captured.out.lower()
 
-    def test_main_scanner_flags_are_stubbed(self, capsys) -> None:
-        exit_code = cli.main(["--sca"])
+    def test_main_scanner_flags_run_scan(self, capsys) -> None:
+        exit_code = cli.main(["--sca", "--format", "json"])
         captured = capsys.readouterr()
         assert exit_code == 0
-        assert "not implemented yet" in captured.out.lower()
+        # Verify JSON output with schema_version
+        assert "schema_version" in captured.out
+        assert "issues" in captured.out
 
     def test_main_version_shows_version(self, capsys) -> None:
         exit_code = cli.main(["--version"])
