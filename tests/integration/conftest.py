@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from lucidscan.scanners.trivy import TrivyScanner
+from lucidscan.scanners.opengrep import OpenGrepScanner
 from lucidscan.bootstrap.paths import LucidscanPaths
 
 
@@ -22,9 +23,24 @@ def _ensure_trivy_downloaded() -> bool:
         return False
 
 
+def _ensure_opengrep_downloaded() -> bool:
+    """Ensure OpenGrep binary is downloaded. Returns True if available."""
+    scanner = OpenGrepScanner()
+    try:
+        scanner.ensure_binary()
+        return True
+    except Exception:
+        return False
+
+
 def _is_trivy_in_path() -> bool:
     """Check if trivy is in PATH."""
     return shutil.which("trivy") is not None
+
+
+def _is_opengrep_in_path() -> bool:
+    """Check if opengrep is in PATH."""
+    return shutil.which("opengrep") is not None
 
 
 def _is_docker_available() -> bool:
@@ -41,14 +57,20 @@ def _is_docker_available() -> bool:
         return False
 
 
-# Download Trivy at module load time so skipif markers work correctly
+# Download scanners at module load time so skipif markers work correctly
 _trivy_available = _ensure_trivy_downloaded() or _is_trivy_in_path()
+_opengrep_available = _ensure_opengrep_downloaded() or _is_opengrep_in_path()
 _docker_available = _is_docker_available()
 
 # Pytest markers for conditional test execution
 trivy_available = pytest.mark.skipif(
     not _trivy_available,
     reason="Trivy binary not available and could not be downloaded"
+)
+
+opengrep_available = pytest.mark.skipif(
+    not _opengrep_available,
+    reason="OpenGrep binary not available and could not be downloaded"
 )
 
 docker_available = pytest.mark.skipif(
@@ -70,6 +92,18 @@ def trivy_scanner() -> TrivyScanner:
 
 
 @pytest.fixture
+def opengrep_scanner() -> OpenGrepScanner:
+    """Return an OpenGrepScanner instance."""
+    return OpenGrepScanner()
+
+
+@pytest.fixture
 def ensure_trivy_binary(trivy_scanner: TrivyScanner) -> Path:
     """Ensure Trivy binary is downloaded and return its path."""
     return trivy_scanner.ensure_binary()
+
+
+@pytest.fixture
+def ensure_opengrep_binary(opengrep_scanner: OpenGrepScanner) -> Path:
+    """Ensure OpenGrep binary is downloaded and return its path."""
+    return opengrep_scanner.ensure_binary()
