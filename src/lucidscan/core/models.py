@@ -79,6 +79,9 @@ class ScanContext:
         """
         if self.config is None:
             return {}
+        # Handle legacy dict-based config for backwards compatibility
+        if isinstance(self.config, dict):
+            return self.config
         return self.config.get_scanner_options(domain)
 
 

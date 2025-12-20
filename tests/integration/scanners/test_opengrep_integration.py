@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pytest
 
+from lucidscan.config.models import LucidScanConfig, ScannerDomainConfig
 from lucidscan.core.models import ScanContext, ScanDomain, Severity
 from lucidscan.scanners.opengrep import OpenGrepScanner
 from tests.integration.conftest import opengrep_available
@@ -192,11 +193,19 @@ const API_SECRET = "hardcoded_secret_key_12345";
             py_file = tmpdir_path / "test.py"
             py_file.write_text('print("Hello, World!")\n')
 
+            config = LucidScanConfig(
+                scanners={
+                    "sast": ScannerDomainConfig(
+                        enabled=True,
+                        options={"rules": "auto"},
+                    )
+                }
+            )
             context = ScanContext(
                 project_root=tmpdir_path,
                 paths=[tmpdir_path],
                 enabled_domains=[ScanDomain.SAST],
-                config={"opengrep_rules": "auto"},  # Use auto-detection
+                config=config,
             )
 
             issues = opengrep_scanner.scan(context)

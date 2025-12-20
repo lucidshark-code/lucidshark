@@ -30,6 +30,21 @@ class OutputConfig:
 
 
 @dataclass
+class PipelineConfig:
+    """Pipeline execution configuration.
+
+    Controls how the scan pipeline executes, including enricher
+    ordering and parallelism settings.
+    """
+
+    # List of enricher names in execution order
+    enrichers: List[str] = field(default_factory=list)
+
+    # Maximum parallel scanner workers (used when not in sequential mode)
+    max_workers: int = 4
+
+
+@dataclass
 class ScannerDomainConfig:
     """Configuration for a scanner domain (sca, sast, iac, container).
 
@@ -68,8 +83,11 @@ class LucidScanConfig:
     # Scanner configs per domain (plugin-specific options passed through)
     scanners: Dict[str, ScannerDomainConfig] = field(default_factory=dict)
 
-    # Enricher configs (future)
+    # Enricher configs (plugin-specific options passed through)
     enrichers: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+
+    # Pipeline configuration (enricher ordering, parallelism)
+    pipeline: PipelineConfig = field(default_factory=PipelineConfig)
 
     # Metadata (not from YAML, set by loader)
     _config_sources: List[str] = field(default_factory=list, repr=False)

@@ -71,7 +71,7 @@ class TestStatusFlag:
         home = tmp_path / ".lucidscan"
         home.mkdir(parents=True)
 
-        with patch("lucidscan.cli.get_lucidscan_home", return_value=home):
+        with patch("lucidscan.cli.commands.status.get_lucidscan_home", return_value=home):
             exit_code = cli.main(["--status"])
 
             captured = capsys.readouterr()
@@ -83,7 +83,7 @@ class TestStatusFlag:
         home = tmp_path / ".lucidscan"
         home.mkdir(parents=True)
 
-        with patch("lucidscan.cli.get_lucidscan_home", return_value=home):
+        with patch("lucidscan.cli.commands.status.get_lucidscan_home", return_value=home):
             exit_code = cli.main(["--status"])
 
             captured = capsys.readouterr()
@@ -97,7 +97,7 @@ class TestStatusFlag:
         home = tmp_path / ".lucidscan"
         home.mkdir(parents=True)
 
-        with patch("lucidscan.cli.get_lucidscan_home", return_value=home):
+        with patch("lucidscan.cli.commands.status.get_lucidscan_home", return_value=home):
             exit_code = cli.main(["--status"])
 
             captured = capsys.readouterr()
@@ -109,7 +109,7 @@ class TestStatusFlag:
         home = tmp_path / ".lucidscan"
         home.mkdir(parents=True)
 
-        with patch("lucidscan.cli.get_lucidscan_home", return_value=home):
+        with patch("lucidscan.cli.commands.status.get_lucidscan_home", return_value=home):
             exit_code = cli.main(["--status"])
 
             captured = capsys.readouterr()
@@ -132,6 +132,6 @@ class TestExitCodes:
         home = tmp_path / ".lucidscan"
         home.mkdir(parents=True)
 
-        with patch("lucidscan.cli.get_lucidscan_home", return_value=home):
+        with patch("lucidscan.cli.commands.status.get_lucidscan_home", return_value=home):
             exit_code = cli.main(["--status"])
             assert exit_code == 0

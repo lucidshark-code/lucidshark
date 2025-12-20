@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+from lucidscan.config.models import LucidScanConfig, ScannerDomainConfig
 from lucidscan.core.models import ScanContext, ScanDomain, Severity
 from lucidscan.scanners.trivy import TrivyScanner
 from tests.integration.conftest import trivy_available, docker_available
@@ -203,11 +204,19 @@ class TestTrivyContainerScanning:
             timeout=120,
         )
 
+        config = LucidScanConfig(
+            scanners={
+                "container": ScannerDomainConfig(
+                    enabled=True,
+                    options={"images": ["alpine:3.14"]},
+                )
+            }
+        )
         context = ScanContext(
             project_root=Path.cwd(),
             paths=[],
             enabled_domains=[ScanDomain.CONTAINER],
-            config={"container_images": ["alpine:3.14"]},
+            config=config,
         )
 
         issues = trivy_scanner.scan(context)
@@ -232,11 +241,19 @@ class TestTrivyContainerScanning:
             timeout=180,
         )
 
+        config = LucidScanConfig(
+            scanners={
+                "container": ScannerDomainConfig(
+                    enabled=True,
+                    options={"images": ["python:3.8-slim-buster"]},
+                )
+            }
+        )
         context = ScanContext(
             project_root=Path.cwd(),
             paths=[],
             enabled_domains=[ScanDomain.CONTAINER],
-            config={"container_images": ["python:3.8-slim-buster"]},
+            config=config,
         )
 
         issues = trivy_scanner.scan(context)
@@ -260,11 +277,19 @@ class TestTrivyContainerScanning:
                 timeout=120,
             )
 
+        config = LucidScanConfig(
+            scanners={
+                "container": ScannerDomainConfig(
+                    enabled=True,
+                    options={"images": ["alpine:latest", "busybox:latest"]},
+                )
+            }
+        )
         context = ScanContext(
             project_root=Path.cwd(),
             paths=[],
             enabled_domains=[ScanDomain.CONTAINER],
-            config={"container_images": ["alpine:latest", "busybox:latest"]},
+            config=config,
         )
 
         issues = trivy_scanner.scan(context)
@@ -285,11 +310,19 @@ class TestTrivyContainerScanning:
             timeout=120,
         )
 
+        config = LucidScanConfig(
+            scanners={
+                "container": ScannerDomainConfig(
+                    enabled=True,
+                    options={"images": ["alpine:latest"]},
+                )
+            }
+        )
         context = ScanContext(
             project_root=Path.cwd(),
             paths=[],
             enabled_domains=[ScanDomain.CONTAINER],
-            config={"container_images": ["alpine:latest"]},
+            config=config,
         )
 
         issues = trivy_scanner.scan(context)

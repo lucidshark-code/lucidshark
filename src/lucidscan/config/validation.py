@@ -21,11 +21,18 @@ VALID_TOP_LEVEL_KEYS: Set[str] = {
     "output",
     "scanners",
     "enrichers",
+    "pipeline",
 }
 
 # Valid keys under output section
 VALID_OUTPUT_KEYS: Set[str] = {
     "format",
+}
+
+# Valid keys under pipeline section
+VALID_PIPELINE_KEYS: Set[str] = {
+    "enrichers",
+    "max_workers",
 }
 
 # Valid keys under scanners.<domain> (framework-level, not plugin-specific)
@@ -196,6 +203,46 @@ def validate_config(
                         ))
 
                     # Other keys are plugin-specific and not validated
+
+    # Validate pipeline section
+    pipeline = data.get("pipeline")
+    if pipeline is not None:
+        if not isinstance(pipeline, dict):
+            warnings.append(ConfigValidationWarning(
+                message=f"'pipeline' must be a mapping, got {type(pipeline).__name__}",
+                source=source,
+                key="pipeline",
+            ))
+        else:
+            for key in pipeline.keys():
+                if key not in VALID_PIPELINE_KEYS:
+                    suggestion = _suggest_key(key, VALID_PIPELINE_KEYS)
+                    warning = ConfigValidationWarning(
+                        message=f"Unknown key 'pipeline.{key}'",
+                        source=source,
+                        key=f"pipeline.{key}",
+                        suggestion=suggestion,
+                    )
+                    warnings.append(warning)
+                    _log_warning(warning)
+
+            # Validate enrichers is a list
+            enrichers = pipeline.get("enrichers")
+            if enrichers is not None and not isinstance(enrichers, list):
+                warnings.append(ConfigValidationWarning(
+                    message="'pipeline.enrichers' must be a list",
+                    source=source,
+                    key="pipeline.enrichers",
+                ))
+
+            # Validate max_workers is an integer
+            max_workers = pipeline.get("max_workers")
+            if max_workers is not None and not isinstance(max_workers, int):
+                warnings.append(ConfigValidationWarning(
+                    message="'pipeline.max_workers' must be an integer",
+                    source=source,
+                    key="pipeline.max_workers",
+                ))
 
     return warnings
 

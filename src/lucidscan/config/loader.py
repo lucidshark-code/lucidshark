@@ -20,6 +20,7 @@ from lucidscan.config.models import (
     DEFAULT_PLUGINS,
     LucidScanConfig,
     OutputConfig,
+    PipelineConfig,
     ScannerDomainConfig,
 )
 from lucidscan.config.validation import validate_config
@@ -282,12 +283,20 @@ def dict_to_config(data: Dict[str, Any]) -> LucidScanConfig:
     # Parse enrichers (passthrough for now)
     enrichers = data.get("enrichers", {})
 
+    # Parse pipeline config
+    pipeline_data = data.get("pipeline", {})
+    pipeline = PipelineConfig(
+        enrichers=pipeline_data.get("enrichers", []),
+        max_workers=pipeline_data.get("max_workers", 4),
+    )
+
     return LucidScanConfig(
         fail_on=data.get("fail_on"),
         ignore=data.get("ignore", []),
         output=output,
         scanners=scanners,
         enrichers=enrichers,
+        pipeline=pipeline,
     )
 
 

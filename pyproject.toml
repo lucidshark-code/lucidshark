@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lucidscan"
-version = "0.1.7"
+version = "0.1.8"
 description = "LucidScan unified security scanner CLI"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -30,6 +30,10 @@ json = "lucidscan.reporters.json_reporter:JSONReporter"
 table = "lucidscan.reporters.table_reporter:TableReporter"
 summary = "lucidscan.reporters.summary_reporter:SummaryReporter"
 sarif = "lucidscan.reporters.sarif_reporter:SARIFReporter"
+
+[project.entry-points."lucidscan.enrichers"]
+# Enricher plugins are registered here
+# Example: dedup = "lucidscan.enrichers.dedup:DedupEnricher"
 
 # Default scanner plugin versions
 # These are the source of truth for the build process

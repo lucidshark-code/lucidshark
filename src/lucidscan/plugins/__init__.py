@@ -14,6 +14,7 @@ from lucidscan.plugins.discovery import (
     get_plugin,
     list_available_plugins,
     SCANNER_ENTRY_POINT_GROUP,
+    ENRICHER_ENTRY_POINT_GROUP,
     REPORTER_ENTRY_POINT_GROUP,
 )
 
@@ -22,5 +23,6 @@ __all__ = [
     "get_plugin",
     "list_available_plugins",
     "SCANNER_ENTRY_POINT_GROUP",
+    "ENRICHER_ENTRY_POINT_GROUP",
     "REPORTER_ENTRY_POINT_GROUP",
 ]

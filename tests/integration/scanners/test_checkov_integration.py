@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from lucidscan.config.models import LucidScanConfig, ScannerDomainConfig
 from lucidscan.core.models import ScanContext, ScanDomain, Severity
 from lucidscan.scanners.checkov import CheckovScanner
 from tests.integration.conftest import checkov_available
@@ -225,11 +226,19 @@ spec:
 ''')
 
             # Scan only Terraform
+            config = LucidScanConfig(
+                scanners={
+                    "iac": ScannerDomainConfig(
+                        enabled=True,
+                        options={"framework": ["terraform"]},
+                    )
+                }
+            )
             context = ScanContext(
                 project_root=tmpdir_path,
                 paths=[tmpdir_path],
                 enabled_domains=[ScanDomain.IAC],
-                config={"checkov_frameworks": ["terraform"]},
+                config=config,
             )
 
             issues = checkov_scanner.scan(context)
