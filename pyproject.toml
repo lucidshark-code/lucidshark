@@ -44,15 +44,17 @@ classifiers = [
   "Topic :: Software Development :: Testing",
   "Typing :: Typed",
 ]
-dependencies = ["PyYAML>=6.0", "pathspec>=0.12.0"]
+dependencies = [
+  "PyYAML>=6.0",
+  "pathspec>=0.12.0",
+  "langchain-core>=0.3",
+  "langchain-openai>=0.2",
+  "langchain-anthropic>=0.2",
+  "langchain-ollama>=0.2",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
-ai = ["langchain-core>=0.3"]
-ai-openai = ["lucidscan[ai]", "langchain-openai>=0.2"]
-ai-anthropic = ["lucidscan[ai]", "langchain-anthropic>=0.2"]
-ai-ollama = ["lucidscan[ai]", "langchain-ollama>=0.2"]
-ai-all = ["lucidscan[ai-openai]", "lucidscan[ai-anthropic]", "lucidscan[ai-ollama]"]
 
 [project.scripts]
 lucidscan = "lucidscan.cli:main"
