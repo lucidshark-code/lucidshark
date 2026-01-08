@@ -309,3 +309,147 @@ class TestInstructionFormatter:
         assert "1 critical" in summary
         assert "2 high" in summary
         assert "1 medium" in summary
+
+    def test_generate_action_for_sca_issues(
+        self, formatter: InstructionFormatter
+    ) -> None:
+        """Test action generation for SCA issues."""
+        issue = UnifiedIssue(
+            id="test-1",
+            scanner=ScanDomain.SCA,
+            source_tool="trivy",
+            severity=Severity.HIGH,
+            title="Vulnerable dependency",
+            description="Test",
+        )
+        action = formatter._generate_action(issue)
+        assert action == "FIX_DEPENDENCY_VULNERABILITY"
+
+    def test_generate_action_for_iac_exposed(
+        self, formatter: InstructionFormatter
+    ) -> None:
+        """Test action generation for IAC with exposed resource."""
+        issue = UnifiedIssue(
+            id="test-1",
+            scanner=ScanDomain.IAC,
+            source_tool="checkov",
+            severity=Severity.HIGH,
+            title="S3 bucket is exposed to public",
+            description="Test",
+        )
+        action = formatter._generate_action(issue)
+        assert action == "FIX_INFRASTRUCTURE_EXPOSURE"
+
+    def test_generate_action_for_iac_public(
+        self, formatter: InstructionFormatter
+    ) -> None:
+        """Test action generation for IAC with public resource."""
+        issue = UnifiedIssue(
+            id="test-1",
+            scanner=ScanDomain.IAC,
+            source_tool="checkov",
+            severity=Severity.MEDIUM,
+            title="EC2 instance has public IP",
+            description="Test",
+        )
+        action = formatter._generate_action(issue)
+        assert action == "FIX_INFRASTRUCTURE_EXPOSURE"
+
+    def test_generate_action_for_iac_misconfiguration(
+        self, formatter: InstructionFormatter
+    ) -> None:
+        """Test action generation for IAC misconfiguration."""
+        issue = UnifiedIssue(
+            id="test-1",
+            scanner=ScanDomain.IAC,
+            source_tool="checkov",
+            severity=Severity.LOW,
+            title="Missing encryption at rest",
+            description="Test",
+        )
+        action = formatter._generate_action(issue)
+        assert action == "FIX_INFRASTRUCTURE_MISCONFIGURATION"
+
+    def test_generate_action_for_container_issues(
+        self, formatter: InstructionFormatter
+    ) -> None:
+        """Test action generation for container issues."""
+        issue = UnifiedIssue(
+            id="test-1",
+            scanner=ScanDomain.CONTAINER,
+            source_tool="trivy",
+            severity=Severity.HIGH,
+            title="Vulnerable base image",
+            description="Test",
+        )
+        action = formatter._generate_action(issue)
+        assert action == "FIX_CONTAINER_VULNERABILITY"
+
+    def test_generate_action_for_unknown_scanner(
+        self, formatter: InstructionFormatter
+    ) -> None:
+        """Test action generation for unknown scanner returns default."""
+        # Create issue with non-standard scanner value using MagicMock
+        from unittest.mock import MagicMock
+        issue = MagicMock()
+        issue.scanner = "unknown_scanner"
+        issue.title = "Some issue"
+        action = formatter._generate_action(issue)
+        assert action == "FIX_ISSUE"
+
+    def test_summary_line_with_file_no_line(
+        self, formatter: InstructionFormatter
+    ) -> None:
+        """Test summary line generation with file but no line number."""
+        issue = UnifiedIssue(
+            id="test-1",
+            scanner=ScanDomain.SAST,
+            source_tool="test",
+            severity=Severity.HIGH,
+            title="Security issue",
+            description="Test",
+            file_path=Path("src/module.py"),
+            line_start=None,
+        )
+        summary = formatter._generate_summary_line(issue)
+        assert "Security issue" in summary
+        assert "module.py" in summary
+        assert ":" not in summary.split("module.py")[1]  # No line number after file
+
+    def test_summary_line_with_no_file(
+        self, formatter: InstructionFormatter
+    ) -> None:
+        """Test summary line generation with no file."""
+        issue = UnifiedIssue(
+            id="test-1",
+            scanner=ScanDomain.SAST,
+            source_tool="test",
+            severity=Severity.HIGH,
+            title="Security issue",
+            description="Test",
+        )
+        summary = formatter._generate_summary_line(issue)
+        assert summary == "Security issue"
+
+    def test_format_detailed_issue(
+        self, formatter: InstructionFormatter
+    ) -> None:
+        """Test formatting issue with detailed mode."""
+        issue = UnifiedIssue(
+            id="test-1",
+            scanner=ScanDomain.SAST,
+            source_tool="opengrep",
+            severity=Severity.CRITICAL,
+            title="Command Injection",
+            description="User input used in shell command",
+            file_path=Path("src/handler.py"),
+            line_start=100,
+            recommendation="Use subprocess with shell=False",
+            code_snippet="os.system(user_input)",
+        )
+
+        result = formatter.format_single_issue(issue, detailed=True)
+
+        assert "issue_id" in result
+        assert result["issue_id"] == "test-1"
+        assert "current_code" in result

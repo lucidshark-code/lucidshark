@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lucidscan.config import LucidScanConfig
-from lucidscan.core.models import ScanDomain, Severity, ToolDomain, UnifiedIssue
+from lucidscan.core.models import ScanContext, ScanDomain, Severity, ToolDomain, UnifiedIssue
 from lucidscan.mcp.tools import MCPToolExecutor
 
 
@@ -250,3 +250,372 @@ class TestMCPToolExecutorAsync:
 
             assert result["total_issues"] == 0
             assert result["blocking"] is False
+
+    @pytest.mark.asyncio
+    async def test_scan_with_issues(self, executor: MCPToolExecutor) -> None:
+        """Test scan that returns issues."""
+        mock_issue = UnifiedIssue(
+            id="test-issue",
+            scanner=ToolDomain.LINTING,
+            source_tool="test",
+            severity=Severity.HIGH,
+            title="Test issue",
+            description="Test description",
+        )
+        with patch.object(executor, '_run_linting', return_value=[mock_issue]):
+            result = await executor.scan(["linting"])
+
+            assert result["total_issues"] == 1
+            assert len(executor._issue_cache) == 1
+
+    @pytest.mark.asyncio
+    async def test_scan_with_exception(self, executor: MCPToolExecutor) -> None:
+        """Test scan handles exceptions gracefully."""
+        with patch.object(executor, '_run_linting', side_effect=Exception("Test error")):
+            result = await executor.scan(["linting"])
+            # Should not raise, just return empty
+            assert result["total_issues"] == 0
+
+    @pytest.mark.asyncio
+    async def test_scan_multiple_domains(self, executor: MCPToolExecutor) -> None:
+        """Test scan with multiple domains."""
+        with patch.object(executor, '_run_linting', return_value=[]), \
+             patch.object(executor, '_run_type_checking', return_value=[]):
+            result = await executor.scan(["linting", "type_checking"])
+            assert result["total_issues"] == 0
+
+    @pytest.mark.asyncio
+    async def test_check_file_existing(
+        self, executor: MCPToolExecutor, project_root: Path
+    ) -> None:
+        """Test checking an existing file."""
+        # Create a test file
+        test_file = project_root / "test.py"
+        test_file.write_text("print('hello')")
+
+        with patch.object(executor, 'scan', return_value={"total_issues": 0, "instructions": []}):
+            result = await executor.check_file("test.py")
+            assert "error" not in result
+
+    @pytest.mark.asyncio
+    async def test_apply_fix_no_file_path(self, executor: MCPToolExecutor) -> None:
+        """Test apply_fix when issue has no file path."""
+        issue = UnifiedIssue(
+            id="linting-issue",
+            scanner=ToolDomain.LINTING,
+            source_tool="ruff",
+            severity=Severity.LOW,
+            title="Linting issue",
+            description="Test",
+            file_path=None,
+        )
+        executor._issue_cache["linting-issue"] = issue
+
+        result = await executor.apply_fix("linting-issue")
+        assert "error" in result
+        assert "file path" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_apply_fix_success(
+        self, executor: MCPToolExecutor, project_root: Path
+    ) -> None:
+        """Test successful apply_fix."""
+        test_file = project_root / "test.py"
+        test_file.write_text("x=1")
+
+        issue = UnifiedIssue(
+            id="linting-issue",
+            scanner=ToolDomain.LINTING,
+            source_tool="ruff",
+            severity=Severity.LOW,
+            title="Linting issue",
+            description="Test",
+            file_path=test_file,
+        )
+        executor._issue_cache["linting-issue"] = issue
+
+        with patch.object(executor, '_run_linting', return_value=[]):
+            result = await executor.apply_fix("linting-issue")
+            assert result["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_apply_fix_exception(
+        self, executor: MCPToolExecutor, project_root: Path
+    ) -> None:
+        """Test apply_fix handles exceptions."""
+        test_file = project_root / "test.py"
+        test_file.write_text("x=1")
+
+        issue = UnifiedIssue(
+            id="linting-issue",
+            scanner=ToolDomain.LINTING,
+            source_tool="ruff",
+            severity=Severity.LOW,
+            title="Linting issue",
+            description="Test",
+            file_path=test_file,
+        )
+        executor._issue_cache["linting-issue"] = issue
+
+        with patch.object(executor, '_run_linting', side_effect=Exception("Failed")):
+            result = await executor.apply_fix("linting-issue")
+            assert "error" in result
+
+
+class TestMCPToolExecutorRunMethods:
+    """Tests for MCPToolExecutor _run_* methods."""
+
+    @pytest.fixture
+    def project_root(self, tmp_path: Path) -> Path:
+        """Create a temporary project root."""
+        return tmp_path
+
+    @pytest.fixture
+    def config(self) -> LucidScanConfig:
+        """Create a test configuration."""
+        return LucidScanConfig()
+
+    @pytest.fixture
+    def executor(
+        self, project_root: Path, config: LucidScanConfig
+    ) -> MCPToolExecutor:
+        """Create an executor instance."""
+        return MCPToolExecutor(project_root, config)
+
+    @pytest.fixture
+    def mock_context(self, project_root: Path) -> ScanContext:
+        """Create a mock scan context."""
+        return ScanContext(
+            project_root=project_root,
+            paths=[project_root],
+            enabled_domains=[ToolDomain.LINTING],
+        )
+
+    @pytest.mark.asyncio
+    async def test_run_linting_with_mock(
+        self, executor: MCPToolExecutor, mock_context: ScanContext
+    ) -> None:
+        """Test _run_linting with mocked linters."""
+        mock_linter = MagicMock()
+        mock_linter.lint.return_value = MagicMock(issues=[])
+
+        with patch('lucidscan.plugins.linters.discover_linter_plugins', return_value={'mock': lambda **k: mock_linter}):
+            result = await executor._run_linting(mock_context)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_run_linting_with_exception(
+        self, executor: MCPToolExecutor, mock_context: ScanContext
+    ) -> None:
+        """Test _run_linting handles exceptions."""
+        def create_failing_linter(**kwargs):
+            linter = MagicMock()
+            linter.lint.side_effect = Exception("Linter failed")
+            return linter
+
+        with patch('lucidscan.plugins.linters.discover_linter_plugins', return_value={'mock': create_failing_linter}):
+            result = await executor._run_linting(mock_context)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_run_type_checking_with_mock(
+        self, executor: MCPToolExecutor, mock_context: ScanContext
+    ) -> None:
+        """Test _run_type_checking with mocked checkers."""
+        mock_checker = MagicMock()
+        mock_checker.check.return_value = MagicMock(issues=[])
+
+        with patch('lucidscan.plugins.type_checkers.discover_type_checker_plugins', return_value={'mock': lambda **k: mock_checker}):
+            result = await executor._run_type_checking(mock_context)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_run_type_checking_with_exception(
+        self, executor: MCPToolExecutor, mock_context: ScanContext
+    ) -> None:
+        """Test _run_type_checking handles exceptions."""
+        def create_failing_checker(**kwargs):
+            checker = MagicMock()
+            checker.check.side_effect = Exception("Checker failed")
+            return checker
+
+        with patch('lucidscan.plugins.type_checkers.discover_type_checker_plugins', return_value={'mock': create_failing_checker}):
+            result = await executor._run_type_checking(mock_context)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_run_security_with_mock(
+        self, executor: MCPToolExecutor, mock_context: ScanContext
+    ) -> None:
+        """Test _run_security with mocked scanners."""
+        mock_scanner = MagicMock()
+        mock_scanner.domains = [ScanDomain.SAST]
+        mock_scanner.scan.return_value = MagicMock(issues=[])
+
+        with patch('lucidscan.plugins.scanners.discover_scanner_plugins', return_value={'mock': lambda: mock_scanner}):
+            result = await executor._run_security(mock_context)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_run_security_skips_non_sast(
+        self, executor: MCPToolExecutor, mock_context: ScanContext
+    ) -> None:
+        """Test _run_security skips non-SAST scanners."""
+        mock_scanner = MagicMock()
+        mock_scanner.domains = [ScanDomain.SCA]  # Not SAST
+        mock_scanner.scan.return_value = MagicMock(issues=[])
+
+        with patch('lucidscan.plugins.scanners.discover_scanner_plugins', return_value={'mock': lambda: mock_scanner}):
+            result = await executor._run_security(mock_context)
+            mock_scanner.scan.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_run_sca_with_mock(
+        self, executor: MCPToolExecutor, mock_context: ScanContext
+    ) -> None:
+        """Test _run_sca with mocked scanners."""
+        mock_scanner = MagicMock()
+        mock_scanner.domains = [ScanDomain.SCA]
+        mock_scanner.scan.return_value = MagicMock(issues=[])
+
+        with patch('lucidscan.plugins.scanners.discover_scanner_plugins', return_value={'mock': lambda: mock_scanner}):
+            result = await executor._run_sca(mock_context)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_run_iac_with_mock(
+        self, executor: MCPToolExecutor, mock_context: ScanContext
+    ) -> None:
+        """Test _run_iac with mocked scanners."""
+        mock_scanner = MagicMock()
+        mock_scanner.domains = [ScanDomain.IAC]
+        mock_scanner.scan.return_value = MagicMock(issues=[])
+
+        with patch('lucidscan.plugins.scanners.discover_scanner_plugins', return_value={'mock': lambda: mock_scanner}):
+            result = await executor._run_iac(mock_context)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_run_container_with_mock(
+        self, executor: MCPToolExecutor, mock_context: ScanContext
+    ) -> None:
+        """Test _run_container with mocked scanners."""
+        mock_scanner = MagicMock()
+        mock_scanner.domains = [ScanDomain.CONTAINER]
+        mock_scanner.scan.return_value = MagicMock(issues=[])
+
+        with patch('lucidscan.plugins.scanners.discover_scanner_plugins', return_value={'mock': lambda: mock_scanner}):
+            result = await executor._run_container(mock_context)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_run_testing_with_mock(
+        self, executor: MCPToolExecutor, mock_context: ScanContext
+    ) -> None:
+        """Test _run_testing with mocked runners."""
+        mock_runner = MagicMock()
+        mock_runner.run_tests.return_value = MagicMock(issues=[])
+
+        with patch('lucidscan.plugins.test_runners.discover_test_runner_plugins', return_value={'mock': lambda **k: mock_runner}):
+            result = await executor._run_testing(mock_context)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_run_testing_with_exception(
+        self, executor: MCPToolExecutor, mock_context: ScanContext
+    ) -> None:
+        """Test _run_testing handles exceptions."""
+        def create_failing_runner(**kwargs):
+            runner = MagicMock()
+            runner.run_tests.side_effect = Exception("Runner failed")
+            return runner
+
+        with patch('lucidscan.plugins.test_runners.discover_test_runner_plugins', return_value={'mock': create_failing_runner}):
+            result = await executor._run_testing(mock_context)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_run_coverage_with_mock(
+        self, executor: MCPToolExecutor, mock_context: ScanContext
+    ) -> None:
+        """Test _run_coverage with mocked plugins."""
+        mock_plugin = MagicMock()
+        mock_plugin.measure.return_value = MagicMock(issues=[])
+
+        with patch('lucidscan.plugins.coverage.discover_coverage_plugins', return_value={'mock': lambda **k: mock_plugin}):
+            result = await executor._run_coverage(mock_context)
+            assert result == []
+
+    @pytest.mark.asyncio
+    async def test_run_coverage_with_exception(
+        self, executor: MCPToolExecutor, mock_context: ScanContext
+    ) -> None:
+        """Test _run_coverage handles exceptions."""
+        def create_failing_plugin(**kwargs):
+            plugin = MagicMock()
+            plugin.measure.side_effect = Exception("Coverage failed")
+            return plugin
+
+        with patch('lucidscan.plugins.coverage.discover_coverage_plugins', return_value={'mock': create_failing_plugin}):
+            result = await executor._run_coverage(mock_context)
+            assert result == []
+
+
+class TestMCPToolExecutorLanguageDetection:
+    """Additional language detection tests."""
+
+    @pytest.fixture
+    def executor(self, tmp_path: Path) -> MCPToolExecutor:
+        """Create an executor instance."""
+        return MCPToolExecutor(tmp_path, LucidScanConfig())
+
+    def test_detect_language_java(self, executor: MCPToolExecutor) -> None:
+        """Test Java language detection."""
+        assert executor._detect_language(Path("Main.java")) == "java"
+
+    def test_detect_language_go(self, executor: MCPToolExecutor) -> None:
+        """Test Go language detection."""
+        assert executor._detect_language(Path("main.go")) == "go"
+
+    def test_detect_language_rust(self, executor: MCPToolExecutor) -> None:
+        """Test Rust language detection."""
+        assert executor._detect_language(Path("lib.rs")) == "rust"
+
+    def test_detect_language_ruby(self, executor: MCPToolExecutor) -> None:
+        """Test Ruby language detection."""
+        assert executor._detect_language(Path("app.rb")) == "ruby"
+
+    def test_detect_language_yaml(self, executor: MCPToolExecutor) -> None:
+        """Test YAML language detection."""
+        assert executor._detect_language(Path("config.yaml")) == "yaml"
+        assert executor._detect_language(Path("config.yml")) == "yaml"
+
+    def test_detect_language_json(self, executor: MCPToolExecutor) -> None:
+        """Test JSON language detection."""
+        assert executor._detect_language(Path("package.json")) == "json"
+
+    def test_get_domains_for_javascript(self, executor: MCPToolExecutor) -> None:
+        """Test domain selection for JavaScript."""
+        domains = executor._get_domains_for_language("javascript")
+        assert "linting" in domains
+        assert "type_checking" in domains
+        assert "testing" in domains
+        assert "coverage" in domains
+
+    def test_get_domains_for_yaml(self, executor: MCPToolExecutor) -> None:
+        """Test domain selection for YAML."""
+        domains = executor._get_domains_for_language("yaml")
+        assert "iac" in domains
+        assert "security" in domains
+
+    def test_get_domains_for_json(self, executor: MCPToolExecutor) -> None:
+        """Test domain selection for JSON."""
+        domains = executor._get_domains_for_language("json")
+        assert "iac" in domains
+        assert "security" in domains
+
+    def test_get_domains_for_unknown(self, executor: MCPToolExecutor) -> None:
+        """Test domain selection for unknown language."""
+        domains = executor._get_domains_for_language("unknown")
+        assert "linting" in domains
+        assert "security" in domains

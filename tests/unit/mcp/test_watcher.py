@@ -204,3 +204,233 @@ class TestFileWatcherAsync:
 
         watcher._on_file_change(git_file)
         assert len(watcher._pending_files) == 0
+
+    @pytest.mark.asyncio
+    async def test_on_file_change_adds_valid_file(
+        self, watcher: LucidScanFileWatcher, project_root: Path
+    ) -> None:
+        """Test that valid files are added to pending."""
+        src_dir = project_root / "src"
+        src_dir.mkdir()
+        py_file = src_dir / "main.py"
+        py_file.write_text("print('hello')")
+
+        watcher._on_file_change(py_file)
+        assert py_file in watcher._pending_files
+
+    @pytest.mark.asyncio
+    async def test_on_file_change_debounce_task_created(
+        self, watcher: LucidScanFileWatcher, project_root: Path
+    ) -> None:
+        """Test that debounce task is created on file change."""
+        src_dir = project_root / "src"
+        src_dir.mkdir()
+        py_file = src_dir / "main.py"
+        py_file.write_text("print('hello')")
+
+        # Simulate event loop
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
+            watcher._on_file_change(py_file)
+            assert watcher._debounce_task is not None
+            # Cancel the task to clean up
+            watcher._debounce_task.cancel()
+        finally:
+            loop.close()
+
+    @pytest.mark.asyncio
+    async def test_process_pending_with_files(
+        self, watcher: LucidScanFileWatcher, project_root: Path
+    ) -> None:
+        """Test processing pending files invokes scan."""
+        src_dir = project_root / "src"
+        src_dir.mkdir()
+        py_file = src_dir / "main.py"
+        py_file.write_text("print('hello')")
+
+        # Add file to pending
+        watcher._pending_files.add(py_file)
+
+        # Register callback
+        results = []
+        def callback(result):
+            results.append(result)
+        watcher.on_result(callback)
+
+        # Mock the executor scan
+        from unittest.mock import AsyncMock
+        watcher.executor.scan = AsyncMock(return_value={
+            "total_issues": 0,
+            "blocking": False,
+            "summary": "No issues",
+            "instructions": []
+        })
+
+        # Process pending (will debounce)
+        await watcher._process_pending()
+
+        # Verify callback was invoked
+        assert len(results) == 1
+        assert "changed_files" in results[0]
+
+    @pytest.mark.asyncio
+    async def test_process_pending_with_callback_error(
+        self, watcher: LucidScanFileWatcher, project_root: Path
+    ) -> None:
+        """Test processing handles callback errors gracefully."""
+        src_dir = project_root / "src"
+        src_dir.mkdir()
+        py_file = src_dir / "main.py"
+        py_file.write_text("print('hello')")
+
+        watcher._pending_files.add(py_file)
+
+        # Register callback that raises
+        def failing_callback(result):
+            raise Exception("Callback failed")
+        watcher.on_result(failing_callback)
+
+        # Mock the executor scan
+        from unittest.mock import AsyncMock
+        watcher.executor.scan = AsyncMock(return_value={
+            "total_issues": 0,
+            "blocking": False,
+            "summary": "No issues",
+            "instructions": []
+        })
+
+        # Should not raise
+        await watcher._process_pending()
+
+    @pytest.mark.asyncio
+    async def test_process_pending_with_scan_error(
+        self, watcher: LucidScanFileWatcher, project_root: Path
+    ) -> None:
+        """Test processing handles scan errors gracefully."""
+        src_dir = project_root / "src"
+        src_dir.mkdir()
+        py_file = src_dir / "main.py"
+        py_file.write_text("print('hello')")
+
+        watcher._pending_files.add(py_file)
+
+        # Register callback
+        results = []
+        def callback(result):
+            results.append(result)
+        watcher.on_result(callback)
+
+        # Mock the executor scan to raise
+        from unittest.mock import AsyncMock
+        watcher.executor.scan = AsyncMock(side_effect=Exception("Scan failed"))
+
+        # Should not raise
+        await watcher._process_pending()
+
+        # Should have error result
+        assert len(results) == 1
+        assert "error" in results[0]
+
+    @pytest.mark.asyncio
+    async def test_process_pending_file_outside_project(
+        self, watcher: LucidScanFileWatcher, tmp_path: Path
+    ) -> None:
+        """Test processing files outside project root."""
+        # Create a file outside project root
+        outside_file = tmp_path / "outside" / "file.py"
+        outside_file.parent.mkdir()
+        outside_file.write_text("print('hello')")
+
+        watcher._pending_files.add(outside_file)
+
+        from unittest.mock import AsyncMock
+        watcher.executor.scan = AsyncMock(return_value={
+            "total_issues": 0,
+            "blocking": False,
+            "summary": "No issues",
+            "instructions": []
+        })
+
+        # Should not raise
+        await watcher._process_pending()
+
+
+class TestFileChangeHandler:
+    """Tests for _FileChangeHandler class."""
+
+    def test_handler_on_modified(self, tmp_path: Path) -> None:
+        """Test handler on_modified event."""
+        from lucidscan.mcp.watcher import _FileChangeHandler
+        from watchdog.events import FileModifiedEvent
+
+        results = []
+        def callback(path):
+            results.append(path)
+
+        handler = _FileChangeHandler(callback)
+
+        # Create mock event
+        event = FileModifiedEvent(str(tmp_path / "test.py"))
+
+        handler.on_modified(event)
+
+        assert len(results) == 1
+        assert results[0] == Path(str(tmp_path / "test.py"))
+
+    def test_handler_on_modified_directory(self, tmp_path: Path) -> None:
+        """Test handler ignores directory modification."""
+        from lucidscan.mcp.watcher import _FileChangeHandler
+        from watchdog.events import DirModifiedEvent
+
+        results = []
+        def callback(path):
+            results.append(path)
+
+        handler = _FileChangeHandler(callback)
+
+        # Create mock directory event
+        event = DirModifiedEvent(str(tmp_path / "dir"))
+
+        handler.on_modified(event)
+
+        assert len(results) == 0
+
+    def test_handler_on_created(self, tmp_path: Path) -> None:
+        """Test handler on_created event."""
+        from lucidscan.mcp.watcher import _FileChangeHandler
+        from watchdog.events import FileCreatedEvent
+
+        results = []
+        def callback(path):
+            results.append(path)
+
+        handler = _FileChangeHandler(callback)
+
+        # Create mock event
+        event = FileCreatedEvent(str(tmp_path / "new.py"))
+
+        handler.on_created(event)
+
+        assert len(results) == 1
+        assert results[0] == Path(str(tmp_path / "new.py"))
+
+    def test_handler_on_created_directory(self, tmp_path: Path) -> None:
+        """Test handler ignores directory creation."""
+        from lucidscan.mcp.watcher import _FileChangeHandler
+        from watchdog.events import DirCreatedEvent
+
+        results = []
+        def callback(path):
+            results.append(path)
+
+        handler = _FileChangeHandler(callback)
+
+        # Create mock directory event
+        event = DirCreatedEvent(str(tmp_path / "newdir"))
+
+        handler.on_created(event)
+
+        assert len(results) == 0
