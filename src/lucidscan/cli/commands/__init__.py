@@ -43,6 +43,7 @@ from lucidscan.cli.commands.list_scanners import ListScannersCommand
 from lucidscan.cli.commands.scan import ScanCommand
 from lucidscan.cli.commands.init import InitCommand
 from lucidscan.cli.commands.serve import ServeCommand
+from lucidscan.cli.commands.setup import SetupCommand
 
 __all__ = [
     "Command",
@@ -51,4 +52,5 @@ __all__ = [
     "ScanCommand",
     "InitCommand",
     "ServeCommand",
+    "SetupCommand",
 ]

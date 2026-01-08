@@ -4,6 +4,8 @@ This module builds the argument parser with subcommands:
 - lucidscan init   - Initialize project configuration
 - lucidscan scan   - Run security/quality scans
 - lucidscan status - Show configuration and tool status
+- lucidscan serve  - Run as MCP server or file watcher
+- lucidscan setup  - Configure AI tools (Claude Code, Cursor)
 """
 
 from __future__ import annotations
@@ -267,6 +269,55 @@ def _build_serve_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
+def _build_setup_parser(subparsers: argparse._SubParsersAction) -> None:
+    """Build the 'setup' subcommand parser."""
+    setup_parser = subparsers.add_parser(
+        "setup",
+        help="Configure AI tools to use LucidScan.",
+        description=(
+            "Configure Claude Code, Cursor, or other MCP-compatible AI tools "
+            "to use LucidScan for code quality checks."
+        ),
+    )
+
+    # Tool selection
+    tool_group = setup_parser.add_argument_group("AI tools")
+    tool_group.add_argument(
+        "--claude-code",
+        action="store_true",
+        help="Configure Claude Code MCP settings.",
+    )
+    tool_group.add_argument(
+        "--cursor",
+        action="store_true",
+        help="Configure Cursor MCP settings.",
+    )
+    tool_group.add_argument(
+        "--all",
+        action="store_true",
+        dest="setup_all",
+        help="Configure all supported AI tools.",
+    )
+
+    # Options
+    options_group = setup_parser.add_argument_group("options")
+    options_group.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show what would be done without making changes.",
+    )
+    options_group.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing LucidScan configuration.",
+    )
+    options_group.add_argument(
+        "--remove",
+        action="store_true",
+        help="Remove LucidScan from the specified tool's configuration.",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build and return the argument parser for lucidscan CLI.
 
@@ -284,6 +335,8 @@ def build_parser() -> argparse.ArgumentParser:
             "  lucidscan scan --all              # Run all scans\n"
             "  lucidscan scan --lint --fix       # Lint and auto-fix\n"
             "  lucidscan status                  # Show tool status\n"
+            "  lucidscan serve --mcp             # Run MCP server\n"
+            "  lucidscan setup --claude-code     # Configure Claude Code\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -302,5 +355,6 @@ def build_parser() -> argparse.ArgumentParser:
     _build_scan_parser(subparsers)
     _build_status_parser(subparsers)
     _build_serve_parser(subparsers)
+    _build_setup_parser(subparsers)
 
     return parser

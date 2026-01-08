@@ -107,6 +107,8 @@ class CLIRunner:
             return self._handle_status(args)
         elif command == "serve":
             return self._handle_serve(args)
+        elif command == "setup":
+            return self._handle_setup(args)
         else:
             # No command specified - show help
             self.parser.print_help()
@@ -220,4 +222,21 @@ class CLIRunner:
             return serve_cmd.execute(args, config)
         except ImportError as e:
             LOGGER.error(f"Serve command not available: {e}")
+            return EXIT_INVALID_USAGE
+
+    def _handle_setup(self, args) -> int:
+        """Handle the setup command.
+
+        Args:
+            args: Parsed command-line arguments.
+
+        Returns:
+            Exit code.
+        """
+        try:
+            from lucidscan.cli.commands.setup import SetupCommand
+            setup_cmd = SetupCommand(version=self._version)
+            return setup_cmd.execute(args)
+        except ImportError as e:
+            LOGGER.error(f"Setup command not available: {e}")
             return EXIT_INVALID_USAGE
