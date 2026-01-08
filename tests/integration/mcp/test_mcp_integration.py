@@ -56,6 +56,7 @@ class TestMCPServerIntegration:
         assert "scanners" in result["available_tools"]
         assert "linters" in result["available_tools"]
 
+    @pytest.mark.asyncio
     async def test_check_file_with_real_file(
         self, project_root: Path, config: LucidScanConfig
     ) -> None:
@@ -70,6 +71,7 @@ class TestMCPServerIntegration:
         # Should return formatted result
         assert "total_issues" in result
 
+    @pytest.mark.asyncio
     async def test_scan_empty_project(
         self, project_root: Path, config: LucidScanConfig
     ) -> None:
@@ -175,6 +177,7 @@ unused_var = 42
         """Create test configuration."""
         return LucidScanConfig()
 
+    @pytest.mark.asyncio
     async def test_scan_and_format_workflow(
         self, project_with_issues: Path, config: LucidScanConfig
     ) -> None:
@@ -198,6 +201,7 @@ unused_var = 42
             assert "file" in instruction
             assert "fix_steps" in instruction
 
+    @pytest.mark.asyncio
     async def test_check_specific_file(
         self, project_with_issues: Path, config: LucidScanConfig
     ) -> None:
@@ -210,6 +214,7 @@ unused_var = 42
         assert "total_issues" in result
         assert isinstance(result["instructions"], list)
 
+    @pytest.mark.asyncio
     async def test_issue_caching_and_retrieval(
         self, project_with_issues: Path, config: LucidScanConfig
     ) -> None:
