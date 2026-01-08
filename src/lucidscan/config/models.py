@@ -52,6 +52,33 @@ class AIConfig:
 
 
 @dataclass
+class ToolConfig:
+    """Configuration for a single tool."""
+
+    name: str
+    config: Optional[str] = None  # Path to tool-specific config
+    strict: bool = False  # For type checkers
+    domains: List[str] = field(default_factory=list)  # For security scanners
+    options: Dict[str, Any] = field(default_factory=dict)  # Tool-specific options
+
+
+@dataclass
+class DomainPipelineConfig:
+    """Configuration for a pipeline domain (linting, type_checking, etc.)."""
+
+    enabled: bool = True
+    tools: List[ToolConfig] = field(default_factory=list)
+
+
+@dataclass
+class CoveragePipelineConfig:
+    """Coverage-specific pipeline configuration."""
+
+    enabled: bool = False
+    threshold: int = 80
+
+
+@dataclass
 class PipelineConfig:
     """Pipeline execution configuration.
 
@@ -65,6 +92,27 @@ class PipelineConfig:
     # Maximum parallel scanner workers (used when not in sequential mode)
     max_workers: int = 4
 
+    # Domain-specific configurations
+    linting: Optional[DomainPipelineConfig] = None
+    type_checking: Optional[DomainPipelineConfig] = None
+    testing: Optional[DomainPipelineConfig] = None
+    coverage: Optional[CoveragePipelineConfig] = None
+    security: Optional[DomainPipelineConfig] = None
+
+    def get_enabled_tool_names(self, domain: str) -> List[str]:
+        """Get list of enabled tool names for a domain.
+
+        Args:
+            domain: Domain name (linting, type_checking, testing, security).
+
+        Returns:
+            List of tool names, or empty list if domain not configured.
+        """
+        domain_config = getattr(self, domain, None)
+        if domain_config is None or not domain_config.enabled:
+            return []
+        return [tool.name for tool in domain_config.tools]
+
 
 @dataclass
 class ScannerDomainConfig:
@@ -77,6 +125,14 @@ class ScannerDomainConfig:
     enabled: bool = True
     plugin: str = ""  # Plugin name, e.g., "trivy", "snyk". Empty = use default.
     options: Dict[str, Any] = field(default_factory=dict)  # Plugin-specific options
+
+
+@dataclass
+class ProjectConfig:
+    """Project metadata configuration."""
+
+    name: str = ""
+    languages: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -96,6 +152,9 @@ class LucidScanConfig:
             plugin: trivy
             ignore_unfixed: true  # Plugin-specific, passed through
     """
+
+    # Project metadata
+    project: ProjectConfig = field(default_factory=ProjectConfig)
 
     # Core config (validated)
     fail_on: Optional[str] = None  # critical, high, medium, low

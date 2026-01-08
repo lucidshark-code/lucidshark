@@ -18,11 +18,15 @@ import yaml
 
 from lucidscan.config.models import (
     AIConfig,
+    CoveragePipelineConfig,
     DEFAULT_PLUGINS,
+    DomainPipelineConfig,
     LucidScanConfig,
     OutputConfig,
     PipelineConfig,
+    ProjectConfig,
     ScannerDomainConfig,
+    ToolConfig,
 )
 from lucidscan.config.validation import validate_config
 from lucidscan.core.logging import get_logger
@@ -245,6 +249,83 @@ def merge_configs(base: Dict[str, Any], overlay: Dict[str, Any]) -> Dict[str, An
     return result
 
 
+def _parse_tool_config(tool_data: Dict[str, Any]) -> ToolConfig:
+    """Parse a single tool configuration.
+
+    Args:
+        tool_data: Tool configuration dictionary.
+
+    Returns:
+        ToolConfig instance.
+    """
+    name = tool_data.get("name", "")
+    config_path = tool_data.get("config")
+    strict = tool_data.get("strict", False)
+    domains = tool_data.get("domains", [])
+
+    # Everything else is tool-specific options
+    options = {
+        k: v for k, v in tool_data.items()
+        if k not in ("name", "config", "strict", "domains")
+    }
+
+    return ToolConfig(
+        name=name,
+        config=config_path,
+        strict=strict,
+        domains=domains,
+        options=options,
+    )
+
+
+def _parse_domain_pipeline_config(
+    domain_data: Optional[Dict[str, Any]]
+) -> Optional[DomainPipelineConfig]:
+    """Parse a domain pipeline configuration (linting, type_checking, etc.).
+
+    Args:
+        domain_data: Domain configuration dictionary or None.
+
+    Returns:
+        DomainPipelineConfig instance or None if not configured.
+    """
+    if domain_data is None:
+        return None
+
+    enabled = domain_data.get("enabled", True)
+    tools_data = domain_data.get("tools", [])
+
+    tools = []
+    for tool_data in tools_data:
+        if isinstance(tool_data, dict):
+            tools.append(_parse_tool_config(tool_data))
+        elif isinstance(tool_data, str):
+            # Simple string format: just the tool name
+            tools.append(ToolConfig(name=tool_data))
+
+    return DomainPipelineConfig(enabled=enabled, tools=tools)
+
+
+def _parse_coverage_pipeline_config(
+    coverage_data: Optional[Dict[str, Any]]
+) -> Optional[CoveragePipelineConfig]:
+    """Parse coverage pipeline configuration.
+
+    Args:
+        coverage_data: Coverage configuration dictionary or None.
+
+    Returns:
+        CoveragePipelineConfig instance or None if not configured.
+    """
+    if coverage_data is None:
+        return None
+
+    return CoveragePipelineConfig(
+        enabled=coverage_data.get("enabled", False),
+        threshold=coverage_data.get("threshold", 80),
+    )
+
+
 def dict_to_config(data: Dict[str, Any]) -> LucidScanConfig:
     """Convert validated dict to typed LucidScanConfig.
 
@@ -289,6 +370,11 @@ def dict_to_config(data: Dict[str, Any]) -> LucidScanConfig:
     pipeline = PipelineConfig(
         enrichers=pipeline_data.get("enrichers", []),
         max_workers=pipeline_data.get("max_workers", 4),
+        linting=_parse_domain_pipeline_config(pipeline_data.get("linting")),
+        type_checking=_parse_domain_pipeline_config(pipeline_data.get("type_checking")),
+        testing=_parse_domain_pipeline_config(pipeline_data.get("testing")),
+        coverage=_parse_coverage_pipeline_config(pipeline_data.get("coverage")),
+        security=_parse_domain_pipeline_config(pipeline_data.get("security")),
     )
 
     # Parse AI config
@@ -307,7 +393,15 @@ def dict_to_config(data: Dict[str, Any]) -> LucidScanConfig:
         prompt_version=ai_data.get("prompt_version", "v1"),
     )
 
+    # Parse project config
+    project_data = data.get("project", {})
+    project = ProjectConfig(
+        name=project_data.get("name", ""),
+        languages=project_data.get("languages", []),
+    )
+
     return LucidScanConfig(
+        project=project,
         fail_on=data.get("fail_on"),
         ignore=data.get("ignore", []),
         output=output,

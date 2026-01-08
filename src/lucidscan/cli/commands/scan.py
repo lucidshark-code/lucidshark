@@ -23,6 +23,54 @@ from lucidscan.plugins.reporters import get_reporter_plugin
 
 LOGGER = get_logger(__name__)
 
+# Plugin to supported languages mapping
+PLUGIN_LANGUAGES = {
+    # Linters
+    "ruff": ["python"],
+    "eslint": ["javascript", "typescript"],
+    "biome": ["javascript", "typescript"],
+    "checkstyle": ["java"],
+    # Type checkers
+    "mypy": ["python"],
+    "pyright": ["python"],
+    "typescript": ["typescript"],
+    # Test runners
+    "pytest": ["python"],
+    "jest": ["javascript", "typescript"],
+    # Coverage
+    "coverage_py": ["python"],
+    "istanbul": ["javascript", "typescript"],
+}
+
+
+def _filter_plugins_by_language(
+    plugins: dict, project_languages: List[str]
+) -> dict:
+    """Filter plugins to only those supporting the project's languages.
+
+    Args:
+        plugins: Dict of plugin_name -> plugin_class.
+        project_languages: List of languages from project config.
+
+    Returns:
+        Filtered dict of plugins that support at least one project language.
+    """
+    if not project_languages:
+        # No language filter if not specified
+        return plugins
+
+    filtered = {}
+    for name, cls in plugins.items():
+        supported_langs = PLUGIN_LANGUAGES.get(name, [])
+        # Include plugin if it supports any of the project languages
+        if not supported_langs or any(
+            lang.lower() in [l.lower() for l in supported_langs]
+            for lang in project_languages
+        ):
+            filtered[name]= cls
+
+    return filtered
+
 
 class ScanCommand(Command):
     """Executes security scanning."""
@@ -214,12 +262,25 @@ class ScanCommand(Command):
 
         issues: List[UnifiedIssue] = []
 
-        # Discover and run linter plugins
+        # Discover all linter plugins
         linter_plugins = discover_linter_plugins()
 
         if not linter_plugins:
             LOGGER.warning("No linter plugins found")
             return issues
+
+        # Filter to only configured tools if config specifies them
+        configured_tools = context.config.pipeline.get_enabled_tool_names("linting")
+        if configured_tools:
+            linter_plugins = {
+                name: cls for name, cls in linter_plugins.items()
+                if name in configured_tools
+            }
+        else:
+            # Filter by project languages if no tools explicitly configured
+            linter_plugins = _filter_plugins_by_language(
+                linter_plugins, context.config.project.languages
+            )
 
         for name, plugin_class in linter_plugins.items():
             try:
@@ -256,12 +317,25 @@ class ScanCommand(Command):
 
         issues: List[UnifiedIssue] = []
 
-        # Discover and run type checker plugins
+        # Discover all type checker plugins
         type_checker_plugins = discover_type_checker_plugins()
 
         if not type_checker_plugins:
             LOGGER.warning("No type checker plugins found")
             return issues
+
+        # Filter to only configured tools if config specifies them
+        configured_tools = context.config.pipeline.get_enabled_tool_names("type_checking")
+        if configured_tools:
+            type_checker_plugins = {
+                name: cls for name, cls in type_checker_plugins.items()
+                if name in configured_tools
+            }
+        else:
+            # Filter by project languages if no tools explicitly configured
+            type_checker_plugins = _filter_plugins_by_language(
+                type_checker_plugins, context.config.project.languages
+            )
 
         for name, plugin_class in type_checker_plugins.items():
             try:
@@ -287,12 +361,25 @@ class ScanCommand(Command):
 
         issues: List[UnifiedIssue] = []
 
-        # Discover and run test runner plugins
+        # Discover all test runner plugins
         test_runner_plugins = discover_test_runner_plugins()
 
         if not test_runner_plugins:
             LOGGER.warning("No test runner plugins found")
             return issues
+
+        # Filter to only configured tools if config specifies them
+        configured_tools = context.config.pipeline.get_enabled_tool_names("testing")
+        if configured_tools:
+            test_runner_plugins = {
+                name: cls for name, cls in test_runner_plugins.items()
+                if name in configured_tools
+            }
+        else:
+            # Filter by project languages if no tools explicitly configured
+            test_runner_plugins = _filter_plugins_by_language(
+                test_runner_plugins, context.config.project.languages
+            )
 
         for name, plugin_class in test_runner_plugins.items():
             try:
@@ -331,12 +418,17 @@ class ScanCommand(Command):
 
         issues: List[UnifiedIssue] = []
 
-        # Discover and run coverage plugins
+        # Discover all coverage plugins
         coverage_plugins = discover_coverage_plugins()
 
         if not coverage_plugins:
             LOGGER.warning("No coverage plugins found")
             return issues
+
+        # Filter by project languages
+        coverage_plugins = _filter_plugins_by_language(
+            coverage_plugins, context.config.project.languages
+        )
 
         for name, plugin_class in coverage_plugins.items():
             try:
