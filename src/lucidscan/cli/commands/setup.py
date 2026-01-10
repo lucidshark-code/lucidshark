@@ -28,26 +28,47 @@ LUCIDSCAN_MCP_ARGS = ["serve", "--mcp"]
 LUCIDSCAN_CLAUDE_MD_INSTRUCTIONS = """
 ## Code Quality with LucidScan
 
-### After Code Changes (Fast Scans)
+IMPORTANT: You MUST run LucidScan after completing code changes. This is required, not optional.
 
-After writing or modifying ANY code file, run a scan with these domains:
-- `linting` - Style and code quality
-- `type_checking` - Type errors
-- `security` - SAST vulnerabilities
-- `sca` - Dependency vulnerabilities
+### When to Scan
 
-Use: `scan(domains=["linting", "type_checking", "security", "sca"], files=["path/to/file.py"])`
+Run a scan after completing a batch of related code changes (not after each individual edit):
+- After finishing a feature or fix (before reporting completion to user)
+- Before creating a commit
+- When the user asks you to check code quality
 
-### Before Commit (Full Scan)
+### Fast Scan (After Code Changes)
 
-Before committing, run a full scan including tests and coverage:
-- Use `scan(domains=["all"])` or `scan(domains=["linting", "type_checking", "security", "sca", "testing", "coverage"])`
+After completing code modifications, run:
+```
+scan(domains=["linting", "type_checking", "security", "sca"], files=["path/to/changed/files"])
+```
+
+Or for the whole project:
+```
+scan(domains=["linting", "type_checking", "security", "sca"])
+```
+
+### Full Scan (Before Commit)
+
+Before committing, run a full scan including tests:
+```
+scan(domains=["all"])
+```
 
 ### Fixing Issues
 
-1. Use `get_fix_instructions` for detailed guidance
-2. Use `apply_fix` for auto-fixable linting issues
-3. Re-scan after fixes
+1. Run `scan(fix=true)` to auto-fix linting issues
+2. Use `get_fix_instructions(issue_id)` for detailed guidance on specific issues
+3. Re-scan after manual fixes to verify resolution
+
+### Workflow Example
+
+1. Make code changes (multiple edits)
+2. When done with changes, run `scan(domains=["linting", "type_checking"], fix=true)`
+3. Fix any remaining issues that couldn't be auto-fixed
+4. Re-scan to verify all issues resolved
+5. Report completion to user
 """
 
 LUCIDSCAN_CLAUDE_MD_MARKER = "## Code Quality with LucidScan"
@@ -59,13 +80,49 @@ globs: ["**/*.py", "**/*.ts", "**/*.js", "**/*.tsx", "**/*.jsx"]
 alwaysApply: true
 ---
 
-# LucidScan Scanning Workflow
+# LucidScan Code Quality
 
-## After Code Changes
-Run fast scans: `scan(domains=["linting", "type_checking", "security", "sca"])`
+IMPORTANT: You MUST run LucidScan after completing code changes. This is required, not optional.
 
-## Before Commit
-Run full scan: `scan(domains=["all"])` including tests and coverage
+## When to Scan
+
+Run a scan after completing a batch of related code changes (not after each individual edit):
+- After finishing a feature or fix (before reporting completion to user)
+- Before creating a commit
+- When the user asks you to check code quality
+
+## Fast Scan (After Code Changes)
+
+After completing code modifications, run:
+```
+scan(domains=["linting", "type_checking", "security", "sca"], files=["path/to/changed/files"])
+```
+
+Or for the whole project:
+```
+scan(domains=["linting", "type_checking", "security", "sca"])
+```
+
+## Full Scan (Before Commit)
+
+Before committing, run a full scan including tests:
+```
+scan(domains=["all"])
+```
+
+## Fixing Issues
+
+1. Run `scan(fix=true)` to auto-fix linting issues
+2. Use `get_fix_instructions(issue_id)` for detailed guidance on specific issues
+3. Re-scan after manual fixes to verify resolution
+
+## Workflow Example
+
+1. Make code changes (multiple edits)
+2. When done with changes, run `scan(domains=["linting", "type_checking"], fix=true)`
+3. Fix any remaining issues that couldn't be auto-fixed
+4. Re-scan to verify all issues resolved
+5. Report completion to user
 """
 
 class SetupCommand(Command):
