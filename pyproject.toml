@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lucidscan"
-version = "0.5.4"
+version = "0.5.5"
 description = "LucidScan - The trust layer for AI-assisted development"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -98,6 +98,8 @@ typescript = "lucidscan.plugins.type_checkers.typescript:TypeScriptChecker"
 [project.entry-points."lucidscan.test_runners"]
 pytest = "lucidscan.plugins.test_runners.pytest:PytestRunner"
 jest = "lucidscan.plugins.test_runners.jest:JestRunner"
+karma = "lucidscan.plugins.test_runners.karma:KarmaRunner"
+playwright = "lucidscan.plugins.test_runners.playwright:PlaywrightRunner"
 
 [project.entry-points."lucidscan.coverage"]
 coverage_py = "lucidscan.plugins.coverage.coverage_py:CoveragePyPlugin"

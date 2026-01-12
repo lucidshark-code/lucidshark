@@ -111,6 +111,18 @@ TOOL_CONFIGS: Dict[str, Dict[str, Any]] = {
         "files": [".checkov.yaml", ".checkov.yml"],
     },
 
+    # JavaScript/TypeScript test runners
+    "jest": {
+        "files": ["jest.config.js", "jest.config.ts", "jest.config.mjs", "jest.config.cjs"],
+        "package_json_key": "jest",
+    },
+    "karma": {
+        "files": ["karma.conf.js", "karma.conf.ts", "karma.config.js", "karma.config.ts"],
+    },
+    "playwright": {
+        "files": ["playwright.config.js", "playwright.config.ts", "playwright.config.mjs"],
+    },
+
     # Other
     "pre-commit": {
         "files": [".pre-commit-config.yaml"],
