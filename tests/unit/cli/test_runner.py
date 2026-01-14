@@ -103,8 +103,8 @@ class TestCLIRunner:
         mock_init_cmd.execute.return_value = EXIT_SUCCESS
         runner._init_cmd = mock_init_cmd
 
-        # init uses positional path
-        result = runner.run(["init", str(tmp_path)])
+        # init configures AI tools, requires a tool flag
+        result = runner.run(["init", "--claude-code"])
         assert result == EXIT_SUCCESS
         mock_init_cmd.execute.assert_called_once()
 
@@ -269,27 +269,3 @@ class TestCLIRunner:
             ):
                 result = runner.run(["serve", str(tmp_path)])
                 assert result == EXIT_INVALID_USAGE
-
-    def test_handle_setup_command(self) -> None:
-        """Test setup command."""
-        runner = CLIRunner()
-
-        with patch("lucidscan.cli.commands.setup.SetupCommand") as mock_setup_class:
-            mock_setup = MagicMock()
-            mock_setup.execute.return_value = EXIT_SUCCESS
-            mock_setup_class.return_value = mock_setup
-
-            # setup doesn't take a path argument
-            result = runner.run(["setup", "--claude-code"])
-            assert result == EXIT_SUCCESS
-
-    def test_handle_setup_import_error(self) -> None:
-        """Test setup command with import error."""
-        runner = CLIRunner()
-
-        with patch(
-            "lucidscan.cli.commands.setup.SetupCommand",
-            side_effect=ImportError("setup not available"),
-        ):
-            result = runner.run(["setup", "--claude-code"])
-            assert result == EXIT_INVALID_USAGE

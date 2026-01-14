@@ -1,6 +1,6 @@
-"""Integration tests for the init CLI command.
+"""Integration tests for the autoconfigure CLI command.
 
-These tests verify the init command works correctly for project detection
+These tests verify the autoconfigure command works correctly for project detection
 and configuration generation.
 """
 
@@ -14,11 +14,11 @@ from lucidscan import cli
 from lucidscan.cli.exit_codes import EXIT_SUCCESS, EXIT_INVALID_USAGE
 
 
-class TestInitCommandBasic:
-    """Basic integration tests for init command."""
+class TestAutoconfigureCommandBasic:
+    """Basic integration tests for autoconfigure command."""
 
-    def test_init_creates_config_file(self) -> None:
-        """Test that init creates lucidscan.yml config file."""
+    def test_autoconfigure_creates_config_file(self) -> None:
+        """Test that autoconfigurecreates lucidscan.yml config file."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
 
@@ -27,7 +27,7 @@ class TestInitCommandBasic:
             test_file.write_text('"""Main module."""\n')
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "--non-interactive",
                 str(tmpdir_path),
             ])
@@ -38,8 +38,8 @@ class TestInitCommandBasic:
             config_path = tmpdir_path / "lucidscan.yml"
             assert config_path.exists()
 
-    def test_init_detects_python_project(self) -> None:
-        """Test that init detects Python projects correctly."""
+    def test_autoconfigure_detects_python_project(self) -> None:
+        """Test that autoconfiguredetects Python projects correctly."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
 
@@ -58,7 +58,7 @@ class TestInitCommandBasic:
             test_file.write_text('"""Main module."""\n')
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "--non-interactive",
                 str(tmpdir_path),
             ])
@@ -72,8 +72,8 @@ class TestInitCommandBasic:
             # Should contain ruff or mypy (Python tools)
             assert "ruff" in config_content or "mypy" in config_content
 
-    def test_init_detects_javascript_project(self) -> None:
-        """Test that init detects JavaScript projects correctly."""
+    def test_autoconfigure_detects_javascript_project(self) -> None:
+        """Test that autoconfiguredetects JavaScript projects correctly."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
 
@@ -91,7 +91,7 @@ class TestInitCommandBasic:
             test_file.write_text("console.log('hello');\n")
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "--non-interactive",
                 str(tmpdir_path),
             ])
@@ -106,10 +106,10 @@ class TestInitCommandBasic:
             assert "eslint" in config_content or "typescript" in config_content
 
 
-class TestInitCommandNonInteractive:
-    """Tests for init command non-interactive mode."""
+class TestAutoconfigureCommandNonInteractive:
+    """Tests for autoconfigure command non-interactive mode."""
 
-    def test_init_non_interactive_uses_defaults(self) -> None:
+    def test_autoconfigure_non_interactive_uses_defaults(self) -> None:
         """Test that --non-interactive uses opinionated defaults."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
@@ -119,7 +119,7 @@ class TestInitCommandNonInteractive:
             test_file.write_text('"""Main module."""\n')
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "--non-interactive",
                 str(tmpdir_path),
             ])
@@ -128,7 +128,7 @@ class TestInitCommandNonInteractive:
             config_path = tmpdir_path / "lucidscan.yml"
             assert config_path.exists()
 
-    def test_init_non_interactive_short_flag(self) -> None:
+    def test_autoconfigure_non_interactive_short_flag(self) -> None:
         """Test that -y flag works as non-interactive."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
@@ -137,7 +137,7 @@ class TestInitCommandNonInteractive:
             test_file.write_text('"""Main module."""\n')
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "-y",
                 str(tmpdir_path),
             ])
@@ -147,10 +147,10 @@ class TestInitCommandNonInteractive:
             assert config_path.exists()
 
 
-class TestInitCommandCIGeneration:
-    """Tests for init command CI configuration generation."""
+class TestAutoconfigureCommandCIGeneration:
+    """Tests for autoconfigure command CI configuration generation."""
 
-    def test_init_with_ci_flag_github(self) -> None:
+    def test_autoconfigure_with_ci_flag_github(self) -> None:
         """Test that --ci github generates GitHub Actions config."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
@@ -159,7 +159,7 @@ class TestInitCommandCIGeneration:
             test_file.write_text('"""Main module."""\n')
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "--non-interactive",
                 "--ci", "github",
                 str(tmpdir_path),
@@ -171,7 +171,7 @@ class TestInitCommandCIGeneration:
             ci_path = tmpdir_path / ".github" / "workflows" / "lucidscan.yml"
             assert ci_path.exists()
 
-    def test_init_with_ci_flag_gitlab(self) -> None:
+    def test_autoconfigure_with_ci_flag_gitlab(self) -> None:
         """Test that --ci gitlab generates GitLab CI config."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
@@ -180,7 +180,7 @@ class TestInitCommandCIGeneration:
             test_file.write_text('"""Main module."""\n')
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "--non-interactive",
                 "--ci", "gitlab",
                 str(tmpdir_path),
@@ -192,7 +192,7 @@ class TestInitCommandCIGeneration:
             ci_path = tmpdir_path / ".gitlab-ci.yml"
             assert ci_path.exists()
 
-    def test_init_with_ci_flag_bitbucket(self) -> None:
+    def test_autoconfigure_with_ci_flag_bitbucket(self) -> None:
         """Test that --ci bitbucket generates Bitbucket Pipelines config."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
@@ -201,7 +201,7 @@ class TestInitCommandCIGeneration:
             test_file.write_text('"""Main module."""\n')
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "--non-interactive",
                 "--ci", "bitbucket",
                 str(tmpdir_path),
@@ -214,10 +214,10 @@ class TestInitCommandCIGeneration:
             assert ci_path.exists()
 
 
-class TestInitCommandForce:
-    """Tests for init command force/overwrite behavior."""
+class TestAutoconfigureCommandForce:
+    """Tests for autoconfigure command force/overwrite behavior."""
 
-    def test_init_force_overwrites_existing(self) -> None:
+    def test_autoconfigure_force_overwrites_existing(self) -> None:
         """Test that --force overwrites existing lucidscan.yml."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
@@ -230,7 +230,7 @@ class TestInitCommandForce:
             test_file.write_text('"""Main module."""\n')
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "--non-interactive",
                 "--force",
                 str(tmpdir_path),
@@ -242,7 +242,7 @@ class TestInitCommandForce:
             new_content = config_path.read_text()
             assert "# Old config" not in new_content
 
-    def test_init_force_short_flag(self) -> None:
+    def test_autoconfigure_force_short_flag(self) -> None:
         """Test that -f flag works as force."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
@@ -254,7 +254,7 @@ class TestInitCommandForce:
             test_file.write_text('"""Main module."""\n')
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "-y",
                 "-f",
                 str(tmpdir_path),
@@ -262,7 +262,7 @@ class TestInitCommandForce:
 
             assert exit_code == EXIT_SUCCESS
 
-    def test_init_non_interactive_fails_without_force(self) -> None:
+    def test_autoconfigure_non_interactive_fails_without_force(self) -> None:
         """Test that non-interactive mode fails if config exists without --force."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
@@ -275,7 +275,7 @@ class TestInitCommandForce:
             test_file.write_text('"""Main module."""\n')
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "--non-interactive",
                 str(tmpdir_path),
             ])
@@ -284,21 +284,21 @@ class TestInitCommandForce:
             assert exit_code == EXIT_INVALID_USAGE
 
 
-class TestInitCommandErrors:
-    """Tests for init command error handling."""
+class TestAutoconfigureCommandErrors:
+    """Tests for autoconfigure command error handling."""
 
-    def test_init_invalid_path(self) -> None:
-        """Test that init fails with invalid directory path."""
+    def test_autoconfigure_invalid_path(self) -> None:
+        """Test that autoconfigurefails with invalid directory path."""
         exit_code = cli.main([
-            "init",
+            "autoconfigure",
             "--non-interactive",
             "/nonexistent/path/that/does/not/exist",
         ])
 
         assert exit_code == EXIT_INVALID_USAGE
 
-    def test_init_file_instead_of_directory(self) -> None:
-        """Test that init fails when given a file instead of directory."""
+    def test_autoconfigure_file_instead_of_directory(self) -> None:
+        """Test that autoconfigurefails when given a file instead of directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
 
@@ -307,7 +307,7 @@ class TestInitCommandErrors:
             test_file.write_text('"""Main module."""\n')
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "--non-interactive",
                 str(test_file),  # File, not directory
             ])
@@ -315,11 +315,11 @@ class TestInitCommandErrors:
             assert exit_code == EXIT_INVALID_USAGE
 
 
-class TestInitCommandDetectsExistingTools:
-    """Tests for init command detecting existing tools."""
+class TestAutoconfigureCommandDetectsExistingTools:
+    """Tests for autoconfigure command detecting existing tools."""
 
-    def test_init_detects_existing_ruff_config(self) -> None:
-        """Test that init detects existing ruff configuration."""
+    def test_autoconfigure_detects_existing_ruff_config(self) -> None:
+        """Test that autoconfiguredetects existing ruff configuration."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
 
@@ -337,7 +337,7 @@ class TestInitCommandDetectsExistingTools:
             test_file.write_text('"""Main module."""\n')
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "--non-interactive",
                 str(tmpdir_path),
             ])
@@ -349,8 +349,8 @@ class TestInitCommandDetectsExistingTools:
             config_content = config_path.read_text()
             assert "ruff" in config_content
 
-    def test_init_detects_existing_mypy_config(self) -> None:
-        """Test that init detects existing mypy configuration."""
+    def test_autoconfigure_detects_existing_mypy_config(self) -> None:
+        """Test that autoconfiguredetects existing mypy configuration."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
 
@@ -365,7 +365,7 @@ class TestInitCommandDetectsExistingTools:
             test_file.write_text('"""Main module."""\n')
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "--non-interactive",
                 str(tmpdir_path),
             ])
@@ -377,8 +377,8 @@ class TestInitCommandDetectsExistingTools:
             config_content = config_path.read_text()
             assert "mypy" in config_content
 
-    def test_init_detects_existing_eslint_config(self) -> None:
-        """Test that init detects existing eslint configuration."""
+    def test_autoconfigure_detects_existing_eslint_config(self) -> None:
+        """Test that autoconfiguredetects existing eslint configuration."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
 
@@ -394,7 +394,7 @@ class TestInitCommandDetectsExistingTools:
             test_file.write_text("console.log('hello');\n")
 
             exit_code = cli.main([
-                "init",
+                "autoconfigure",
                 "--non-interactive",
                 str(tmpdir_path),
             ])

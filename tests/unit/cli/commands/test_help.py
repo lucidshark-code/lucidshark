@@ -65,7 +65,7 @@ class TestGetHelpContent:
         assert "lucidscan scan" in content
         assert "lucidscan status" in content
         assert "lucidscan serve" in content
-        assert "lucidscan setup" in content
+        assert "lucidscan autoconfigure" in content
         assert "lucidscan help" in content
 
     def test_contains_mcp_tools(self) -> None:
