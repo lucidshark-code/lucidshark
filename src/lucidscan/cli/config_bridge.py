@@ -93,6 +93,8 @@ class ConfigBridge:
 
         If specific CLI flags (--sca, --sast, etc.) are provided, use those.
         If --all is provided, use domains from config file.
+        If other domain flags (--test, --coverage, --lint, --type-check) are set,
+        return empty list (user wants only those specific domains, not security).
         Otherwise, use domains enabled in config file.
 
         Args:
@@ -107,11 +109,12 @@ class ConfigBridge:
         sast = getattr(args, "sast", False)
         iac = getattr(args, "iac", False)
         container = getattr(args, "container", False)
+        all_domains = getattr(args, "all", False)
 
-        # Check if specific domain flags were set (not --all)
-        specific_domains_set = any([sca, sast, iac, container])
+        # Check if specific security domain flags were set
+        security_domains_set = any([sca, sast, iac, container])
 
-        if specific_domains_set:
+        if security_domains_set:
             # Specific CLI flags take precedence
             domains: List[ScanDomain] = []
             if sca:
@@ -123,6 +126,19 @@ class ConfigBridge:
             if container:
                 domains.append(ScanDomain.CONTAINER)
             return domains
+
+        # Check if user specified non-security domain flags (test, coverage, etc.)
+        # If so, they don't want security scanning unless explicitly requested
+        lint = getattr(args, "lint", False)
+        type_check = getattr(args, "type_check", False)
+        test = getattr(args, "test", False)
+        coverage = getattr(args, "coverage", False)
+        non_security_domains_set = any([lint, type_check, test, coverage])
+
+        if non_security_domains_set and not all_domains:
+            # User explicitly requested non-security domains only
+            # Don't run security scanners unless explicitly requested
+            return []
 
         # --all or no flags: use config file settings
         # This respects what's actually configured in lucidscan.yml

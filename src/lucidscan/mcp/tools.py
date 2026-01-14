@@ -59,21 +59,24 @@ class MCPToolExecutor:
         # Use DomainRunner with debug logging for MCP (less verbose)
         self._runner = DomainRunner(project_root, config, log_level="debug")
 
-    def _bootstrap_security_tools(self) -> None:
+    def _bootstrap_security_tools(self, security_domains: List[ScanDomain]) -> None:
         """Ensure security tool binaries are available.
 
         Downloads tools if not already present. Called before first scan
         to ensure tools are ready before async scan operations begin.
+
+        Args:
+            security_domains: List of security domains that need to be bootstrapped.
         """
         if self._tools_bootstrapped:
             return
 
         from lucidscan.plugins.scanners import get_scanner_plugin
 
-        # Get unique scanners needed based on config
+        # Get unique scanners needed based on requested security domains only
         scanners_to_bootstrap: set[str] = set()
-        for domain in ["sca", "sast", "iac"]:
-            plugin_name = self.config.get_plugin_for_domain(domain)
+        for domain in security_domains:
+            plugin_name = self.config.get_plugin_for_domain(domain.value)
             if plugin_name:
                 scanners_to_bootstrap.add(plugin_name)
 
@@ -114,7 +117,7 @@ class MCPToolExecutor:
         security_domains = [d for d in enabled_domains if isinstance(d, ScanDomain)]
         if security_domains and not self._tools_bootstrapped:
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, self._bootstrap_security_tools)
+            await loop.run_in_executor(None, self._bootstrap_security_tools, security_domains)
 
         # Create stream handler for progress output
         # Writes to stderr so user sees live output during MCP scans
@@ -240,9 +243,16 @@ class MCPToolExecutor:
             return {"error": "Issue has no file path for fixing"}
 
         try:
+            # Create stream handler for progress output (writes to stderr)
+            stream_handler = CLIStreamHandler(
+                output=sys.stderr,
+                show_output=True,
+                use_rich=False,
+            )
             context = self._build_context(
                 [ToolDomain.LINTING],
                 files=[str(issue.file_path)],
+                stream_handler=stream_handler,
             )
             await self._run_linting(context, fix=True)
             return {

@@ -174,7 +174,7 @@ class PytestRunner(TestRunnerPlugin):
             cmd = [
                 str(binary),
                 "--tb=short",
-                "-q",
+                "-v",
                 "--json-report",
                 f"--json-report-file={report_file}",
             ]
@@ -227,7 +227,7 @@ class PytestRunner(TestRunnerPlugin):
             cmd = [
                 str(binary),
                 "--tb=short",
-                "-q",
+                "-v",
                 f"--junit-xml={report_file}",
             ]
 
