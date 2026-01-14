@@ -26,8 +26,7 @@ What developers need is a **trust layer** that:
 
 1. **Auto-configures** quality tools for any codebase with a single command
 2. **Unifies** linting, security, testing, and coverage in one pipeline
-3. **Integrates with CI** so the same checks run locally and in pipelines
-4. **Feeds back to AI agents** in real-time, instructing them to fix issues automatically
+3. **Feeds back to AI agents** in real-time, instructing them to fix issues automatically
 
 This trust layer doesn't replace existing tools — it orchestrates them and bridges the gap between deterministic analysis and AI-assisted development.
 
@@ -83,7 +82,7 @@ The AI-assisted setup:
 Alternative CLI approach:
 ```bash
 lucidscan autoconfigure              # Interactive
-lucidscan autoconfigure --ci github  # With CI config
+lucidscan autoconfigure --non-interactive  # Use defaults
 ```
 
 ### 2.2 Unified Pipeline
@@ -98,7 +97,7 @@ A single configuration file controls:
 | **Testing** | pytest, Jest, Go test | Test failures |
 | **Coverage** | coverage.py, Istanbul, Go cover | Coverage gaps |
 
-All results normalized to a common schema. One exit code for CI gates.
+All results normalized to a common schema. One exit code for automation.
 
 ### 2.3 AI Agent Integration
 
@@ -117,19 +116,6 @@ When enabled:
 - Issues are formatted as structured instructions for the AI
 - The AI receives: "Fix issue X in file Y by doing Z"
 - Automatic feedback loop until code passes
-
-### 2.4 CI Integration
-
-```bash
-lucidscan autoconfigure --ci github
-```
-
-Generates ready-to-use CI configuration:
-- GitHub Actions workflow
-- GitLab CI template
-- Bitbucket Pipelines configuration
-
-Same checks run locally and in CI. No configuration drift.
 
 ---
 
@@ -153,7 +139,7 @@ LucidScan is **CLI-first**:
 - No hosted service
 - No accounts or authentication
 
-Results are local. CI integration uses standard mechanisms (exit codes, SARIF).
+Results are local. Output uses standard mechanisms (exit codes, SARIF).
 
 ### 3.3 Not AI-Driven
 
@@ -163,12 +149,6 @@ AI does **not** make decisions:
 - AI cannot skip checks
 
 LucidScan uses AI to **explain and fix** issues, not to decide what matters.
-
-### 3.4 Not a Replacement for CI
-
-LucidScan generates CI configuration but does **not** replace CI systems:
-- GitHub Actions, GitLab CI, Bitbucket Pipelines remain the execution environment
-- LucidScan is a command that runs within those systems
 
 ---
 
@@ -187,7 +167,6 @@ Developers who:
 ### 4.2 Secondary: DevOps Engineers
 
 Engineers who:
-- Set up CI/CD pipelines for teams
 - Want consistent quality gates across projects
 - Need to onboard new projects quickly
 - Manage tool versions and configurations
@@ -218,7 +197,6 @@ Automatically detect:
 - **Package managers**: npm, pip, cargo, go.mod, etc.
 - **Frameworks**: React, Django, FastAPI, Express, etc.
 - **Existing tools**: .eslintrc, pyproject.toml, ruff.toml, etc.
-- **CI systems**: .github/workflows, .gitlab-ci.yml, bitbucket-pipelines.yml
 
 Detection MUST be fast (<5 seconds for typical repos).
 
@@ -234,7 +212,6 @@ Detected: Python 3.11, FastAPI, pytest
 ? Security scanner: [Trivy + OpenGrep (recommended)] / Trivy only / Skip
 ? Test runner: [pytest (detected)] / Skip
 ? Coverage threshold: [80%] / Custom / Skip
-? CI platform: [GitHub Actions (detected)] / GitLab / Bitbucket / Skip
 ```
 
 Questions MUST:
@@ -300,52 +277,10 @@ ignore:
   - "**/.venv/**"
 ```
 
-#### 5.1.4 CI Configuration
-
-When a CI platform is detected or selected, generate/update CI configuration:
-
-**GitHub Actions** (`.github/workflows/lucidscan.yml`):
-```yaml
-name: LucidScan
-
-on: [push, pull_request]
-
-jobs:
-  quality:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install lucidscan
-      - run: lucidscan scan --ci
-```
-
-**GitLab CI** (merge into `.gitlab-ci.yml`):
-```yaml
-lucidscan:
-  image: python:3.11
-  script:
-    - pip install lucidscan
-    - lucidscan scan --ci
-```
-
-**Bitbucket Pipelines** (merge into `bitbucket-pipelines.yml`):
-```yaml
-pipelines:
-  default:
-    - step:
-        name: LucidScan
-        script:
-          - pip install lucidscan
-          - lucidscan scan --ci
-```
-
 ### 5.2 The `scan` Command
 
 ```bash
-lucidscan scan [--ci] [--fix] [--format FORMAT]
+lucidscan scan [--fix] [--format FORMAT]
 ```
 
 #### 5.2.1 Pipeline Execution
@@ -642,8 +577,7 @@ Binaries cached at `~/.lucidscan/`:
 ├─────────────────────────────────────────────────────────────────┤
 │  Output Layer                                                   │
 │  ├── Reporters:   JSON, Table, SARIF, Summary                   │
-│  ├── AI Format:   Structured instructions for AI agents         │
-│  └── CI Format:   Annotations, exit codes                       │
+│  └── AI Format:   Structured instructions for AI agents         │
 ├─────────────────────────────────────────────────────────────────┤
 │  AI Integration Layer                                           │
 │  ├── MCP Server:  Tools for AI agents to invoke                 │
@@ -704,7 +638,6 @@ class ProjectContext:
     package_managers: list[str]    # ["pip", "npm"]
     frameworks: list[str]          # ["fastapi", "react"]
     existing_tools: dict[str, Path]  # {"ruff": "pyproject.toml"}
-    ci_systems: list[str]          # ["github_actions"]
     git_root: Path | None
 ```
 
@@ -712,7 +645,6 @@ Detection strategy:
 1. Scan for marker files (package.json, pyproject.toml, go.mod, etc.)
 2. Parse lockfiles to identify dependencies
 3. Check for existing tool configurations
-4. Identify CI configuration files
 
 ### 6.4 MCP Server
 
@@ -965,13 +897,11 @@ lucidscan autoconfigure [OPTIONS]
 Auto-configure LucidScan for the current project (detect languages, generate lucidscan.yml).
 
 Options:
-  --ci PLATFORM        Generate CI config (github, gitlab, bitbucket)
   --non-interactive    Use defaults without prompting
   --force              Overwrite existing configuration
 
 Examples:
   lucidscan autoconfigure                    # Interactive setup
-  lucidscan autoconfigure --ci github        # With GitHub Actions
   lucidscan autoconfigure --non-interactive  # Use all defaults
 ```
 
@@ -986,7 +916,6 @@ Options:
   --domain, -d DOMAIN  Run specific domain (linting, security, testing, etc.)
   --fix                Apply auto-fixes where possible
   --stream             Stream tool output in real-time as scans run
-  --ci                 CI mode (non-interactive, annotations)
   --format FORMAT      Output format (table, json, sarif, ai)
   --fail-on LEVEL      Override fail threshold
   --files FILE...      Check specific files only
@@ -1095,85 +1024,7 @@ Examples:
 
 ---
 
-## 10. CI Integration
-
-### 10.1 GitHub Actions
-
-Generated workflow (`.github/workflows/lucidscan.yml`):
-
-```yaml
-name: LucidScan
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-
-jobs:
-  quality:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install LucidScan
-        run: pip install lucidscan
-
-      - name: Run LucidScan
-        run: lucidscan scan --ci --format sarif --output results.sarif
-
-      - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: results.sarif
-```
-
-### 10.2 GitLab CI
-
-Generated template (merged into `.gitlab-ci.yml`):
-
-```yaml
-lucidscan:
-  stage: test
-  image: python:3.11
-  script:
-    - pip install lucidscan
-    - lucidscan scan --ci
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-```
-
-### 10.3 Bitbucket Pipelines
-
-Generated template (merged into `bitbucket-pipelines.yml`):
-
-```yaml
-definitions:
-  steps:
-    - step: &lucidscan
-        name: LucidScan
-        image: python:3.11
-        script:
-          - pip install lucidscan
-          - lucidscan scan --ci
-
-pipelines:
-  default:
-    - step: *lucidscan
-  pull-requests:
-    '**':
-      - step: *lucidscan
-```
-
----
-
-## 11. Development Phases
+## 10. Development Phases
 
 ### Phase 1: Foundation
 
@@ -1190,13 +1041,12 @@ pipelines:
   - [ ] OpenGrep (SAST)
   - [ ] pytest (Python testing)
 - [ ] Reporters: Table, JSON, SARIF
-- [ ] CI config generation (GitHub Actions)
 
 **Milestone**: `lucidscan init && lucidscan scan` works end-to-end
 
 ### Phase 2: Expanded Coverage
 
-**Goal**: More tools and CI platforms
+**Goal**: More tools
 
 - [ ] Additional tool plugins:
   - [ ] Biome (JS/TS)
@@ -1204,9 +1054,6 @@ pipelines:
   - [ ] golangci-lint (Go)
   - [ ] Jest (JS/TS testing)
   - [ ] coverage.py (Python coverage)
-- [ ] CI platforms:
-  - [ ] GitLab CI
-  - [ ] Bitbucket Pipelines
 - [ ] Auto-fix mode (`--fix`)
 
 **Milestone**: Support for Python, JavaScript/TypeScript, Go projects
@@ -1263,4 +1110,3 @@ Full JSON Schema for `lucidscan.yml` available at:
 | `LUCIDSCAN_CONFIG` | Path to config file |
 | `LUCIDSCAN_CACHE_DIR` | Cache directory (default: `~/.lucidscan`) |
 | `LUCIDSCAN_NO_COLOR` | Disable colored output |
-| `LUCIDSCAN_CI` | Force CI mode |

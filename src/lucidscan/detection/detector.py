@@ -9,7 +9,6 @@ from typing import Optional
 from lucidscan.detection.languages import detect_languages, LanguageInfo
 from lucidscan.detection.frameworks import detect_frameworks
 from lucidscan.detection.tools import detect_tools, ToolConfig
-from lucidscan.detection.ci import detect_ci_systems
 
 
 @dataclass
@@ -34,9 +33,6 @@ class ProjectContext:
 
     existing_tools: dict[str, ToolConfig] = field(default_factory=dict)
     """Existing tool configurations found in the project."""
-
-    ci_systems: list[str] = field(default_factory=list)
-    """Detected CI/CD systems (github_actions, gitlab_ci, etc.)."""
 
     test_frameworks: list[str] = field(default_factory=list)
     """Detected test frameworks (pytest, jest, etc.)."""
@@ -98,16 +94,12 @@ class CodebaseDetector:
         # Detect existing tool configurations
         existing_tools = detect_tools(project_root)
 
-        # Detect CI systems
-        ci_systems = detect_ci_systems(project_root)
-
         return ProjectContext(
             root=project_root,
             languages=languages,
             package_managers=package_managers,
             frameworks=frameworks,
             existing_tools=existing_tools,
-            ci_systems=ci_systems,
             test_frameworks=test_frameworks,
         )
 

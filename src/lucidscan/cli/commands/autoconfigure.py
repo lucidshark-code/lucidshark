@@ -5,14 +5,13 @@ Opinionated project autoconfiguration that:
 2. Auto-selects recommended tools when none are detected
 3. Installs tools to package manager files
 4. Generates lucidscan.yml configuration
-5. Optionally generates CI configuration
 """
 
 from __future__ import annotations
 
 from argparse import Namespace
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
     from lucidscan.config.models import LucidScanConfig
@@ -24,8 +23,7 @@ from lucidscan.cli.commands import Command
 from lucidscan.cli.exit_codes import EXIT_SUCCESS, EXIT_INVALID_USAGE
 from lucidscan.core.logging import get_logger
 from lucidscan.detection import CodebaseDetector, ProjectContext
-from lucidscan.detection.ci import get_ci_display_name
-from lucidscan.generation import ConfigGenerator, CIGenerator, InitChoices, PackageInstaller
+from lucidscan.generation import ConfigGenerator, InitChoices, PackageInstaller
 
 LOGGER = get_logger(__name__)
 
@@ -102,14 +100,6 @@ class AutoconfigureCommand(Command):
         # Get opinionated choices (auto-select tools)
         choices = self._get_opinionated_choices(context, args)
 
-        # In interactive mode, only ask about CI platform
-        if not args.non_interactive:
-            ci_choice, cancelled = self._prompt_ci_platform(context, args)
-            if cancelled:
-                print("\nAborted.")
-                return EXIT_SUCCESS
-            choices.ci_platform = ci_choice
-
         # Display what will be configured
         print("\nConfiguration:")
         self._display_choices(choices, context)
@@ -151,26 +141,10 @@ class AutoconfigureCommand(Command):
         config_path = config_gen.write(context, choices)
         print(f"  Created {config_path.relative_to(project_root)}")
 
-        # Generate CI config if requested
-        ci_path = None
-        if choices.ci_platform:
-            ci_gen = CIGenerator()
-            if choices.ci_platform == "github":
-                ci_path = ci_gen.write_github_actions(context, choices)
-            elif choices.ci_platform == "gitlab":
-                ci_path = ci_gen.write_gitlab_ci(context, choices)
-            elif choices.ci_platform == "bitbucket":
-                ci_path = ci_gen.write_bitbucket_pipelines(context, choices)
-
-            if ci_path:
-                print(f"  Created {ci_path.relative_to(project_root)}")
-
         # Summary
         print("\nDone! Next steps:")
         print("  1. Review the generated lucidscan.yml")
         print("  2. Run 'lucidscan scan --all' to test the configuration")
-        if ci_path:
-            print("  3. Commit the CI configuration to enable automated checks")
 
         return EXIT_SUCCESS
 
@@ -200,11 +174,6 @@ class AutoconfigureCommand(Command):
         if context.existing_tools:
             tools = list(context.existing_tools.keys())[:5]
             print(f"  Tools:        {', '.join(tools)}")
-
-        # CI systems
-        if context.ci_systems:
-            ci_names = [get_ci_display_name(ci) for ci in context.ci_systems]
-            print(f"  CI:           {', '.join(ci_names)}")
 
         print()
 
@@ -268,78 +237,7 @@ class AutoconfigureCommand(Command):
         elif context.has_javascript:
             choices.test_runner = JS_DEFAULT_TEST_RUNNER
 
-        # CI from args or detection
-        if args.ci:
-            choices.ci_platform = args.ci
-        elif context.ci_systems:
-            ci_map = {
-                "github_actions": "github",
-                "gitlab_ci": "gitlab",
-                "bitbucket_pipelines": "bitbucket",
-            }
-            for ci in context.ci_systems:
-                if ci in ci_map:
-                    choices.ci_platform = ci_map[ci]
-                    break
-
         return choices
-
-    def _prompt_ci_platform(
-        self,
-        context: ProjectContext,
-        args: Namespace,
-    ) -> Tuple[Optional[str], bool]:
-        """Prompt user for CI platform choice.
-
-        This is the only prompt in interactive mode - everything else
-        is auto-selected.
-
-        Args:
-            context: Detected project context.
-            args: Parsed command-line arguments.
-
-        Returns:
-            Tuple of (CI platform string or None, cancelled flag).
-            cancelled is True if user pressed Ctrl+C.
-        """
-        if args.ci:
-            return args.ci, False
-
-        options = []
-
-        # Check if CI systems are already detected
-        if "github_actions" in context.ci_systems:
-            options.append(questionary.Choice("GitHub Actions (detected)", value="github"))
-        else:
-            options.append(questionary.Choice("GitHub Actions (recommended)", value="github"))
-
-        if "gitlab_ci" in context.ci_systems:
-            options.append(questionary.Choice("GitLab CI (detected)", value="gitlab"))
-        else:
-            options.append(questionary.Choice("GitLab CI", value="gitlab"))
-
-        if "bitbucket_pipelines" in context.ci_systems:
-            options.append(questionary.Choice("Bitbucket Pipelines (detected)", value="bitbucket"))
-        else:
-            options.append(questionary.Choice("Bitbucket Pipelines", value="bitbucket"))
-
-        options.append(questionary.Choice("Skip CI configuration", value="skip"))
-
-        result = questionary.select(
-            "CI platform:",
-            choices=options,
-            style=STYLE,
-        ).ask()
-
-        # result is None if user pressed Ctrl+C
-        if result is None:
-            return None, True
-
-        # "skip" means user chose to skip CI
-        if result == "skip":
-            return None, False
-
-        return result, False
 
     def _display_choices(self, choices: InitChoices, context: ProjectContext) -> None:
         """Display the tools that will be configured."""
@@ -359,9 +257,6 @@ class AutoconfigureCommand(Command):
         if choices.test_runner:
             status = "(detected)" if choices.test_runner in context.test_frameworks else "(will install)"
             items.append(f"  Test runner:  {choices.test_runner} {status}")
-
-        if choices.ci_platform:
-            items.append(f"  CI platform:  {choices.ci_platform}")
 
         for item in items:
             print(item)

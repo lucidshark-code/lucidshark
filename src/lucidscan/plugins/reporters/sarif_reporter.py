@@ -1,4 +1,4 @@
-"""SARIF reporter plugin for IDE and CI integration.
+"""SARIF reporter plugin for IDE integration.
 
 Outputs scan results in SARIF 2.1.0 format, compatible with:
 - GitHub Security tab (Code Scanning)

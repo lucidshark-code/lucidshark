@@ -99,44 +99,7 @@ Configures both Claude Code and Cursor.
 | **Testing** | pytest, Jest, Karma, Playwright | Test failures |
 | **Coverage** | coverage.py, Istanbul | Coverage gaps |
 
-All results are normalized to a common format. One exit code for CI.
-
-## CI Integration
-
-### GitHub Actions
-
-```yaml
-name: Quality
-
-on: [push, pull_request]
-
-jobs:
-  quality:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: pip install lucidscan
-      - run: lucidscan scan --all
-```
-
-### With SARIF Upload (GitHub Code Scanning)
-
-```yaml
-- run: lucidscan scan --all --format sarif > results.sarif
-- uses: github/codeql-action/upload-sarif@v3
-  with:
-    sarif_file: results.sarif
-```
-
-### GitLab CI
-
-```yaml
-lucidscan:
-  image: python:3.11
-  script:
-    - pip install lucidscan
-    - lucidscan scan --all
-```
+All results are normalized to a common format.
 
 ## Configuration
 

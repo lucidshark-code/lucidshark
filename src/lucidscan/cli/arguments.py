@@ -104,11 +104,6 @@ def _build_autoconfigure_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     autoconfigure_parser.add_argument(
-        "--ci",
-        choices=["github", "gitlab", "bitbucket"],
-        help="Generate CI configuration for the specified platform.",
-    )
-    autoconfigure_parser.add_argument(
         "--non-interactive", "-y",
         action="store_true",
         help="Use defaults without prompting (non-interactive mode).",
@@ -368,7 +363,6 @@ def build_parser() -> argparse.ArgumentParser:
             "  lucidscan init --claude-code       # Configure Claude Code\n"
             "  lucidscan init --cursor            # Configure Cursor\n"
             "  lucidscan autoconfigure            # Auto-configure project\n"
-            "  lucidscan autoconfigure --ci github # With GitHub Actions\n"
             "  lucidscan scan --sca               # Scan dependencies\n"
             "  lucidscan scan --all               # Run all scans\n"
             "  lucidscan scan --lint --fix        # Lint and auto-fix\n"

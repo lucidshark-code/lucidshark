@@ -18,7 +18,7 @@ LucidScan unifies code quality tools (linting, type checking, security, testing,
     ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
     │ Security     │    │ ✅ init cmd  │    │ ✅ ESLint    │    │ ✅ pytest    │    │ ✅ MCP server│    │ Docs         │
     │ scanning     │    │ ✅ Detection │    │ ✅ Biome     │    │ ✅ Jest      │    │ ✅ Watcher   │    │ Performance  │
-    │ (Trivy,      │    │ ✅ CI gen    │    │ ✅ mypy      │    │ ✅ coverage  │    │ ✅ AI instruct│    │ Stability    │
+    │ (Trivy,      │    │ ✅ Ruff      │    │ ✅ mypy      │    │ ✅ coverage  │    │ ✅ AI instruct│    │ Stability    │
     │ OpenGrep,    │    │ ✅ Ruff      │    │ ✅ pyright   │    │ ✅ istanbul  │    │ ✅ format    │    │              │
     │ Checkov)     │    │ ✅ Plugins   │    │ ✅ tsc       │    │ ✅ threshold │    │              │    │              │
     └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
@@ -40,7 +40,6 @@ LucidScan is now a complete code quality platform with AI integration:
 | Reporters | ✅ JSON, Table, SARIF, Summary |
 | `lucidscan init` command | ✅ Complete |
 | Codebase detection | ✅ Complete |
-| CI config generation | ✅ GitHub, GitLab, Bitbucket |
 | Project-local tool storage | ✅ `.lucidscan/` folder |
 | **Linter plugins** | ✅ Ruff, ESLint, Biome, Checkstyle |
 | **Type checker plugins** | ✅ mypy, pyright, TypeScript |
@@ -77,8 +76,7 @@ lucidscan serve --watch              # File watcher mode
 | Feature | Status | Description |
 |---------|--------|-------------|
 | **`lucidscan init`** | ✅ | Interactive project setup that detects your stack and generates config |
-| **Codebase detection** | ✅ | Auto-detect languages, frameworks, existing tools, CI systems |
-| **CI config generation** | ✅ | Generate GitHub Actions, GitLab CI, Bitbucket Pipelines configs |
+| **Codebase detection** | ✅ | Auto-detect languages, frameworks, existing tools |
 | **Plugin restructure** | ✅ | Unified `plugins/` package with scanners, linters, reporters, enrichers |
 | **CLI subcommands** | ✅ | `lucidscan init`, `lucidscan scan`, `lucidscan status` |
 | **Project-local tools** | ✅ | Tools downloaded to `.lucidscan/` in project root |
@@ -95,22 +93,18 @@ Detected:
   Languages:    Python 3.11
   Frameworks:   FastAPI
   Tools:        pytest, ruff (pyproject.toml)
-  CI:           GitHub Actions
 
 ? Linter         [Ruff] ✓
 ? Type checker   [mypy]
 ? Security       [Trivy + OpenGrep]
-? CI platform    [GitHub Actions] ✓
 
 Generated:
-  ✓ .lucidscan.yml
-  ✓ .github/workflows/lucidscan.yml
+  ✓ lucidscan.yml
 ```
 
 ### Success Criteria
 
 - [x] `lucidscan init` works for Python and JavaScript projects
-- [x] CI config generation for GitHub, GitLab, Bitbucket
 - [x] Existing security scanning continues to work
 - [x] Plugin architecture unified under `plugins/` package
 - [x] Ruff linter with `--lint` and `--fix` flags

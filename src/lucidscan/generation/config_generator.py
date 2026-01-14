@@ -36,9 +36,6 @@ class InitChoices:
     coverage_enabled: bool = False
     coverage_threshold: int = 80
 
-    # CI
-    ci_platform: Optional[str] = None  # "github", "gitlab", "bitbucket", or None
-
     # Fail thresholds
     fail_on_linting: str = "error"  # "error", "warning", "none"
     fail_on_security: str = "high"  # "critical", "high", "medium", "low", "none"
