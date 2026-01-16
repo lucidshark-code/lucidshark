@@ -16,6 +16,7 @@ from lucidscan.core.domain_runner import (
     detect_language,
     get_domains_for_language,
 )
+from lucidscan.core.git import get_changed_files
 from lucidscan.core.logging import get_logger
 from lucidscan.core.models import DomainType, ScanContext, ScanDomain, ToolDomain, UnifiedIssue
 from lucidscan.core.streaming import (
@@ -101,14 +102,21 @@ class MCPToolExecutor:
         self,
         domains: List[str],
         files: Optional[List[str]] = None,
+        all_files: bool = False,
         fix: bool = False,
         on_progress: Optional[Callable[[Dict[str, Any]], Coroutine[Any, Any, None]]] = None,
     ) -> Dict[str, Any]:
         """Execute scan and return AI-formatted results.
 
+        Default behavior: Scans only changed files (uncommitted changes).
+        - If `files` is provided, scan only those specific files
+        - If `all_files` is True, scan entire project
+        - Otherwise, scan only changed files (git diff)
+
         Args:
             domains: List of domain names to scan (e.g., ["linting", "security"]).
             files: Optional list of specific files to scan.
+            all_files: If True, scan entire project instead of just changed files.
             fix: Whether to apply auto-fixes (linting only).
             on_progress: Optional async callback for progress events (MCP notifications).
 
@@ -146,8 +154,8 @@ class MCPToolExecutor:
                 use_rich=False,
             )
 
-        # Build context with stream handler
-        context = self._build_context(enabled_domains, files, stream_handler)
+        # Build context with stream handler and partial scanning logic
+        context = self._build_context(enabled_domains, files, all_files, stream_handler)
 
         # Run scans in parallel for different domains
         all_issues: List[UnifiedIssue] = []
@@ -814,22 +822,59 @@ ignore:
         self,
         domains: List[DomainType],
         files: Optional[List[str]] = None,
+        all_files: bool = False,
         stream_handler: Optional[StreamHandler] = None,
     ) -> ScanContext:
-        """Build scan context.
+        """Build scan context with partial scanning support.
+
+        Priority:
+        1. If `files` is provided, scan only those specific files
+        2. If `all_files` is True, scan entire project
+        3. Otherwise, scan only changed files (uncommitted changes)
 
         Args:
             domains: Enabled domains.
             files: Optional specific files to scan.
+            all_files: If True, scan entire project.
             stream_handler: Optional handler for streaming output.
 
         Returns:
             ScanContext instance.
         """
+        # Determine which paths to scan
+        paths: List[Path]
+
         if files:
-            paths = [self.project_root / f for f in files]
-        else:
+            # Explicit files specified - use those
+            paths = []
+            for f in files:
+                file_path = self.project_root / f
+                if file_path.exists():
+                    paths.append(file_path)
+                else:
+                    LOGGER.warning(f"File not found: {f}")
+            if paths:
+                LOGGER.info(f"Scanning {len(paths)} specified file(s)")
+            else:
+                LOGGER.warning("No valid files specified, falling back to full scan")
+                paths = [self.project_root]
+        elif all_files:
+            # Explicit full scan requested
+            LOGGER.info("Scanning entire project (all_files=true)")
             paths = [self.project_root]
+        else:
+            # Default: scan only changed files
+            changed_files = get_changed_files(self.project_root)
+            if changed_files is not None and len(changed_files) > 0:
+                LOGGER.info(f"Scanning {len(changed_files)} changed file(s)")
+                paths = changed_files
+            elif changed_files is not None and len(changed_files) == 0:
+                LOGGER.info("No changed files detected, nothing to scan")
+                paths = []  # Return empty list - no files to scan
+            else:
+                # Not a git repo or git command failed
+                LOGGER.info("Not a git repository, scanning entire project")
+                paths = [self.project_root]
 
         return ScanContext(
             project_root=self.project_root,

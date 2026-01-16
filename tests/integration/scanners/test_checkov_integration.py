@@ -19,6 +19,7 @@ from lucidscan.plugins.scanners.checkov import CheckovScanner
 from tests.integration.conftest import checkov_available
 
 
+@checkov_available
 class TestCheckovInstallation:
     """Tests for Checkov installation and management."""
 

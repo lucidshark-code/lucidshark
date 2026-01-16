@@ -51,7 +51,9 @@ class TestOpenGrepScannerBinaryManagement:
         with patch.object(scanner, "_paths") as mock_paths:
             binary_dir = tmp_path / "bin" / "opengrep" / DEFAULT_VERSION
             binary_dir.mkdir(parents=True)
-            binary_path = binary_dir / "opengrep"
+            # Use the scanner's _get_binary_name to get platform-correct name
+            binary_name = scanner._get_binary_name()
+            binary_path = binary_dir / binary_name
             binary_path.write_text("#!/bin/bash\necho opengrep")
 
             mock_paths.plugin_bin_dir.return_value = binary_dir
@@ -68,7 +70,9 @@ class TestOpenGrepScannerBinaryManagement:
             with patch.object(scanner, "_download_binary") as mock_download:
                 binary_dir = tmp_path / "bin" / "opengrep" / DEFAULT_VERSION
                 binary_dir.mkdir(parents=True)
-                binary_path = binary_dir / "opengrep"
+                # Use the scanner's _get_binary_name to get platform-correct name
+                binary_name = scanner._get_binary_name()
+                binary_path = binary_dir / binary_name
                 binary_path.write_text("#!/bin/bash\necho opengrep")
 
                 mock_paths.plugin_bin_dir.return_value = binary_dir

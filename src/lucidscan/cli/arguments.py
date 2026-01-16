@@ -189,6 +189,18 @@ def _build_scan_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Path to scan (default: current directory).",
     )
     target_group.add_argument(
+        "--files",
+        nargs="+",
+        metavar="FILE",
+        help="Specific files to scan (overrides default changed-files behavior).",
+    )
+    target_group.add_argument(
+        "--all-files",
+        action="store_true",
+        dest="all_files",
+        help="Scan entire project instead of just changed files.",
+    )
+    target_group.add_argument(
         "--image",
         action="append",
         dest="images",

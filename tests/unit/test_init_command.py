@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from argparse import Namespace
 from pathlib import Path
 from unittest.mock import patch
@@ -449,10 +450,17 @@ class TestFindLucidscanPath:
     def test_finds_in_venv(self, tmp_path: Path) -> None:
         """Test finding lucidscan in venv bin directory."""
         cmd = InitCommand(version="1.0.0")
-        # Create a fake lucidscan in the venv
-        venv_bin = tmp_path / "venv" / "bin"
-        venv_bin.mkdir(parents=True)
-        lucidscan_exe = venv_bin / "lucidscan"
+        # Create a fake lucidscan in the venv with platform-appropriate paths
+        if sys.platform == "win32":
+            # Windows uses Scripts directory and .exe extension
+            venv_bin = tmp_path / "venv" / "Scripts"
+            venv_bin.mkdir(parents=True)
+            lucidscan_exe = venv_bin / "lucidscan.exe"
+        else:
+            # Unix uses bin directory
+            venv_bin = tmp_path / "venv" / "bin"
+            venv_bin.mkdir(parents=True)
+            lucidscan_exe = venv_bin / "lucidscan"
         lucidscan_exe.touch()
 
         with patch("shutil.which", return_value=None):

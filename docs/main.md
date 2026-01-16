@@ -296,7 +296,31 @@ Execute the configured pipeline in order:
 
 Each stage produces normalized results. Stages can run in parallel where independent.
 
-#### 5.2.2 Unified Output
+#### 5.2.2 Partial Scanning (Default Behavior)
+
+LucidScan scans only changed files (uncommitted changes) by default. Use `--all-files` (CLI) or `all_files=true` (MCP) for full project scans.
+
+| Domain | Partial Scan Support | Behavior |
+|--------|---------------------|----------|
+| **Linting** | ✅ Full | Only lints changed/specified files |
+| **Type Checking** | ⚠️ Partial | mypy/pyright yes, tsc always full |
+| **SAST** | ✅ Full | OpenGrep scans only changed/specified files |
+| **SCA** | ❌ None | Trivy dependency scan always project-wide |
+| **IaC** | ❌ None | Checkov always project-wide |
+| **Testing** | ✅ Full | Can run specific test files |
+| **Coverage** | ⚠️ Partial | Run full tests, filter output |
+
+**Default workflow (partial scans):**
+- After modifying files — scans changed files automatically
+- During iterative development
+- When fixing specific issues
+
+**When to use full scans (`--all-files`):**
+- Before committing code
+- For comprehensive security audits
+- For release preparation
+
+#### 5.2.3 Unified Output
 
 All results normalized to common schema:
 
@@ -331,7 +355,7 @@ All results normalized to common schema:
 }
 ```
 
-#### 5.2.3 Exit Codes
+#### 5.2.4 Exit Codes
 
 | Code | Meaning |
 |------|---------|
@@ -340,7 +364,7 @@ All results normalized to common schema:
 | 2 | Tool execution error |
 | 3 | Configuration error |
 
-#### 5.2.4 Auto-Fix Mode
+#### 5.2.5 Auto-Fix Mode
 
 ```bash
 lucidscan scan --fix
@@ -649,7 +673,7 @@ Detection strategy:
 
 ### 6.4 MCP Server
 
-The MCP server exposes tools for AI agents:
+The MCP server exposes tools for AI agents. By default, scans only changed files (uncommitted changes):
 
 ```python
 class LucidScanMCPServer:
@@ -659,13 +683,29 @@ class LucidScanMCPServer:
     def scan(
         self,
         domains: list[str] = ["all"],
-        files: list[str] | None = None
+        files: list[str] | None = None,
+        all_files: bool = False,
+        fix: bool = False
     ) -> ScanResult:
-        """Run quality checks on the codebase or specific files."""
+        """Run quality checks on the codebase or specific files.
+
+        Default Behavior: Scans only changed files (uncommitted changes).
+
+        Parameters:
+        - files: Override to scan specific files only
+        - all_files: Set to True for full project scan
+        - fix: Apply auto-fixes for linting issues
+
+        Note: SCA (dependency scanning) always runs project-wide.
+        """
 
     @tool
     def check_file(self, file_path: str) -> list[Issue]:
-        """Check a specific file and return issues."""
+        """Check a specific file and return issues.
+
+        Convenience method for single-file scanning.
+        Automatically detects the file type and runs appropriate checks.
+        """
 
     @tool
     def get_fix_instructions(self, issue_id: str) -> FixInstruction:
@@ -675,6 +715,18 @@ class LucidScanMCPServer:
     def apply_fix(self, issue_id: str) -> FixResult:
         """Apply auto-fix for a fixable issue."""
 ```
+
+**Partial Scanning Support (Default Behavior):**
+
+| Domain | Partial Scan | Notes |
+|--------|--------------|-------|
+| Linting | ✅ Yes | All linters support file-level scanning |
+| Type Checking | ⚠️ Partial | mypy/pyright yes, tsc no |
+| SAST | ✅ Yes | OpenGrep supports file-level scanning |
+| SCA | ❌ No | Trivy dependency scan always project-wide |
+| IaC | ❌ No | Checkov always project-wide |
+| Testing | ✅ Yes | Can run specific test files |
+| Coverage | ⚠️ Partial | Run full tests, filter output |
 
 ### 6.5 Unified Issue Schema
 
@@ -830,22 +882,51 @@ When providing feedback to AI agents, issues are formatted for actionability:
 
 ### 7.3 Feedback Loop
 
-The AI integration creates an automated feedback loop:
+The AI integration creates an automated feedback loop with partial scanning for speed:
 
 ```
 1. AI writes/modifies code
-2. LucidScan automatically runs relevant checks (via MCP)
+2. LucidScan runs partial scan on changed files (via MCP files parameter)
 3. Issues are formatted as instructions
 4. AI receives instructions and applies fixes
-5. LucidScan re-checks
+5. LucidScan re-checks (partial scan on fixed files)
 6. Repeat until clean
+7. Before commit: run full scan for comprehensive check
 ```
 
 The feedback loop is driven by instructions provided to the AI tool via `lucidscan init`, which creates:
 - `.claude/CLAUDE.md` for Claude Code with scan workflow instructions
 - `.cursor/rules/lucidscan.mdc` for Cursor with auto-scan rules
 
-These instruct the AI to run scans after completing code changes and before commits.
+These instruct the AI to:
+- Run **default scans** (changed files only) after code changes for fast feedback
+- Run **full scans** (with `all_files=true`) before commits for comprehensive checking
+
+### 7.4 Partial Scanning for AI Agents (Default Behavior)
+
+LucidScan scans only changed files by default, enabling fast feedback loops:
+
+| Scenario | Scan Type | Example |
+|----------|-----------|---------|
+| After editing files | Default (changed files) | `scan(domains=["linting", "type_checking"])` |
+| Single file check | Partial | `check_file(file_path="src/main.py")` |
+| Specific files | Partial | `scan(domains=["linting"], files=["src/a.py", "src/b.py"])` |
+| Before commit | Full | `scan(domains=["all"], all_files=true)` |
+| Security audit | Full | `scan(domains=["sca", "sast", "iac"], all_files=true)` |
+
+**Tool-Level Partial Scan Support:**
+
+| Tool Category | Tools | Partial Scan Support |
+|---------------|-------|---------------------|
+| **Linting** | Ruff, ESLint, Biome, Checkstyle | ✅ All support file args |
+| **Type Checking** | mypy, pyright | ✅ Support file args |
+| **Type Checking** | TypeScript (tsc) | ❌ Project-wide only |
+| **SAST** | OpenGrep | ✅ Supports file args |
+| **SCA** | Trivy | ❌ Project-wide by design |
+| **IaC** | Checkov | ❌ Project-wide by design |
+| **Testing** | pytest, Jest, Playwright | ✅ Support file args |
+| **Testing** | Karma | ❌ Config-based only |
+| **Coverage** | coverage.py, Istanbul | ⚠️ Run full, filter output |
 
 ---
 
@@ -909,23 +990,24 @@ Examples:
 ```
 lucidscan scan [OPTIONS] [PATHS...]
 
-Run the quality pipeline.
+Run the quality pipeline. By default, scans only changed files (uncommitted changes).
 
 Options:
   --domain, -d DOMAIN  Run specific domain (linting, security, testing, etc.)
+  --files FILE...      Check specific files only
+  --all-files          Scan entire project instead of just changed files
   --fix                Apply auto-fixes where possible
   --stream             Stream tool output in real-time as scans run
   --format FORMAT      Output format (table, json, sarif, ai)
   --fail-on LEVEL      Override fail threshold
-  --files FILE...      Check specific files only
 
 Examples:
-  lucidscan scan                    # Run full pipeline
-  lucidscan scan --domain security  # Security only
-  lucidscan scan --fix              # Auto-fix what's possible
-  lucidscan scan --stream           # See live output as tools run
+  lucidscan scan --lint             # Lint changed files (default)
+  lucidscan scan --all --all-files  # Full project scan
+  lucidscan scan --files src/a.py   # Scan specific files
+  lucidscan scan --fix              # Auto-fix changed files
+  lucidscan scan --stream           # See live output
   lucidscan scan --format json      # JSON output
-  lucidscan scan src/               # Scan specific directory
 ```
 
 #### 8.2.4 `serve`
@@ -977,44 +1059,54 @@ Examples:
 
 ### 9.1 Linting
 
-| Tool | Languages | Install Method |
-|------|-----------|----------------|
-| Ruff | Python | pip / binary |
-| ESLint | JavaScript, TypeScript | npm |
-| Biome | JavaScript, TypeScript, JSON | npm / binary |
-| Checkstyle | Java | binary (jar) |
+| Tool | Languages | Install Method | Partial Scan |
+|------|-----------|----------------|--------------|
+| Ruff | Python | pip / binary | ✅ Yes |
+| ESLint | JavaScript, TypeScript | npm | ✅ Yes |
+| Biome | JavaScript, TypeScript, JSON | npm / binary | ✅ Yes |
+| Checkstyle | Java | binary (jar) | ✅ Yes |
+
+All linting tools support partial scanning via the `files` parameter.
 
 ### 9.2 Type Checking
 
-| Tool | Languages | Install Method |
-|------|-----------|----------------|
-| mypy | Python | pip |
-| Pyright | Python | pip / npm / binary |
-| TypeScript (tsc) | TypeScript | npm |
+| Tool | Languages | Install Method | Partial Scan |
+|------|-----------|----------------|--------------|
+| mypy | Python | pip | ✅ Yes |
+| Pyright | Python | pip / npm / binary | ✅ Yes |
+| TypeScript (tsc) | TypeScript | npm | ❌ No |
+
+**Note:** TypeScript (tsc) does not support file-level CLI arguments — it uses `tsconfig.json` to determine what to check.
 
 ### 9.3 Security
 
-| Tool | Domains | Install Method |
-|------|---------|----------------|
-| Trivy | SCA, Container | binary |
-| OpenGrep | SAST | binary |
-| Checkov | IaC | pip / binary |
+| Tool | Domains | Install Method | Partial Scan |
+|------|---------|----------------|--------------|
+| Trivy | SCA, Container | binary | ❌ No |
+| OpenGrep | SAST | binary | ✅ Yes |
+| Checkov | IaC | pip / binary | ❌ No |
+
+**Note:** OpenGrep (SAST) supports partial scanning and scans only changed files by default. Trivy (SCA) always scans the entire project — dependency analysis requires full project context. Checkov (IaC) also scans project-wide.
 
 ### 9.4 Testing
 
-| Tool | Languages | Install Method |
-|------|-----------|----------------|
-| pytest | Python | pip |
-| Jest | JavaScript, TypeScript | npm |
-| Karma | JavaScript, TypeScript (Angular) | npm |
-| Playwright | JavaScript, TypeScript (E2E) | npm |
+| Tool | Languages | Install Method | Partial Scan |
+|------|-----------|----------------|--------------|
+| pytest | Python | pip | ✅ Yes |
+| Jest | JavaScript, TypeScript | npm | ✅ Yes |
+| Karma | JavaScript, TypeScript (Angular) | npm | ❌ No |
+| Playwright | JavaScript, TypeScript (E2E) | npm | ✅ Yes |
+
+**Note:** While most test runners support running specific test files, running the full test suite is recommended before commits to catch regressions.
 
 ### 9.5 Coverage
 
-| Tool | Languages | Install Method |
-|------|-----------|----------------|
-| coverage.py | Python | pip |
-| Istanbul/nyc | JavaScript, TypeScript | npm |
+| Tool | Languages | Install Method | Partial Scan |
+|------|-----------|----------------|--------------|
+| coverage.py | Python | pip | ⚠️ Partial |
+| Istanbul/nyc | JavaScript, TypeScript | npm | ⚠️ Partial |
+
+**Note:** Coverage tools can run specific tests but measure all executed code. For partial scanning, coverage output can be filtered to show only changed files.
 
 ---
 

@@ -130,6 +130,12 @@ class TestMCPToolExecutor:
         self, executor: MCPToolExecutor, project_root: Path
     ) -> None:
         """Test context building with specific files."""
+        # Create the files first (partial scanning checks if files exist)
+        src_dir = project_root / "src"
+        src_dir.mkdir(exist_ok=True)
+        (src_dir / "main.py").write_text("# main")
+        (src_dir / "utils.py").write_text("# utils")
+
         context = executor._build_context(
             [ToolDomain.LINTING],
             files=["src/main.py", "src/utils.py"],

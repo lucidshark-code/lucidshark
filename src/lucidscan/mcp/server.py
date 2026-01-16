@@ -46,6 +46,8 @@ class LucidScanMCPServer:
                     name="scan",
                     description=(
                         "Run quality checks on the codebase or specific files. "
+                        "By default, scans only changed files (uncommitted changes). "
+                        "Use all_files=true for full project scan. "
                         "Returns structured issues with fix instructions. "
                         "IMPORTANT: After receiving scan results, always provide a brief summary "
                         "including: total issues found, breakdown by domain/severity, and key issues to address first."
@@ -66,6 +68,14 @@ class LucidScanMCPServer:
                                 "type": "array",
                                 "items": {"type": "string"},
                                 "description": "Optional list of specific files to check (relative paths)",
+                            },
+                            "all_files": {
+                                "type": "boolean",
+                                "description": (
+                                    "Scan entire project instead of just changed files. "
+                                    "By default, only uncommitted changes are scanned."
+                                ),
+                                "default": False,
                             },
                             "fix": {
                                 "type": "boolean",
@@ -208,6 +218,7 @@ class LucidScanMCPServer:
                     result = await self.executor.scan(
                         domains=arguments.get("domains", ["all"]),
                         files=arguments.get("files"),
+                        all_files=arguments.get("all_files", False),
                         fix=arguments.get("fix", False),
                         on_progress=send_progress,
                     )

@@ -38,16 +38,19 @@ lucidscan autoconfigure -y
 ### Run Scans
 
 ```bash
-# Run all quality checks
-lucidscan scan --all
+# Default: scan only changed files (uncommitted changes)
+lucidscan scan --lint --type-check
 
-# Run specific checks
+# Full project scan (all domains, all files)
+lucidscan scan --all --all-files
+
+# Run specific checks (on changed files by default)
 lucidscan scan --lint           # Linting only
 lucidscan scan --type-check     # Type checking only
-lucidscan scan --sca            # Dependency vulnerabilities
+lucidscan scan --sca            # Dependency vulnerabilities (always project-wide)
 lucidscan scan --sast           # Code security analysis
 
-# Auto-fix linting issues
+# Auto-fix linting issues (on changed files)
 lucidscan scan --lint --fix
 ```
 
@@ -96,7 +99,7 @@ lucidscan autoconfigure /path/to/project -f
 
 ### `lucidscan scan`
 
-Run the quality/security pipeline.
+Run the quality/security pipeline. By default, scans only changed files (uncommitted changes).
 
 #### Scan Domains
 
@@ -111,6 +114,13 @@ Run the quality/security pipeline.
 | `--test` | Testing | Run test suite (pytest, Jest) |
 | `--coverage` | Coverage | Coverage analysis (coverage.py, Istanbul) |
 | `--all` | All | Enable all domains |
+
+#### Target Options
+
+| Option | Description |
+|--------|-------------|
+| `--files FILE [FILE ...]` | Specific files to scan (overrides default changed-files behavior) |
+| `--all-files` | Scan entire project instead of just changed files |
 
 #### Output Options
 
@@ -137,13 +147,29 @@ Run the quality/security pipeline.
 
 **Examples:**
 ```bash
-lucidscan scan --all
+# Default: scan only changed files (uncommitted changes)
 lucidscan scan --lint --type-check
+
+# Full project scan
+lucidscan scan --all --all-files
+
+# Scan specific files
+lucidscan scan --lint --files src/main.py src/utils.py
+
+# Lint with auto-fix (on changed files)
 lucidscan scan --lint --fix
-lucidscan scan --sca --fail-on high
-lucidscan scan --all --format sarif > results.sarif
+
+# Full security scan
+lucidscan scan --sca --sast --all-files --fail-on high
+
+# Full scan before commit
+lucidscan scan --all --all-files --format sarif > results.sarif
+
+# Container scanning
 lucidscan scan --container --image myapp:latest
-lucidscan scan --all --stream   # See live output as tools run
+
+# Stream output during scan
+lucidscan scan --all --stream
 ```
 
 ### `lucidscan status`
@@ -225,17 +251,32 @@ LucidScan exposes these tools via MCP (Model Context Protocol) for AI agent inte
 
 ### `scan`
 
-Run quality checks on the codebase or specific files.
+Run quality checks on the codebase or specific files. Supports partial scanning via the `files` parameter for faster feedback on changed files.
 
 **Parameters:**
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `domains` | array of strings | `["all"]` | Domains to check |
-| `files` | array of strings | (none) | Specific files to check (relative paths) |
+| `files` | array of strings | (none) | Specific files to check (relative paths). When provided, only these files are scanned. |
+| `all_files` | boolean | `false` | Scan entire project instead of just changed files. By default, only uncommitted changes are scanned. |
 | `fix` | boolean | `false` | Apply auto-fixes for linting issues |
 
 **Valid domains:** `linting`, `type_checking`, `security`, `sca`, `sast`, `iac`, `container`, `testing`, `coverage`, `all`
+
+**Default Behavior:** Partial scanning (changed files only) is the default. Use `all_files=true` for full project scans.
+
+**Partial Scanning Support by Domain:**
+
+| Domain | Partial Scan Support | Behavior |
+|--------|---------------------|----------|
+| `linting` | ✅ Full support | Only lints specified/changed files |
+| `type_checking` | ✅ Partial support | mypy/pyright support file args; TypeScript (tsc) scans full project |
+| `sast` | ✅ Full support | OpenGrep scans only specified/changed files |
+| `sca` | ❌ Project-wide only | Trivy dependency scan is inherently project-wide |
+| `iac` | ❌ Project-wide only | Checkov scans entire project |
+| `testing` | ✅ Full support | Can run specific test files (but full suite recommended for coverage) |
+| `coverage` | ⚠️ Run full, filter output | Tests run fully, but coverage can be filtered to changed files |
 
 **Response format:**
 ```json
@@ -261,14 +302,25 @@ Run quality checks on the codebase or specific files.
 
 **Examples:**
 ```
+# Default: scan only changed files (uncommitted changes)
 scan(domains=["linting", "type_checking"])
-scan(domains=["all"], files=["src/main.py", "src/utils.py"])
+
+# Explicit full project scan
+scan(domains=["all"], all_files=true)
+
+# Scan specific files only
+scan(domains=["linting", "type_checking"], files=["src/main.py", "src/utils.py"])
+
+# Lint with auto-fix (on changed files by default)
 scan(domains=["linting"], fix=true)
+
+# Security scan - SAST scans changed files, SCA always project-wide
+scan(domains=["sca", "sast"])
 ```
 
 ### `check_file`
 
-Check a specific file and return issues with fix instructions. Automatically detects file type.
+Check a specific file and return issues with fix instructions. This is a convenience wrapper for partial scanning that automatically detects the file type and runs appropriate checks (linting, type checking) for that single file.
 
 **Parameters:**
 
@@ -276,10 +328,17 @@ Check a specific file and return issues with fix instructions. Automatically det
 |-----------|------|----------|-------------|
 | `file_path` | string | Yes | Path to file (relative to project root) |
 
+**When to use:**
+- Quick feedback on a single file you just modified
+- Checking a specific file before committing
+- Faster than `scan()` when you only need to check one file
+
 **Example:**
 ```
 check_file(file_path="src/main.py")
 ```
+
+**Note:** For checking multiple files, use `scan(files=["file1.py", "file2.py"])` instead.
 
 ### `get_fix_instructions`
 
@@ -668,17 +727,17 @@ Or manually add to `~/.cursor/mcp.json`:
 
 ### Recommended Workflow
 
-1. **After code changes**: Run fast scan
+1. **After code changes**: Run scan (automatically checks only changed files)
    ```
-   scan(domains=["linting", "type_checking"], files=["changed/files.py"])
-   ```
-
-2. **Before commit**: Run full scan
-   ```
-   scan(domains=["all"])
+   scan(domains=["linting", "type_checking"])
    ```
 
-3. **To fix issues**: Use auto-fix when available
+2. **Before commit**: Run full scan (comprehensive)
+   ```
+   scan(domains=["all"], all_files=true)
+   ```
+
+3. **To fix issues**: Use auto-fix (on changed files by default)
    ```
    scan(domains=["linting"], fix=true)
    ```
@@ -688,16 +747,30 @@ Or manually add to `~/.cursor/mcp.json`:
    get_fix_instructions(issue_id="...")
    ```
 
+### Default Partial Scanning
+
+LucidScan scans only changed files (uncommitted changes) by default. This is the recommended workflow:
+
+| Scenario | Approach | Example |
+|----------|----------|---------|
+| After editing files | Default scan | `scan(domains=["linting", "type_checking"])` — scans changed files automatically |
+| Quick single-file check | Use check_file | `check_file(file_path="src/main.py")` |
+| Scan specific files | Use files param | `scan(domains=["linting"], files=["src/a.py", "src/b.py"])` |
+| Before commit | Full scan | `scan(domains=["all"], all_files=true)` |
+| Security audit | Full scan | `scan(domains=["sca", "sast", "iac"], all_files=true)` |
+
+**Note:** SCA (dependency scanning) always runs project-wide. SAST (OpenGrep) and most other tools scan only changed files by default.
+
 ### Domain Selection Guidelines
 
 | Scenario | Recommended Domains |
 |----------|---------------------|
-| Quick style check | `["linting"]` |
-| Before commit | `["all"]` |
-| Python code review | `["linting", "type_checking", "security"]` |
-| TypeScript code review | `["linting", "type_checking"]` |
-| Security audit | `["sca", "sast", "iac"]` |
-| Pre-release | `["all"]` with `fix=true` for linting |
+| Quick style check | `["linting"]` (scans changed files by default) |
+| After editing Python | `["linting", "type_checking"]` |
+| After editing TypeScript | `["linting", "type_checking"]` |
+| Before commit | `["all"]` with `all_files=true` |
+| Security audit | `["sca", "sast", "iac"]` with `all_files=true` |
+| Pre-release | `["all"]` with `all_files=true` and `fix=true` for linting |
 
 ### Handling Issues
 
@@ -708,10 +781,11 @@ Or manually add to `~/.cursor/mcp.json`:
 
 ### Performance Tips
 
-- Use `files` parameter to scan only changed files
-- Run `["linting", "type_checking"]` for quick feedback
-- Reserve `["all"]` for comprehensive checks
-- Use `fix=true` to auto-fix linting issues in one pass
+- **Default is fast**: Just call `scan()` — it automatically scans only changed files
+- **Use `check_file()`**: For single-file checks, this is the fastest option
+- **Reserve full scans for commits**: Use `all_files=true` only before committing
+- **SCA is always full**: Dependency scanning requires full project context
+- **Auto-fix is smart**: `scan(domains=["linting"], fix=true)` fixes only changed files
 
 ---
 
@@ -719,41 +793,51 @@ Or manually add to `~/.cursor/mcp.json`:
 
 ### Linting
 
-| Tool | Languages |
-|------|-----------|
-| Ruff | Python |
-| ESLint | JavaScript, TypeScript |
-| Biome | JavaScript, TypeScript, JSON |
-| Checkstyle | Java |
+| Tool | Languages | Partial Scan |
+|------|-----------|--------------|
+| Ruff | Python | ✅ Yes |
+| ESLint | JavaScript, TypeScript | ✅ Yes |
+| Biome | JavaScript, TypeScript, JSON | ✅ Yes |
+| Checkstyle | Java | ✅ Yes |
+
+All linting tools support the `files` parameter for partial scanning.
 
 ### Type Checking
 
-| Tool | Languages |
-|------|-----------|
-| mypy | Python |
-| pyright | Python |
-| TypeScript (tsc) | TypeScript |
+| Tool | Languages | Partial Scan |
+|------|-----------|--------------|
+| mypy | Python | ✅ Yes |
+| pyright | Python | ✅ Yes |
+| TypeScript (tsc) | TypeScript | ❌ No (project-wide only) |
+
+**Note:** TypeScript (tsc) does not support file-level scanning — it always analyzes the full project based on `tsconfig.json`.
 
 ### Security Scanning
 
-| Tool | Domains |
-|------|---------|
-| Trivy | SCA (dependencies), Container images |
-| OpenGrep | SAST (code patterns) |
-| Checkov | IaC (Terraform, K8s, CloudFormation) |
+| Tool | Domains | Partial Scan |
+|------|---------|--------------|
+| Trivy | SCA (dependencies), Container images | ❌ No (project-wide) |
+| OpenGrep | SAST (code patterns) | ✅ Yes |
+| Checkov | IaC (Terraform, K8s, CloudFormation) | ❌ No (project-wide) |
+
+**Note:** OpenGrep (SAST) supports partial scanning and will scan only changed files by default. Trivy (SCA) and Checkov (IaC) always scan the entire project — dependency analysis requires full project context.
 
 ### Testing
 
-| Tool | Languages |
-|------|-----------|
-| pytest | Python |
-| Jest | JavaScript, TypeScript |
-| Karma | JavaScript, TypeScript (Angular) |
-| Playwright | JavaScript, TypeScript (E2E) |
+| Tool | Languages | Partial Scan |
+|------|-----------|--------------|
+| pytest | Python | ✅ Yes |
+| Jest | JavaScript, TypeScript | ✅ Yes |
+| Karma | JavaScript, TypeScript (Angular) | ❌ No (config-based) |
+| Playwright | JavaScript, TypeScript (E2E) | ✅ Yes |
+
+**Note:** While test runners support running specific test files, it's recommended to run the full test suite before commits to catch regressions.
 
 ### Coverage
 
-| Tool | Languages |
-|------|-----------|
-| coverage.py | Python |
-| Istanbul/nyc | JavaScript, TypeScript |
+| Tool | Languages | Partial Scan |
+|------|-----------|--------------|
+| coverage.py | Python | ⚠️ Partial (filter output) |
+| Istanbul/nyc | JavaScript, TypeScript | ⚠️ Partial (filter output) |
+
+**Note:** Coverage tools run the full test suite but can filter the coverage report to show only changed files.
