@@ -126,6 +126,13 @@ class MCPToolExecutor:
         # Bootstrap security tools if needed (before async operations)
         security_domains = [d for d in enabled_domains if isinstance(d, ScanDomain)]
         if security_domains and not self._tools_bootstrapped:
+            if on_progress:
+                await on_progress({
+                    "tool": "lucidscan",
+                    "content": "Downloading security tools...",
+                    "progress": 0,
+                    "total": None,
+                })
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, self._bootstrap_security_tools, security_domains)
 
@@ -157,26 +164,78 @@ class MCPToolExecutor:
         # Run scans in parallel for different domains
         all_issues: List[UnifiedIssue] = []
 
-        tasks = []
+        # Build list of tasks with their domain names for progress tracking
+        tasks_with_names: List[tuple[str, Coroutine]] = []
         if ToolDomain.LINTING in enabled_domains:
-            tasks.append(self._run_linting(context, fix))
+            tasks_with_names.append(("linting", self._run_linting(context, fix)))
         if ToolDomain.TYPE_CHECKING in enabled_domains:
-            tasks.append(self._run_type_checking(context))
+            tasks_with_names.append(("type_checking", self._run_type_checking(context)))
         if ScanDomain.SAST in enabled_domains:
-            tasks.append(self._run_security(context, ScanDomain.SAST))
+            tasks_with_names.append(("sast", self._run_security(context, ScanDomain.SAST)))
         if ScanDomain.SCA in enabled_domains:
-            tasks.append(self._run_security(context, ScanDomain.SCA))
+            tasks_with_names.append(("sca", self._run_security(context, ScanDomain.SCA)))
         if ScanDomain.IAC in enabled_domains:
-            tasks.append(self._run_security(context, ScanDomain.IAC))
+            tasks_with_names.append(("iac", self._run_security(context, ScanDomain.IAC)))
         if ScanDomain.CONTAINER in enabled_domains:
-            tasks.append(self._run_security(context, ScanDomain.CONTAINER))
+            tasks_with_names.append(("container", self._run_security(context, ScanDomain.CONTAINER)))
         if ToolDomain.TESTING in enabled_domains:
-            tasks.append(self._run_testing(context))
+            tasks_with_names.append(("testing", self._run_testing(context)))
         if ToolDomain.COVERAGE in enabled_domains:
-            tasks.append(self._run_coverage(context))
+            tasks_with_names.append(("coverage", self._run_coverage(context)))
 
-        if tasks:
+        total_domains = len(tasks_with_names)
+
+        if tasks_with_names:
+            # Send initial progress notification
+            if on_progress and total_domains > 0:
+                domain_names = [name for name, _ in tasks_with_names]
+                await on_progress({
+                    "tool": "lucidscan",
+                    "content": f"Scanning {total_domains} domain(s): {', '.join(domain_names)}",
+                    "progress": 0,
+                    "total": total_domains,
+                })
+
+            # Wrap each task to report progress on completion
+            completed_count = 0
+
+            async def run_with_progress(
+                domain_name: str, coro: Coroutine
+            ) -> List[UnifiedIssue]:
+                nonlocal completed_count
+                try:
+                    if on_progress:
+                        await on_progress({
+                            "tool": domain_name,
+                            "content": "started",
+                            "progress": completed_count,
+                            "total": total_domains,
+                        })
+                    result = await coro
+                    completed_count += 1
+                    if on_progress:
+                        await on_progress({
+                            "tool": domain_name,
+                            "content": "completed",
+                            "progress": completed_count,
+                            "total": total_domains,
+                        })
+                    return result if result is not None else []
+                except Exception as e:
+                    completed_count += 1
+                    if on_progress:
+                        await on_progress({
+                            "tool": domain_name,
+                            "content": f"failed: {e}",
+                            "progress": completed_count,
+                            "total": total_domains,
+                        })
+                    raise
+
+            # Run all tasks with progress tracking
+            tasks = [run_with_progress(name, coro) for name, coro in tasks_with_names]
             results = await asyncio.gather(*tasks, return_exceptions=True)
+
             for result in results:
                 if isinstance(result, BaseException):
                     LOGGER.warning(f"Scan task failed: {result}")

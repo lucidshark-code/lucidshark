@@ -204,16 +204,32 @@ class LucidScanMCPServer:
             """Handle tool calls."""
             import json
 
-            # Create progress callback that streams via MCP notifications
+            # Get progress token from request metadata (if client requested progress)
+            meta = self.server.request_context.meta
+            progress_token = meta.progressToken if meta else None
+
+            # Create progress callback that uses proper MCP progress notifications
             async def send_progress(event: Dict[str, Any]) -> None:
-                """Send progress event as MCP log message."""
+                """Send progress event via MCP progress notification.
+
+                Uses the standard MCP progress notification mechanism which
+                clients (Claude/Cursor) display prominently during tool execution.
+                """
+                if progress_token is None:
+                    # Client didn't request progress updates, skip
+                    return
+
                 try:
                     session = self.server.request_context.session
-                    message = f"[{event.get('tool', 'lucidscan')}] {event.get('content', '')}"
-                    await session.send_log_message(
-                        level="info",
-                        data=message,
-                        logger="lucidscan",
+                    tool_name = event.get("tool", "lucidscan")
+                    content = event.get("content", "")
+                    message = f"[{tool_name}] {content}"
+
+                    await session.send_progress_notification(
+                        progress_token=progress_token,
+                        progress=event.get("progress", 0),
+                        total=event.get("total"),
+                        message=message,
                     )
                 except Exception as e:
                     LOGGER.debug(f"Failed to send progress notification: {e}")
