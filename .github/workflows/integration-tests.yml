@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -31,11 +31,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: tests/integration/projects/typescript-api/package-lock.json
 
       - name: Install package and test dependencies
         run: |
@@ -46,33 +49,3 @@ jobs:
       - name: Run all project integration tests
         run: |
           pytest tests/integration/projects -v --tb=short --ignore=tests/integration/projects/python-webapp/tests --ignore=tests/integration/projects/typescript-api/tests
-
-  # Separate job for Windows (limited security scanner support)
-  integration-tests-windows:
-    runs-on: windows-latest
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install package and test dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-          pip install -r requirements-dev.txt
-
-      - name: Run linting integration tests
-        run: |
-          pytest tests/integration/projects -v -k "linting or structure" --tb=short --ignore=tests/integration/projects/python-webapp/tests --ignore=tests/integration/projects/typescript-api/tests
-        continue-on-error: true
