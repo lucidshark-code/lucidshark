@@ -61,17 +61,18 @@ class TestRuffExclusionPatterns:
             ignore_patterns=ignore,
         )
 
-        with patch.object(linter, "ensure_binary", return_value=Path("/bin/ruff")):
-            with patch("subprocess.run") as mock_run:
-                mock_run.return_value = MagicMock(returncode=0, stdout="[]", stderr="")
-                linter.lint(context)
+        with patch("lucidshark.plugins.linters.ruff.platform.system", return_value="Linux"):
+            with patch.object(linter, "ensure_binary", return_value=Path("/bin/ruff")):
+                with patch("subprocess.run") as mock_run:
+                    mock_run.return_value = MagicMock(returncode=0, stdout="[]", stderr="")
+                    linter.lint(context)
 
-                # Check the command arguments
-                cmd = mock_run.call_args[0][0]
-                assert "--extend-exclude" in cmd
-                # Verify both patterns are added
-                exclude_indices = [i for i, x in enumerate(cmd) if x == "--extend-exclude"]
-                assert len(exclude_indices) == 2
+                    # Check the command arguments
+                    cmd = mock_run.call_args[0][0]
+                    assert "--extend-exclude" in cmd
+                    # Verify both patterns are added (no Windows backslash variants)
+                    exclude_indices = [i for i, x in enumerate(cmd) if x == "--extend-exclude"]
+                    assert len(exclude_indices) == 2
 
     def test_ruff_windows_adds_backslash_exclude_variants(self) -> None:
         """On Windows, Ruff receives both forward-slash and backslash patterns so excludes match native paths."""

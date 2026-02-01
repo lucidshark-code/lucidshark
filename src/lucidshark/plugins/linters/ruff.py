@@ -187,9 +187,16 @@ class RuffLinter(LinterPlugin):
         ]
 
         # Filter and add paths to check
-        # Only include Python files to avoid linting non-Python files
+        # Only include Python files; also drop any path that matches ignore patterns
+        # (defensive so ignored paths are never passed to Ruff, including on Windows)
         if context.paths:
-            paths = self._filter_paths(context.paths, context.project_root)
+            paths_to_use = context.paths
+            if context.ignore_patterns is not None:
+                paths_to_use = [
+                    p for p in paths_to_use
+                    if not context.ignore_patterns.matches(p, context.project_root)
+                ]
+            paths = self._filter_paths(paths_to_use, context.project_root)
         else:
             paths = ["."]
 
@@ -251,9 +258,15 @@ class RuffLinter(LinterPlugin):
             "--output-format", "json",
         ]
 
-        # Filter and add paths
+        # Filter and add paths (same ignore filtering as lint)
         if context.paths:
-            paths = self._filter_paths(context.paths, context.project_root)
+            paths_to_use = context.paths
+            if context.ignore_patterns is not None:
+                paths_to_use = [
+                    p for p in paths_to_use
+                    if not context.ignore_patterns.matches(p, context.project_root)
+                ]
+            paths = self._filter_paths(paths_to_use, context.project_root)
         else:
             paths = ["."]
 
