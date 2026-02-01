@@ -38,7 +38,7 @@ nodeenv==1.10.0
 ollama==0.6.1
 openai==2.16.0
 orjson==3.11.6
-packaging==26.0
+packaging==25.0
 pathspec==1.0.4
 pluggy==1.6.0
 prompt_toolkit==3.0.52
