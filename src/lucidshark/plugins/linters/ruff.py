@@ -314,33 +314,60 @@ class RuffLinter(LinterPlugin):
             issues_remaining=len(post_issues),
         )
 
-    def _get_ruff_exclude_patterns(self, context: ScanContext) -> List[str]:
-        """Get exclude patterns for Ruff, normalized for Windows.
+    @staticmethod
+    def _simplify_exclude_pattern(pattern: str) -> str:
+        """Simplify a gitignore-style glob into a form Ruff handles on all platforms.
 
-        On Windows, Ruff may compare patterns against native paths (backslash).
-        We pass patterns with forward slashes (glob convention) and, on Windows,
-        also backslash variants so excludes apply correctly.
+        Ruff's CLI ``--extend-exclude`` uses globset for matching.  On Windows,
+        patterns containing ``**`` and forward slashes may fail to match paths
+        discovered with native backslash separators (known Ruff issue).
+
+        In gitignore semantics a bare name (e.g. ``.lucidshark``) matches that
+        name at **any depth**, which is equivalent to ``**/.lucidshark/**``.
+        Stripping the ``**/`` wrapper produces a simpler pattern that Ruff's
+        globset can match reliably on every platform.
+
+        Transformations applied (in order):
+        - ``**/<name>/**`` → ``<name>``
+        - ``**/<name>``    → ``<name>``
+        - ``<path>/**``    → ``<path>``
+        - everything else  → kept as-is, with backslashes normalised to ``/``
+        """
+        # Normalise separators first
+        p = pattern.replace("\\", "/")
+
+        # Strip leading **/ (matches any depth prefix)
+        if p.startswith("**/"):
+            p = p[3:]
+
+        # Strip trailing /** (matches any depth suffix)
+        if p.endswith("/**"):
+            p = p[:-3]
+
+        return p
+
+    def _get_ruff_exclude_patterns(self, context: ScanContext) -> List[str]:
+        """Get exclude patterns for Ruff, simplified for cross-platform reliability.
+
+        Simplifies gitignore-style globs (e.g. ``**/.venv/**``) into bare
+        directory names (e.g. ``.venv``) that Ruff's globset can match
+        regardless of path separator conventions on the host OS.
 
         Args:
             context: Scan context with ignore patterns.
 
         Returns:
-            List of patterns to pass to --extend-exclude.
+            List of patterns to pass to ``--extend-exclude``.
         """
         raw = context.get_exclude_patterns()
-        # Normalize to forward slashes so config with backslashes works everywhere
-        patterns = [p.replace("\\", "/") for p in raw]
-        if platform.system() != "Windows":
-            return patterns
-        # On Windows, Ruff's glob matcher may receive paths with backslashes;
-        # add backslash variants so exclude patterns match native paths
-        seen = set(patterns)
-        for p in list(patterns):
-            backslash = p.replace("/", "\\")
-            if backslash != p and backslash not in seen:
-                patterns.append(backslash)
-                seen.add(backslash)
-        return patterns
+        seen: set[str] = set()
+        result: list[str] = []
+        for pattern in raw:
+            simplified = self._simplify_exclude_pattern(pattern)
+            if simplified and simplified not in seen:
+                result.append(simplified)
+                seen.add(simplified)
+        return result
 
     def _filter_paths(
         self,

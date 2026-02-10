@@ -61,25 +61,30 @@ class TestRuffExclusionPatterns:
             ignore_patterns=ignore,
         )
 
-        with patch("lucidshark.plugins.linters.ruff.platform.system", return_value="Linux"):
-            with patch.object(linter, "ensure_binary", return_value=Path("/bin/ruff")):
-                with patch("subprocess.run") as mock_run:
-                    mock_run.return_value = MagicMock(returncode=0, stdout="[]", stderr="")
-                    linter.lint(context)
+        with patch.object(linter, "ensure_binary", return_value=Path("/bin/ruff")):
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stdout="[]", stderr="")
+                linter.lint(context)
 
-                    # Check the command arguments
-                    cmd = mock_run.call_args[0][0]
-                    assert "--extend-exclude" in cmd
-                    # Verify both patterns are added (no Windows backslash variants)
-                    exclude_indices = [i for i, x in enumerate(cmd) if x == "--extend-exclude"]
-                    assert len(exclude_indices) == 2
+                # Check the command arguments
+                cmd = mock_run.call_args[0][0]
+                assert "--extend-exclude" in cmd
+                # Verify both patterns are added (simplified forms)
+                exclude_indices = [i for i, x in enumerate(cmd) if x == "--extend-exclude"]
+                assert len(exclude_indices) == 2
 
-    def test_ruff_windows_adds_backslash_exclude_variants(self) -> None:
-        """On Windows, Ruff receives both forward-slash and backslash patterns so excludes match native paths."""
+    def test_ruff_simplifies_glob_patterns_for_exclude(self) -> None:
+        """Patterns like **/.venv/** are simplified to bare names for cross-platform reliability."""
         from lucidshark.plugins.linters.ruff import RuffLinter
 
         linter = RuffLinter()
-        ignore = IgnorePatterns(["**/.venv/**", "**/node_modules/**"])
+        ignore = IgnorePatterns([
+            "**/.venv/**",
+            "**/node_modules/**",
+            "**/__pycache__/**",
+            "tests/integration/projects/**",
+            "*.log",
+        ])
         context = ScanContext(
             project_root=Path("/project"),
             paths=[],
@@ -87,32 +92,36 @@ class TestRuffExclusionPatterns:
             ignore_patterns=ignore,
         )
 
-        with patch("lucidshark.plugins.linters.ruff.platform.system", return_value="Windows"):
-            patterns = linter._get_ruff_exclude_patterns(context)
-        # Forward-slash (normalized) patterns
-        assert "**/.venv/**" in patterns
-        assert "**/node_modules/**" in patterns
-        # Backslash variants for Windows path matching
-        assert "**\\.venv\\**" in patterns
-        assert "**\\node_modules\\**" in patterns
+        patterns = linter._get_ruff_exclude_patterns(context)
+        # **/<name>/** stripped to bare name
+        assert ".venv" in patterns
+        assert "node_modules" in patterns
+        assert "__pycache__" in patterns
+        # <path>/** stripped trailing /**
+        assert "tests/integration/projects" in patterns
+        # Simple glob kept as-is
+        assert "*.log" in patterns
+        # No ** wrappers remain
+        assert "**/.venv/**" not in patterns
+        assert "**/node_modules/**" not in patterns
 
-    def test_ruff_non_windows_does_not_duplicate_patterns(self) -> None:
-        """On non-Windows, only forward-slash patterns are returned (no backslash variants)."""
+    def test_ruff_simplify_exclude_pattern_variants(self) -> None:
+        """Test various pattern forms are simplified correctly."""
         from lucidshark.plugins.linters.ruff import RuffLinter
 
-        linter = RuffLinter()
-        ignore = IgnorePatterns(["**/.venv/**"])
-        context = ScanContext(
-            project_root=Path("/project"),
-            paths=[],
-            enabled_domains=[ToolDomain.LINTING],
-            ignore_patterns=ignore,
-        )
-
-        with patch("lucidshark.plugins.linters.ruff.platform.system", return_value="Linux"):
-            patterns = linter._get_ruff_exclude_patterns(context)
-        assert patterns == ["**/.venv/**"]
-        assert "**\\.venv\\**" not in patterns
+        simplify = RuffLinter._simplify_exclude_pattern
+        # **/<name>/** → <name>
+        assert simplify("**/.lucidshark/**") == ".lucidshark"
+        # **/<name> → <name>
+        assert simplify("**/build") == "build"
+        # <path>/** → <path>
+        assert simplify("docs/**") == "docs"
+        # bare name stays as-is
+        assert simplify(".venv") == ".venv"
+        # simple glob stays as-is
+        assert simplify("*.pyc") == "*.pyc"
+        # backslashes normalized to forward slashes
+        assert simplify("**\\.git\\**") == ".git"
 
 
 class TestESLintExclusionPatterns:
