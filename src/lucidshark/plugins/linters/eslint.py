@@ -20,6 +20,7 @@ from lucidshark.core.models import (
     ToolDomain,
     UnifiedIssue,
 )
+from lucidshark.core.paths import resolve_node_bin
 from lucidshark.core.subprocess_runner import run_with_streaming
 from lucidshark.plugins.linters.base import FixResult, LinterPlugin
 
@@ -103,8 +104,8 @@ class ESLintLinter(LinterPlugin):
         """
         # Check project node_modules first
         if self._project_root:
-            node_eslint = self._project_root / "node_modules" / ".bin" / "eslint"
-            if node_eslint.exists():
+            node_eslint = resolve_node_bin(self._project_root, "eslint")
+            if node_eslint:
                 return node_eslint
 
         # Check system PATH

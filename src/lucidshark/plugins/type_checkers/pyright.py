@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 from lucidshark.bootstrap.paths import LucidsharkPaths
 from lucidshark.bootstrap.versions import get_tool_version
 from lucidshark.core.logging import get_logger
+from lucidshark.core.paths import resolve_node_bin
 from lucidshark.core.models import (
     ScanContext,
     Severity,
@@ -99,8 +100,8 @@ class PyrightChecker(TypeCheckerPlugin):
 
         # Check project node_modules
         if self._project_root:
-            node_pyright = self._project_root / "node_modules" / ".bin" / "pyright"
-            if node_pyright.exists():
+            node_pyright = resolve_node_bin(self._project_root, "pyright")
+            if node_pyright:
                 return node_pyright
 
         # Check system PATH (npm or pip installed)

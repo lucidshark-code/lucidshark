@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from lucidshark.core.logging import get_logger
+from lucidshark.core.paths import resolve_node_bin
 from lucidshark.core.models import (
     ScanContext,
     Severity,
@@ -85,8 +86,8 @@ class JestRunner(TestRunnerPlugin):
         """
         # Check project node_modules first
         if self._project_root:
-            node_jest = self._project_root / "node_modules" / ".bin" / "jest"
-            if node_jest.exists():
+            node_jest = resolve_node_bin(self._project_root, "jest")
+            if node_jest:
                 return node_jest
 
         # Check system PATH

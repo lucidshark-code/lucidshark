@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 from lucidshark.bootstrap.paths import LucidsharkPaths
 from lucidshark.bootstrap.versions import get_tool_version
 from lucidshark.core.logging import get_logger
+from lucidshark.core.paths import resolve_node_bin
 from lucidshark.core.models import (
     ScanContext,
     Severity,
@@ -90,8 +91,8 @@ class BiomeLinter(LinterPlugin):
         """
         # Check project node_modules first
         if self._project_root:
-            node_biome = self._project_root / "node_modules" / ".bin" / "biome"
-            if node_biome.exists():
+            node_biome = resolve_node_bin(self._project_root, "biome")
+            if node_biome:
                 return node_biome
 
         # Check system PATH

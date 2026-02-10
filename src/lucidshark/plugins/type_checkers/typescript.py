@@ -20,6 +20,7 @@ from lucidshark.core.models import (
     ToolDomain,
     UnifiedIssue,
 )
+from lucidshark.core.paths import resolve_node_bin
 from lucidshark.plugins.type_checkers.base import TypeCheckerPlugin
 
 LOGGER = get_logger(__name__)
@@ -96,8 +97,8 @@ class TypeScriptChecker(TypeCheckerPlugin):
         """
         # Check project node_modules first
         if self._project_root:
-            node_tsc = self._project_root / "node_modules" / ".bin" / "tsc"
-            if node_tsc.exists():
+            node_tsc = resolve_node_bin(self._project_root, "tsc")
+            if node_tsc:
                 return node_tsc
 
         # Check system PATH

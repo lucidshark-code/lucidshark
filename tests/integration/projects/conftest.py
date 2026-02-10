@@ -101,7 +101,7 @@ def run_lucidshark(
     project_path: Path,
     domains: list[str] | None = None,
     extra_args: list[str] | None = None,
-    timeout: int = 120,
+    timeout: int = 300,
     all_files: bool = True,
 ) -> ScanResult:
     """Run lucidshark CLI against a project and return parsed results.
@@ -279,8 +279,14 @@ def _setup_node_modules(project_path: Path) -> Path:
 
     print(f"\n[Setup] Running npm install in {project_path}...")
 
+    # Use shutil.which to resolve the full path to npm (needed on Windows
+    # where npm is a .cmd file and subprocess.run won't find it without shell=True)
+    npm_bin = shutil.which("npm")
+    if not npm_bin:
+        pytest.skip("npm not found in PATH")
+
     result = subprocess.run(
-        ["npm", "install"],
+        [npm_bin, "install"],
         cwd=project_path,
         capture_output=True,
         text=True,

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from lucidshark.core.logging import get_logger
+from lucidshark.core.paths import resolve_node_bin
 from lucidshark.core.models import (
     ScanContext,
     Severity,
@@ -88,8 +89,8 @@ class IstanbulPlugin(CoveragePlugin):
         """
         # Check project node_modules first
         if self._project_root:
-            node_nyc = self._project_root / "node_modules" / ".bin" / "nyc"
-            if node_nyc.exists():
+            node_nyc = resolve_node_bin(self._project_root, "nyc")
+            if node_nyc:
                 return node_nyc
 
         # Check system PATH
@@ -155,8 +156,8 @@ class IstanbulPlugin(CoveragePlugin):
         # Check for jest or npm test
         jest_path = None
         if self._project_root:
-            node_jest = self._project_root / "node_modules" / ".bin" / "jest"
-            if node_jest.exists():
+            node_jest = resolve_node_bin(self._project_root, "jest")
+            if node_jest:
                 jest_path = node_jest
 
         if not jest_path:

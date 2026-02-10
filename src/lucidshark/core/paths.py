@@ -6,6 +6,7 @@ based on user input and git status.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import List, Optional
 
@@ -73,3 +74,29 @@ def determine_scan_paths(
         # Not a git repo or git command failed
         LOGGER.info("Not a git repository, scanning entire project")
         return [project_root]
+
+
+def resolve_node_bin(project_root: Path, tool_name: str) -> Optional[Path]:
+    """Resolve a tool binary from a project's node_modules/.bin directory.
+
+    On Windows, npm creates ``.cmd`` wrapper scripts alongside the plain
+    (shell-script) entries.  ``subprocess.run`` cannot execute the plain
+    entries directly, so this helper returns the ``.cmd`` variant when
+    running on Windows.
+
+    Args:
+        project_root: Project root containing ``node_modules``.
+        tool_name: Binary name (e.g. ``"tsc"``, ``"eslint"``).
+
+    Returns:
+        Path to the resolved binary, or ``None`` if not found.
+    """
+    bin_dir = project_root / "node_modules" / ".bin"
+    if sys.platform == "win32":
+        cmd_path = bin_dir / f"{tool_name}.cmd"
+        if cmd_path.exists():
+            return cmd_path
+    plain_path = bin_dir / tool_name
+    if plain_path.exists():
+        return plain_path
+    return None

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from lucidshark.core.logging import get_logger
+from lucidshark.core.paths import resolve_node_bin
 from lucidshark.core.models import (
     ScanContext,
     Severity,
@@ -87,8 +88,8 @@ class PlaywrightRunner(TestRunnerPlugin):
         """
         # Check project node_modules first
         if self._project_root:
-            node_playwright = self._project_root / "node_modules" / ".bin" / "playwright"
-            if node_playwright.exists():
+            node_playwright = resolve_node_bin(self._project_root, "playwright")
+            if node_playwright:
                 return node_playwright
 
         # Check system PATH

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from lucidshark.core.logging import get_logger
+from lucidshark.core.paths import resolve_node_bin
 from lucidshark.core.models import (
     ScanContext,
     Severity,
@@ -85,8 +86,8 @@ class KarmaRunner(TestRunnerPlugin):
         """
         # Check project node_modules first
         if self._project_root:
-            node_karma = self._project_root / "node_modules" / ".bin" / "karma"
-            if node_karma.exists():
+            node_karma = resolve_node_bin(self._project_root, "karma")
+            if node_karma:
                 return node_karma
 
         # Check system PATH
