@@ -528,20 +528,20 @@ def spotbugs_checker(project_root: Path) -> SpotBugsChecker:
 
 
 @pytest.fixture
-def maven_runner(project_root: Path) -> MavenTestRunner:
-    """Return a MavenTestRunner instance with project root."""
-    return MavenTestRunner(project_root=project_root)
-
-
-@pytest.fixture
-def jacoco_plugin(project_root: Path) -> JaCoCoPlugin:
-    """Return a JaCoCoPlugin instance with project root."""
-    return JaCoCoPlugin(project_root=project_root)
-
-
-@pytest.fixture
 def java_webapp_project() -> Path:
     """Return the path to the sample Java webapp integration test project."""
     return Path(__file__).parent / "projects" / "java-webapp"
+
+
+@pytest.fixture
+def maven_runner(java_webapp_project: Path) -> MavenTestRunner:
+    """Return a MavenTestRunner instance with Java webapp project root."""
+    return MavenTestRunner(project_root=java_webapp_project)
+
+
+@pytest.fixture
+def jacoco_plugin(java_webapp_project: Path) -> JaCoCoPlugin:
+    """Return a JaCoCoPlugin instance with Java webapp project root."""
+    return JaCoCoPlugin(project_root=java_webapp_project)
 
 
