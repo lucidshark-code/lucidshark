@@ -12,8 +12,7 @@ from unittest.mock import patch
 from lucidshark.cli.commands.init import (
     InitCommand,
     LUCIDSHARK_MCP_ARGS,
-    LUCIDSHARK_CLAUDE_MD_MARKER,
-    LUCIDSHARK_CLAUDE_MD_INSTRUCTIONS,
+    LUCIDSHARK_SKILL_CONTENT,
 )
 from lucidshark.cli.exit_codes import EXIT_SUCCESS, EXIT_INVALID_USAGE
 
@@ -332,105 +331,85 @@ class TestSetupCursor:
         assert config["mcpServers"]["lucidshark"]["command"] == "/usr/local/bin/lucidshark"
 
 
-class TestConfigureClaudeMd:
-    """Tests for CLAUDE.md configuration."""
+class TestConfigureClaudeSkill:
+    """Tests for Claude skill configuration."""
 
-    def test_creates_new_claude_md(self, tmp_path: Path, capsys) -> None:
-        """Test creating a new CLAUDE.md file."""
+    def test_creates_new_skill_file(self, tmp_path: Path, capsys) -> None:
+        """Test creating a new Claude skill file."""
         cmd = InitCommand(version="1.0.0")
-        claude_md_path = tmp_path / ".claude" / "CLAUDE.md"
+        skill_path = tmp_path / ".claude" / "skills" / "lucidshark" / "SKILL.md"
 
         with patch.object(Path, "cwd", return_value=tmp_path):
-            success = cmd._configure_claude_md(dry_run=False, force=False, remove=False)
+            success = cmd._configure_claude_skill(dry_run=False, force=False, remove=False)
 
         assert success
-        assert claude_md_path.exists()
-        content = claude_md_path.read_text()
-        assert LUCIDSHARK_CLAUDE_MD_MARKER in content
-
-    def test_appends_to_existing_claude_md(self, tmp_path: Path) -> None:
-        """Test appending to existing CLAUDE.md."""
-        cmd = InitCommand(version="1.0.0")
-        claude_md_path = tmp_path / ".claude" / "CLAUDE.md"
-        claude_md_path.parent.mkdir(parents=True)
-        claude_md_path.write_text("# Project Instructions\n\nSome existing content.")
-
-        with patch.object(Path, "cwd", return_value=tmp_path):
-            success = cmd._configure_claude_md(dry_run=False, force=False, remove=False)
-
-        assert success
-        content = claude_md_path.read_text()
-        assert "# Project Instructions" in content
-        assert "Some existing content" in content
-        assert LUCIDSHARK_CLAUDE_MD_MARKER in content
+        assert skill_path.exists()
+        content = skill_path.read_text()
+        assert "LucidShark" in content
 
     def test_skips_if_already_configured(self, tmp_path: Path, capsys) -> None:
-        """Test that setup skips if lucidshark instructions already exist."""
+        """Test that setup skips if lucidshark skill already exists."""
         cmd = InitCommand(version="1.0.0")
-        claude_md_path = tmp_path / ".claude" / "CLAUDE.md"
-        claude_md_path.parent.mkdir(parents=True)
-        claude_md_path.write_text(f"# Project\n\n{LUCIDSHARK_CLAUDE_MD_INSTRUCTIONS}")
+        skill_path = tmp_path / ".claude" / "skills" / "lucidshark" / "SKILL.md"
+        skill_path.parent.mkdir(parents=True)
+        skill_path.write_text(LUCIDSHARK_SKILL_CONTENT)
 
         with patch.object(Path, "cwd", return_value=tmp_path):
-            success = cmd._configure_claude_md(dry_run=False, force=False, remove=False)
+            success = cmd._configure_claude_skill(dry_run=False, force=False, remove=False)
 
         assert success
         captured = capsys.readouterr()
-        assert "already in" in captured.out
+        assert "already exists" in captured.out
 
     def test_force_overwrites_existing(self, tmp_path: Path) -> None:
-        """Test that --force overwrites existing instructions."""
+        """Test that --force overwrites existing skill."""
         cmd = InitCommand(version="1.0.0")
-        claude_md_path = tmp_path / ".claude" / "CLAUDE.md"
-        claude_md_path.parent.mkdir(parents=True)
-        claude_md_path.write_text(f"# Project\n\n{LUCIDSHARK_CLAUDE_MD_MARKER}\n\nOld instructions")
+        skill_path = tmp_path / ".claude" / "skills" / "lucidshark" / "SKILL.md"
+        skill_path.parent.mkdir(parents=True)
+        skill_path.write_text("Old skill content")
 
         with patch.object(Path, "cwd", return_value=tmp_path):
-            success = cmd._configure_claude_md(dry_run=False, force=True, remove=False)
+            success = cmd._configure_claude_skill(dry_run=False, force=True, remove=False)
 
         assert success
-        content = claude_md_path.read_text()
-        assert "Old instructions" not in content
-        assert LUCIDSHARK_CLAUDE_MD_MARKER in content
+        content = skill_path.read_text()
+        assert "Old skill content" not in content
+        assert "LucidShark" in content
 
     def test_dry_run_does_not_write(self, tmp_path: Path, capsys) -> None:
-        """Test that --dry-run does not write CLAUDE.md."""
+        """Test that --dry-run does not write skill file."""
         cmd = InitCommand(version="1.0.0")
-        claude_md_path = tmp_path / ".claude" / "CLAUDE.md"
+        skill_path = tmp_path / ".claude" / "skills" / "lucidshark" / "SKILL.md"
 
         with patch.object(Path, "cwd", return_value=tmp_path):
-            success = cmd._configure_claude_md(dry_run=True, force=False, remove=False)
+            success = cmd._configure_claude_skill(dry_run=True, force=False, remove=False)
 
         assert success
-        assert not claude_md_path.exists()
+        assert not skill_path.exists()
         captured = capsys.readouterr()
-        assert "Would add" in captured.out
+        assert "Would create" in captured.out
 
-    def test_remove_deletes_instructions(self, tmp_path: Path, capsys) -> None:
-        """Test that --remove removes lucidshark instructions."""
+    def test_remove_deletes_skill(self, tmp_path: Path, capsys) -> None:
+        """Test that --remove removes lucidshark skill."""
         cmd = InitCommand(version="1.0.0")
-        claude_md_path = tmp_path / ".claude" / "CLAUDE.md"
-        claude_md_path.parent.mkdir(parents=True)
-        claude_md_path.write_text(f"# Project\n\n{LUCIDSHARK_CLAUDE_MD_INSTRUCTIONS}\n\n## Other Section\n\nKeep this.")
+        skill_path = tmp_path / ".claude" / "skills" / "lucidshark" / "SKILL.md"
+        skill_path.parent.mkdir(parents=True)
+        skill_path.write_text(LUCIDSHARK_SKILL_CONTENT)
 
         with patch.object(Path, "cwd", return_value=tmp_path):
-            success = cmd._configure_claude_md(dry_run=False, force=False, remove=True)
+            success = cmd._configure_claude_skill(dry_run=False, force=False, remove=True)
 
         assert success
-        content = claude_md_path.read_text()
-        assert LUCIDSHARK_CLAUDE_MD_MARKER not in content
-        assert "## Other Section" in content
-        assert "Keep this" in content
+        assert not skill_path.exists()
+        captured = capsys.readouterr()
+        assert "Removed" in captured.out
 
     def test_remove_not_found(self, tmp_path: Path, capsys) -> None:
-        """Test removing when instructions not in CLAUDE.md."""
+        """Test removing when skill does not exist."""
         cmd = InitCommand(version="1.0.0")
-        claude_md_path = tmp_path / ".claude" / "CLAUDE.md"
-        claude_md_path.parent.mkdir(parents=True)
-        claude_md_path.write_text("# Project\n\nNo lucidshark here.")
 
         with patch.object(Path, "cwd", return_value=tmp_path):
-            success = cmd._configure_claude_md(dry_run=False, force=False, remove=True)
+            success = cmd._configure_claude_skill(dry_run=False, force=False, remove=True)
 
         assert success
         captured = capsys.readouterr()

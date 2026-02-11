@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lucidshark"
-version = "0.5.20"
+version = "0.5.21"
 description = "LucidShark - The trust layer for AI-assisted development"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -130,13 +130,19 @@ markers = [
 # These versions are used when lucidshark downloads/installs the tools
 [tool.lucidshark.tools]
 # Security scanners
+<<<<<<< Updated upstream
 trivy = "0.68.2"
 opengrep = "1.15.0"
 checkov = "3.2.499"
+=======
+trivy = "0.69.1"
+opengrep = "1.16.0"
+checkov = "3.2.500"
+>>>>>>> Stashed changes
 # Linters
-ruff = "0.14.11"
-biome = "2.3.11"
-checkstyle = "13.0.0"
+ruff = "0.15.0"
+biome = "2.3.14"
+checkstyle = "13.2.0"
 # Type checkers
 pyright = "1.1.408"
 # Duplication detection

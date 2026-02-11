@@ -24,20 +24,24 @@ LOGGER = get_logger(__name__)
 # MCP server arguments for LucidShark
 LUCIDSHARK_MCP_ARGS = ["serve", "--mcp"]
 
-# Instructions to add to CLAUDE.md for proactive lucidshark usage
-LUCIDSHARK_CLAUDE_MD_INSTRUCTIONS = """
-## Code Quality with LucidShark
+# Claude skill content for proactive lucidshark usage
+LUCIDSHARK_SKILL_CONTENT = """---
+name: lucidshark
+description: Code quality scanning with LucidShark. Use after completing code changes, before commits, or when user asks to check code quality.
+---
+
+# Code Quality with LucidShark
 
 IMPORTANT: You MUST run LucidShark after completing code changes. This is required, not optional.
 
-### When to Scan
+## When to Scan
 
 Run a scan after completing a batch of related code changes (not after each individual edit):
 - After finishing a feature or fix (before reporting completion to user)
 - Before creating a commit
 - When the user asks you to check code quality
 
-### Fast Scan (After Code Changes)
+## Fast Scan (After Code Changes)
 
 After completing code modifications, run a scan (scans changed files by default):
 ```
@@ -49,20 +53,20 @@ For full project scan:
 scan(domains=["linting", "type_checking", "sast", "sca"], all_files=true)
 ```
 
-### Full Scan (Before Commit)
+## Full Scan (Before Commit)
 
 Before committing, run a full scan including tests:
 ```
 scan(domains=["all"])
 ```
 
-### Fixing Issues
+## Fixing Issues
 
 1. Run `scan(fix=true)` to auto-fix linting issues
 2. Use `get_fix_instructions(issue_id)` for detailed guidance on specific issues
 3. Re-scan after manual fixes to verify resolution
 
-### Workflow Example
+## Workflow Example
 
 1. Make code changes (multiple edits)
 2. When done with changes, run `scan(domains=["linting", "type_checking"], fix=true)`
@@ -70,8 +74,6 @@ scan(domains=["all"])
 4. Re-scan to verify all issues resolved
 5. Report completion to user
 """
-
-LUCIDSHARK_CLAUDE_MD_MARKER = "## Code Quality with LucidShark"
 
 # Cursor rules for proactive lucidshark usage
 LUCIDSHARK_CURSOR_RULES = """---
@@ -217,14 +219,14 @@ class InitCommand(Command):
             use_portable_path=True,  # .mcp.json is version controlled
         )
 
-        # Also configure CLAUDE.md with instructions
-        claude_md_success = self._configure_claude_md(
+        # Also configure Claude skill
+        skill_success = self._configure_claude_skill(
             dry_run=dry_run,
             force=force,
             remove=remove,
         )
 
-        return mcp_success and claude_md_success
+        return mcp_success and skill_success
 
     def _setup_cursor(
         self,
@@ -421,110 +423,66 @@ class InitCommand(Command):
             self._print_available_tools()
         return success
 
-    def _configure_claude_md(
+    def _configure_claude_skill(
         self,
         dry_run: bool = False,
         force: bool = False,
         remove: bool = False,
     ) -> bool:
-        """Configure CLAUDE.md with lucidshark instructions.
+        """Configure Claude skill for lucidshark.
+
+        Creates a skill file at .claude/skills/lucidshark/SKILL.md
 
         Args:
             dry_run: If True, only show what would be done.
-            force: If True, overwrite existing instructions.
-            remove: If True, remove lucidshark instructions.
+            force: If True, overwrite existing skill.
+            remove: If True, remove lucidshark skill.
 
         Returns:
             True if successful.
         """
-        claude_md_path = Path.cwd() / ".claude" / "CLAUDE.md"
+        skill_dir = Path.cwd() / ".claude" / "skills" / "lucidshark"
+        skill_file = skill_dir / "SKILL.md"
 
-        print("Configuring CLAUDE.md...")
-
-        # Read existing content
-        existing_content = ""
-        if claude_md_path.exists():
-            try:
-                existing_content = claude_md_path.read_text()
-            except Exception as e:
-                print(f"  Error reading {claude_md_path}: {e}")
-                return False
-
-        has_lucidshark_section = LUCIDSHARK_CLAUDE_MD_MARKER in existing_content
+        print("Configuring Claude skill...")
 
         if remove:
-            if has_lucidshark_section:
+            if skill_file.exists():
                 if dry_run:
-                    print(f"  Would remove lucidshark instructions from {claude_md_path}")
+                    print(f"  Would remove {skill_file}")
                 else:
-                    # Remove the lucidshark section
-                    new_content = self._remove_lucidshark_section(existing_content)
                     try:
-                        claude_md_path.write_text(new_content)
-                        print(f"  Removed lucidshark instructions from {claude_md_path}")
+                        skill_file.unlink()
+                        # Remove directory if empty
+                        if skill_dir.exists() and not any(skill_dir.iterdir()):
+                            skill_dir.rmdir()
+                        print("  Removed lucidshark skill")
                     except Exception as e:
-                        print(f"  Error writing {claude_md_path}: {e}")
+                        print(f"  Error removing skill: {e}")
                         return False
             else:
-                print(f"  Lucidshark instructions not found in {claude_md_path}")
+                print("  Lucidshark skill not found")
             return True
 
-        if has_lucidshark_section and not force:
-            print(f"  Lucidshark instructions already in {claude_md_path}")
+        if skill_file.exists() and not force:
+            print(f"  Lucidshark skill already exists at {skill_file}")
             print("  Use --force to overwrite.")
             return True
 
-        # Build new content
-        if has_lucidshark_section:
-            # Replace existing section
-            new_content = self._remove_lucidshark_section(existing_content)
-            new_content = new_content.rstrip() + LUCIDSHARK_CLAUDE_MD_INSTRUCTIONS
-        else:
-            # Append to existing content
-            new_content = existing_content.rstrip() + LUCIDSHARK_CLAUDE_MD_INSTRUCTIONS
-
         if dry_run:
-            print(f"  Would add lucidshark instructions to {claude_md_path}")
+            print(f"  Would create skill at {skill_file}")
             return True
 
         # Ensure directory exists
-        claude_md_path.parent.mkdir(parents=True, exist_ok=True)
+        skill_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            claude_md_path.write_text(new_content)
-            print(f"  Added lucidshark instructions to {claude_md_path}")
+            skill_file.write_text(LUCIDSHARK_SKILL_CONTENT.lstrip())
+            print(f"  Created lucidshark skill at {skill_file}")
             return True
         except Exception as e:
-            print(f"  Error writing {claude_md_path}: {e}")
+            print(f"  Error creating skill: {e}")
             return False
-
-    def _remove_lucidshark_section(self, content: str) -> str:
-        """Remove the lucidshark section from CLAUDE.md content.
-
-        Args:
-            content: The current CLAUDE.md content.
-
-        Returns:
-            Content with lucidshark section removed.
-        """
-        lines = content.split("\n")
-        new_lines = []
-        in_lucidshark_section = False
-
-        for line in lines:
-            if line.strip() == LUCIDSHARK_CLAUDE_MD_MARKER.strip():
-                in_lucidshark_section = True
-                continue
-            if in_lucidshark_section:
-                # Check if we've hit another section (line starting with ##)
-                if line.startswith("## ") and LUCIDSHARK_CLAUDE_MD_MARKER.strip() not in line:
-                    in_lucidshark_section = False
-                    new_lines.append(line)
-                # Skip lines in the lucidshark section
-                continue
-            new_lines.append(line)
-
-        return "\n".join(new_lines)
 
     def _configure_cursor_rules(
         self,
