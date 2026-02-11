@@ -2,33 +2,33 @@
 
 > **Vision**: The trust layer for AI-assisted development
 
-LucidShark unifies code quality tools (linting, type checking, security, testing, coverage) into a single pipeline that auto-configures for any project and integrates with AI coding tools like Claude Code and Cursor.
+LucidShark unifies code quality tools (linting, type checking, security, testing, coverage, duplication detection) into a single pipeline that auto-configures for any project and integrates with AI coding tools like Claude Code and Cursor.
 
 ---
 
 ## Roadmap Overview
 
 ```
-    v0.1-v0.5        NEXT UP           v0.6-v0.8           v0.9              v1.0
+    v0.1-v0.5         v0.5.x            v0.6-v0.8           v0.9              v1.0
         |               |                  |                 |                 |
    ─────●───────────────●──────────────────●─────────────────●─────────────────●─────
         |               |                  |                 |                 |
-    COMPLETE        Partial            Language           CI/CD           Production
-                     Scans            Expansion        Integration           Ready
+    COMPLETE        COMPLETE           Language           CI/CD           Production
+                   Partial+Java        Expansion        Integration           Ready
 
   ┌─────────────┐ ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
   │ Core        │ │ Git-aware   │  │ 5 Languages │  │ GitHub      │  │ Docs        │
-  │ Security    │ │ Default to  │  │ 2 tools per │  │ Actions     │  │ Performance │
-  │ MCP Server  │ │ changed     │  │ domain      │  │ GitLab CI   │  │ Stability   │
-  │ AI Tools    │ │ files only  │  │ Go, C#      │  │             │  │             │
+  │ Security    │ │ Partial     │  │ Go, C#      │  │ Actions     │  │ Performance │
+  │ MCP Server  │ │ SpotBugs    │  │ More tools  │  │ GitLab CI   │  │ Stability   │
+  │ AI Tools    │ │ Maven+JaCoCo│  │             │  │             │  │             │
   └─────────────┘ └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘
 ```
 
 ---
 
-## Completed (v0.1 - v0.5)
+## Completed (v0.1 - v0.5.x)
 
-All foundational work is complete. LucidShark is a fully functional code quality platform with AI integration.
+All foundational work is complete. LucidShark is a fully functional code quality platform with AI integration, partial scanning, and full Java support.
 
 ### What's Built
 
@@ -37,19 +37,21 @@ All foundational work is complete. LucidShark is a fully functional code quality
 | **Core Framework** | CLI with subcommands, plugin system, pipeline orchestrator, configuration system |
 | **Security Scanning** | Trivy (SCA, Container), OpenGrep (SAST), Checkov (IaC) |
 | **Linting** | Ruff (Python), ESLint (JS/TS), Biome (JS/TS), Checkstyle (Java) |
-| **Type Checking** | mypy (Python), pyright (Python), TypeScript (tsc) |
-| **Testing** | pytest (Python), Jest (JS/TS), Karma (Angular), Playwright (E2E) |
-| **Coverage** | coverage.py (Python), Istanbul (JS/TS) |
+| **Type Checking** | mypy (Python), pyright (Python), TypeScript (tsc), SpotBugs (Java) |
+| **Testing** | pytest (Python), Jest (JS/TS), Karma (Angular), Playwright (E2E), Maven/Gradle (Java) |
+| **Coverage** | coverage.py (Python), Istanbul (JS/TS), JaCoCo (Java) |
+| **Duplication** | Duplo (multi-language code clone detection) |
 | **AI Integration** | MCP server, file watcher, structured AI instructions |
 | **Output** | JSON, Table, SARIF, Summary reporters |
+| **Partial Scanning** | Git-aware scanning (changed files only by default) |
 
 ### Current Language Support
 
 | Language | Linting | Type Checking | Testing | Coverage |
 |----------|---------|---------------|---------|----------|
 | Python | Ruff | mypy, pyright | pytest | coverage.py |
-| JavaScript/TypeScript | ESLint, Biome | TypeScript | Jest | Istanbul |
-| Java | Checkstyle | - | - | - |
+| JavaScript/TypeScript | ESLint, Biome | TypeScript | Jest, Karma, Playwright | Istanbul |
+| Java/Kotlin | Checkstyle | SpotBugs | Maven/Gradle (JUnit) | JaCoCo |
 
 ### Commands Available Today
 
@@ -67,31 +69,23 @@ lucidshark status                     # Show tool status
 
 ---
 
-## Next Priority - Partial Scans (Git-Aware Scanning)
+## Completed - Partial Scans (Git-Aware Scanning) ✅
 
-**Goal**: Make scanning smarter by defaulting to only changed files
+**Status**: IMPLEMENTED in v0.5.x
 
-### Problem
+LucidShark now defaults to scanning only changed files (uncommitted changes).
 
-Currently, LucidShark scans the entire project by default. For large codebases, this is slow and produces noise from files the developer hasn't touched. AI coding assistants (Claude Code, Cursor) primarily care about the code they just modified.
+### How It Works
 
-### Solution
+| Scenario | Behavior |
+|----------|----------|
+| Git repo with uncommitted changes | Scan only changed files |
+| Git repo with no changes | Report "no files to scan" (or scan all if `--all-files`) |
+| Not a git repo | Scan entire project |
+| Explicit `--files` provided | Scan specified files (ignore git status) |
+| Explicit `--all-files` flag | Scan entire project |
 
-Change the default behavior:
-1. **Git projects**: Scan only uncommitted changes (staged + unstaged files)
-2. **Non-git projects**: Fall back to full project scan
-3. **Explicit full scan**: Add `--all-files` flag when full scan is needed
-
-### Implementation
-
-| Component | Change |
-|-----------|--------|
-| **CLI** | `lucidshark scan` defaults to changed files; add `--all-files` flag for full scan |
-| **MCP Server** | `scan()` defaults to changed files; add `all_files` parameter |
-| **Git Integration** | Detect git repo, get list of uncommitted files (staged + modified + untracked) |
-| **Fallback** | If not a git repo or git unavailable, scan entire project |
-
-### User Experience
+### Usage
 
 ```bash
 # Default: scan only changed files (git diff + untracked)
@@ -100,7 +94,7 @@ lucidshark scan --linting --type-checking
 # Explicit full project scan
 lucidshark scan --linting --type-checking --all-files
 
-# Still works: explicit file list
+# Explicit file list
 lucidshark scan --linting --files src/foo.py src/bar.py
 ```
 
@@ -113,113 +107,22 @@ scan(domains=["linting", "type_checking"])
 # Full project scan
 scan(domains=["linting", "type_checking"], all_files=True)
 
-# Explicit file list (unchanged)
+# Explicit file list
 scan(domains=["linting"], files=["src/foo.py"])
 ```
 
-### Key Behaviors
+### Partial Scan Support by Domain
 
-| Scenario | Behavior |
-|----------|----------|
-| Git repo with uncommitted changes | Scan only changed files |
-| Git repo with no changes | Report "no files to scan" (or scan all if `--all-files`) |
-| Not a git repo | Scan entire project |
-| Explicit `--files` provided | Scan specified files (ignore git status) |
-| Explicit `--all-files` flag | Scan entire project |
-
-### Domain-Specific Behavior
-
-Not all domains can be partial - some must run in full to be meaningful:
-
-| Domain | Partial Scan Behavior |
-|--------|----------------------|
-| **Linting** | Only lint changed files |
-| **Type Checking** | Only type-check changed files |
-| **Security (SAST)** | Only scan changed files |
-| **Security (SCA)** | Always full scan (dependency analysis) |
-| **Security (IaC)** | Only scan changed IaC files |
-| **Testing** | **Always run full test suite** (to catch regressions) |
-| **Coverage** | Run full tests, but **only report coverage for changed files** |
-
-The key insight: tests must run in full because a change in `foo.py` might break tests in `test_bar.py`. But coverage reporting focuses on the changed files - developers care about coverage of code they just wrote, not the entire codebase.
-
-### Tool-Level Partial Scan Support
-
-Not all tools support file-level scanning. Here's the detailed breakdown:
-
-#### Linting Tools
-
-| Tool | Supports File Args | Implementation | Notes |
-|------|-------------------|----------------|-------|
-| **Ruff** | ✅ Yes | `ruff check [files...]` | Full support, files passed directly to CLI |
-| **ESLint** | ✅ Yes | `eslint [files...]` | Full support, files passed directly to CLI |
-| **Biome** | ✅ Yes | `biome lint [files...]` | Full support, files passed directly to CLI |
-| **Checkstyle** | ✅ Yes | `java -jar checkstyle.jar [files...]` | Auto-discovers .java files in specified dirs |
-
-#### Type Checking Tools
-
-| Tool | Supports File Args | Implementation | Notes |
-|------|-------------------|----------------|-------|
-| **mypy** | ✅ Yes | `mypy [files...]` | Full support, supports `--exclude` patterns |
-| **Pyright** | ✅ Yes | `pyright [files...]` | Full support, config via pyrightconfig.json |
-| **TypeScript (tsc)** | ❌ No | `tsc --noEmit` | **No CLI file args** - uses tsconfig.json only |
-
-#### Security Tools
-
-| Tool | Supports File Args | Implementation | Notes |
-|------|-------------------|----------------|-------|
-| **OpenGrep** (SAST) | ❌ No | `opengrep scan <project_root>` | Project-wide only, ignores file list |
-| **Trivy** (SCA) | ❌ No | `trivy fs <project_root>` | Dependency scan is inherently project-wide |
-| **Trivy** (Container) | N/A | `trivy image <image>` | Scans container images, not files |
-| **Checkov** (IaC) | ❌ No | `checkov --directory <project_root>` | Project-wide only, ignores file list |
-
-#### Testing Tools
-
-| Tool | Supports File Args | Implementation | Notes |
-|------|-------------------|----------------|-------|
-| **pytest** | ✅ Yes | `pytest [files...]` | Full support (but tests should run in full) |
-| **Jest** | ✅ Yes | `jest [files...]` | Full support (but tests should run in full) |
-| **Playwright** | ✅ Yes | `playwright test [files...]` | Full support (but E2E tests should run in full) |
-| **Karma** | ❌ No | `karma start` | Uses karma.conf.js only, no CLI file args |
-
-#### Coverage Tools
-
-| Tool | Supports File Args | Implementation | Notes |
-|------|-------------------|----------------|-------|
-| **coverage.py** | ⚠️ Partial | `coverage run -m pytest [tests...]` | Can run specific tests, but measures all executed code |
-| **Istanbul/NYC** | ❌ No | `nyc jest` | Project-wide measurement only |
-
-### Partial Scan Strategy by Tool
-
-Given tool limitations, here's how partial scans will work:
-
-| Tool | Partial Scan Strategy |
-|------|----------------------|
-| **Ruff, ESLint, Biome, Checkstyle** | Pass changed files directly ✅ |
-| **mypy, Pyright** | Pass changed files directly ✅ |
-| **TypeScript (tsc)** | Must run full project (tool limitation) |
-| **OpenGrep, Trivy, Checkov** | Must run full project (tool limitation) |
-| **pytest, Jest, Playwright** | Run full suite, filter coverage output |
-| **Karma** | Must run full project (tool limitation) |
-| **coverage.py** | Run full tests, filter report to changed files |
-| **Istanbul/NYC** | Run full tests, filter report to changed files |
-
-### Summary
-
-| Category | Partial Scan Support |
-|----------|---------------------|
-| **Linting** | ✅ All tools support file args |
-| **Type Checking** | ⚠️ mypy/Pyright yes, tsc no |
-| **Security** | ❌ No tools support file args (by design) |
-| **Testing** | ⚠️ Most support file args, but should run full anyway |
-| **Coverage** | ⚠️ Run full, filter output to changed files |
-
-### Benefits
-
-- **Faster scans**: Only check what changed
-- **Less noise**: No issues from untouched legacy code
-- **AI-friendly**: Perfect for AI coding assistants that modify specific files
-- **Backwards compatible**: `--all-files` restores old behavior
+| Domain | Partial Scan Support | Notes |
+|--------|---------------------|-------|
+| **Linting** | ✅ Full | All linters support file args |
+| **Type Checking** | ⚠️ Partial | mypy/pyright yes, tsc project-wide |
+| **SAST** | ✅ Full | OpenGrep supports file args |
+| **SCA** | ❌ Project-wide | Dependency scan requires full project |
+| **IaC** | ❌ Project-wide | Checkov scans full project |
+| **Testing** | ✅ Full | But full suite recommended |
+| **Coverage** | ⚠️ Partial | Run full tests, filter output |
+| **Duplication** | ❌ Project-wide | Cross-file detection requires full project |
 
 ---
 
@@ -248,20 +151,20 @@ Given tool limitations, here's how partial scans will work:
 | Vitest test runner plugin | Planned |
 | c8 coverage plugin | Planned |
 
-#### v0.7 - Complete Java & Add Go
+#### v0.7 - Add Go Language
 
 | Task | Status |
 |------|--------|
-| SpotBugs linter plugin | Planned |
-| JUnit test runner plugin | Planned |
-| TestNG test runner plugin | Planned |
-| JaCoCo coverage plugin | Planned |
-| Cobertura coverage plugin | Planned |
+| SpotBugs type checker plugin | ✅ Complete |
+| Maven/Gradle test runner plugin | ✅ Complete |
+| JaCoCo coverage plugin | ✅ Complete |
 | Go language detection | Planned |
 | golangci-lint plugin | Planned |
 | staticcheck plugin | Planned |
 | go test integration | Planned |
 | go cover integration | Planned |
+| TestNG test runner plugin | Planned |
+| Cobertura coverage plugin | Planned |
 
 #### v0.8 - Add C#
 
@@ -377,10 +280,10 @@ These are not committed - they depend on user feedback and adoption.
 
 | Version | Status | Highlights |
 |---------|--------|------------|
-| v0.1-v0.5 | Complete | Core framework, security scanning, linting, type checking, testing, coverage, MCP server, AI integration |
-| **Next** | **Priority** | **Partial scans: default to git changed files only (CLI + MCP)** |
+| v0.1-v0.5 | ✅ Complete | Core framework, security scanning, linting, type checking, testing, coverage, MCP server, AI integration |
+| v0.5.x | ✅ Complete | Partial scans (git-aware), full Java support (SpotBugs, Maven/Gradle, JaCoCo), duplication detection |
 | v0.6 | Planned | Complete Python (Flake8, unittest) and JS/TS (Vitest, c8) tool coverage |
-| v0.7 | Planned | Complete Java (SpotBugs, JUnit, TestNG, JaCoCo, Cobertura) and add Go support |
+| v0.7 | Planned | Add Go support (golangci-lint, staticcheck, go test, go cover) |
 | v0.8 | Planned | Add C# support (StyleCop, Roslyn, xUnit, NUnit, Coverlet, dotCover) |
 | v0.9 | Planned | CI integration (GitHub Actions, GitLab CI) |
 | v1.0 | Planned | Production ready (docs, performance, stability) |

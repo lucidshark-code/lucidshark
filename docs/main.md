@@ -8,6 +8,7 @@ The trust gap manifests in several ways:
 
 - **Security vulnerabilities**: AI can introduce injection flaws, hardcoded secrets, insecure configurations
 - **Code quality issues**: Linting errors, type mismatches, inconsistent patterns
+- **Code duplication**: AI tends to copy-paste similar code blocks instead of reusing functions
 - **Test gaps**: AI-generated code often lacks test coverage
 - **Best practice violations**: AI doesn't know your team's conventions
 
@@ -25,7 +26,7 @@ This workflow is **slow, manual, and error-prone**. The feedback loop between AI
 What developers need is a **trust layer** that:
 
 1. **Auto-configures** quality tools for any codebase with a single command
-2. **Unifies** linting, security, testing, and coverage in one pipeline
+2. **Unifies** linting, type checking, security, testing, coverage, and duplication detection in one pipeline
 3. **Feeds back to AI agents** in real-time, instructing them to fix issues automatically
 
 This trust layer doesn't replace existing tools - it orchestrates them and bridges the gap between deterministic analysis and AI-assisted development.
@@ -88,11 +89,11 @@ A single configuration file controls:
 
 | Domain | Tools | What It Catches |
 |--------|-------|-----------------|
-| **Linting** | Ruff, ESLint, Biome | Style, formatting, code smells |
-| **Type Checking** | mypy, TypeScript, Pyright | Type errors |
+| **Linting** | Ruff, ESLint, Biome, Checkstyle | Style, formatting, code smells |
+| **Type Checking** | mypy, TypeScript, Pyright, SpotBugs | Type errors, static analysis bugs |
 | **Security** | Trivy, OpenGrep, Checkov | Vulnerabilities, misconfigurations |
-| **Testing** | pytest, Jest, Go test | Test failures |
-| **Coverage** | coverage.py, Istanbul, Go cover | Coverage gaps |
+| **Testing** | pytest, Jest, Maven/Gradle | Test failures |
+| **Coverage** | coverage.py, Istanbul, JaCoCo | Coverage gaps |
 | **Duplication** | Duplo | Code clones, duplicate blocks |
 
 All results normalized to a common schema. One exit code for automation.
@@ -620,11 +621,14 @@ Binaries cached at `~/.lucidshark/`:
 │  └── Threshold evaluation                                       │
 ├─────────────────────────────────────────────────────────────────┤
 │  Tool Plugins                                                   │
-│  ├── Linting:     RuffPlugin, ESLintPlugin, BiomePlugin         │
-│  ├── TypeCheck:   MypyPlugin, TypeScriptPlugin, PyrightPlugin   │
+│  ├── Linting:     RuffPlugin, ESLintPlugin, BiomePlugin,        │
+│  │                CheckstylePlugin                              │
+│  ├── TypeCheck:   MypyPlugin, TypeScriptPlugin, PyrightPlugin,  │
+│  │                SpotBugsPlugin                                │
 │  ├── Security:    TrivyPlugin, OpenGrepPlugin, CheckovPlugin    │
-│  ├── Testing:     PytestPlugin, JestPlugin, GoTestPlugin        │
-│  ├── Coverage:    CoveragePlugin, IstanbulPlugin, GoCoverPlugin │
+│  ├── Testing:     PytestPlugin, JestPlugin, MavenPlugin,        │
+│  │                KarmaPlugin, PlaywrightPlugin                 │
+│  ├── Coverage:    CoveragePlugin, IstanbulPlugin, JaCoCoPlugin  │
 │  └── Duplication: DuploPlugin                                   │
 ├─────────────────────────────────────────────────────────────────┤
 │  Output Layer                                                   │
@@ -654,7 +658,7 @@ class ToolPlugin(ABC):
     @property
     @abstractmethod
     def domain(self) -> ToolDomain:
-        """Domain: LINTING, TYPE_CHECKING, SECURITY, TESTING, COVERAGE."""
+        """Domain: LINTING, TYPE_CHECKING, SECURITY, TESTING, COVERAGE, DUPLICATION."""
 
     @property
     @abstractmethod
@@ -954,13 +958,14 @@ LucidShark scans only changed files by default, enabling fast feedback loops:
 |---------------|-------|---------------------|
 | **Linting** | Ruff, ESLint, Biome, Checkstyle | ✅ All support file args |
 | **Type Checking** | mypy, pyright | ✅ Support file args |
-| **Type Checking** | TypeScript (tsc) | ❌ Project-wide only |
+| **Type Checking** | TypeScript (tsc), SpotBugs | ❌ Project-wide only |
 | **SAST** | OpenGrep | ✅ Supports file args |
 | **SCA** | Trivy | ❌ Project-wide by design |
 | **IaC** | Checkov | ❌ Project-wide by design |
 | **Testing** | pytest, Jest, Playwright | ✅ Support file args |
-| **Testing** | Karma | ❌ Config-based only |
+| **Testing** | Karma, Maven/Gradle | ❌ Config-based / project-wide |
 | **Coverage** | coverage.py, Istanbul | ⚠️ Run full, filter output |
+| **Coverage** | JaCoCo | ❌ Project-wide (Maven/Gradle) |
 | **Duplication** | Duplo | ❌ Project-wide by design |
 
 ---
@@ -1110,8 +1115,9 @@ All linting tools support partial scanning via the `files` parameter.
 | mypy | Python | pip | ✅ Yes |
 | Pyright | Python | pip / npm / binary | ✅ Yes |
 | TypeScript (tsc) | TypeScript | npm | ❌ No |
+| SpotBugs | Java | binary (jar) | ❌ No |
 
-**Note:** TypeScript (tsc) does not support file-level CLI arguments - it uses `tsconfig.json` to determine what to check.
+**Note:** TypeScript (tsc) does not support file-level CLI arguments - it uses `tsconfig.json` to determine what to check. SpotBugs requires compiled Java classes (run `mvn compile` or `gradle build` first).
 
 ### 9.3 Security
 
@@ -1131,8 +1137,9 @@ All linting tools support partial scanning via the `files` parameter.
 | Jest | JavaScript, TypeScript | npm | ✅ Yes |
 | Karma | JavaScript, TypeScript (Angular) | npm | ❌ No |
 | Playwright | JavaScript, TypeScript (E2E) | npm | ✅ Yes |
+| Maven/Gradle | Java, Kotlin (JUnit/TestNG) | system | ❌ No |
 
-**Note:** While most test runners support running specific test files, running the full test suite is recommended before commits to catch regressions.
+**Note:** While most test runners support running specific test files, running the full test suite is recommended before commits to catch regressions. Maven and Gradle run the full test suite by default.
 
 ### 9.5 Coverage
 
@@ -1140,8 +1147,19 @@ All linting tools support partial scanning via the `files` parameter.
 |------|-----------|----------------|--------------|
 | coverage.py | Python | pip | ⚠️ Partial |
 | Istanbul/nyc | JavaScript, TypeScript | npm | ⚠️ Partial |
+| JaCoCo | Java, Kotlin | Maven/Gradle plugin | ❌ No |
 
-**Note:** Coverage tools can run specific tests but measure all executed code. For partial scanning, coverage output can be filtered to show only changed files.
+**Note:** Coverage tools can run specific tests but measure all executed code. For partial scanning, coverage output can be filtered to show only changed files. JaCoCo is integrated via Maven or Gradle build plugins.
+
+**Java Coverage (JaCoCo):** For Java projects with integration tests that require Docker or external services, use `extra_args` to skip them:
+```yaml
+pipeline:
+  coverage:
+    enabled: true
+    tools: [jacoco]
+    threshold: 80
+    extra_args: ["-DskipITs", "-Ddocker.skip=true"]
+```
 
 ### 9.6 Duplication Detection
 
@@ -1226,7 +1244,7 @@ All linting tools support partial scanning via the `files` parameter.
 
 | Term | Definition |
 |------|------------|
-| **Domain** | Category of checks: linting, type checking, security, testing, coverage |
+| **Domain** | Category of checks: linting, type checking, security, testing, coverage, duplication |
 | **Tool** | Underlying program (Ruff, Trivy, pytest) |
 | **Plugin** | LucidShark adapter for a tool |
 | **Pipeline** | Sequence of domains to execute |
