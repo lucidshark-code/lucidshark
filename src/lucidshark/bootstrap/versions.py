@@ -29,15 +29,9 @@ except ImportError:
 # These are used if pyproject.toml cannot be read at runtime
 _FALLBACK_VERSIONS: Dict[str, str] = {
     # Security scanners
-<<<<<<< Updated upstream
-    "trivy": "0.68.2",
-    "opengrep": "1.15.0",
-    "checkov": "3.2.499",
-=======
     "trivy": "0.69.1",
     "opengrep": "1.16.0",
     "checkov": "3.2.500",
->>>>>>> Stashed changes
     # Linters
     "ruff": "0.15.0",
     "biome": "2.3.14",
