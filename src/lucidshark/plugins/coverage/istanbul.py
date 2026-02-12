@@ -27,6 +27,7 @@ from lucidshark.plugins.coverage.base import (
     CoverageResult,
     FileCoverage,
 )
+from lucidshark.plugins.utils import ensure_node_binary, get_cli_version
 
 LOGGER = get_logger(__name__)
 
@@ -53,56 +54,22 @@ class IstanbulPlugin(CoveragePlugin):
         return ["javascript", "typescript"]
 
     def get_version(self) -> str:
-        """Get NYC version.
-
-        Returns:
-            Version string or 'unknown' if unable to determine.
-        """
+        """Get NYC version."""
         try:
             binary = self.ensure_binary()
-            result = subprocess.run(
-                [str(binary), "--version"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-            )
-            # Output is just the version number like "15.1.0"
-            if result.returncode == 0:
-                return result.stdout.strip()
-        except Exception:
-            pass
-        return "unknown"
+            return get_cli_version(binary)
+        except FileNotFoundError:
+            return "unknown"
 
     def ensure_binary(self) -> Path:
-        """Ensure NYC is available.
-
-        Checks for NYC in:
-        1. Project's node_modules/.bin/nyc
-        2. System PATH (globally installed)
-
-        Returns:
-            Path to NYC binary.
-
-        Raises:
-            FileNotFoundError: If NYC is not installed.
-        """
-        # Check project node_modules first
-        if self._project_root:
-            node_nyc = resolve_node_bin(self._project_root, "nyc")
-            if node_nyc:
-                return node_nyc
-
-        # Check system PATH
-        nyc_path = shutil.which("nyc")
-        if nyc_path:
-            return Path(nyc_path)
-
-        raise FileNotFoundError(
+        """Ensure NYC is available."""
+        return ensure_node_binary(
+            self._project_root,
+            "nyc",
             "NYC (Istanbul) is not installed. Install it with:\n"
             "  npm install nyc --save-dev\n"
             "  OR\n"
-            "  npm install -g nyc"
+            "  npm install -g nyc",
         )
 
     def measure_coverage(

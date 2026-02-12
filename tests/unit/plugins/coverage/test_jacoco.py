@@ -263,36 +263,6 @@ class TestJaCoCoSourcePathResolution:
             assert resolved == test_dir / "ServiceTest.java"
 
 
-class TestJaCoCoIssueIdGeneration:
-    """Tests for deterministic issue ID generation."""
-
-    def test_same_input_same_id(self) -> None:
-        """Test same input produces same ID."""
-        plugin = JaCoCoPlugin()
-
-        id1 = plugin._generate_issue_id(75.0, 80.0)
-        id2 = plugin._generate_issue_id(75.0, 80.0)
-
-        assert id1 == id2
-
-    def test_different_input_different_id(self) -> None:
-        """Test different input produces different ID."""
-        plugin = JaCoCoPlugin()
-
-        id1 = plugin._generate_issue_id(75.0, 80.0)
-        id2 = plugin._generate_issue_id(60.0, 80.0)
-
-        assert id1 != id2
-
-    def test_id_format(self) -> None:
-        """Test ID format starts with jacoco-."""
-        plugin = JaCoCoPlugin()
-
-        issue_id = plugin._generate_issue_id(75.0, 80.0)
-
-        assert issue_id.startswith("jacoco-")
-
-
 class TestJaCoCoTestStatsParsing:
     """Tests for parsing test statistics from build output."""
 

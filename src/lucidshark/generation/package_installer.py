@@ -34,6 +34,34 @@ JAVASCRIPT_PACKAGES: Dict[str, str] = {
 }
 
 
+def _parse_package_spec(package: str) -> tuple[str, str]:
+    """Parse a package specifier into name and version.
+
+    Handles formats like:
+    - "eslint@^9.0.0" -> ("eslint", "^9.0.0")
+    - "@biomejs/biome@^1.0.0" -> ("@biomejs/biome", "^1.0.0")
+    - "typescript" -> ("typescript", "latest")
+
+    Args:
+        package: Package specifier string.
+
+    Returns:
+        Tuple of (name, version).
+    """
+    if "@" in package and not package.startswith("@"):
+        # Regular package with version: eslint@^9.0.0
+        name, version = package.rsplit("@", 1)
+    elif package.startswith("@"):
+        # Scoped package like @biomejs/biome@^1.0.0
+        parts = package.split("@")
+        name = f"@{parts[1]}"
+        version = parts[2] if len(parts) > 2 else "latest"
+    else:
+        name = package
+        version = "latest"
+    return name, version
+
+
 class PackageInstaller:
     """Adds tools to package manager configuration files."""
 
@@ -266,18 +294,7 @@ build-backend = "setuptools.build_meta"
         for tool in tools:
             package = JAVASCRIPT_PACKAGES.get(tool)
             if package:
-                # Parse package name and version
-                if "@" in package and not package.startswith("@"):
-                    name, version = package.rsplit("@", 1)
-                elif package.startswith("@"):
-                    # Scoped package like @biomejs/biome@^1.0.0
-                    parts = package.split("@")
-                    name = f"@{parts[1]}"
-                    version = parts[2] if len(parts) > 2 else "latest"
-                else:
-                    name = package
-                    version = "latest"
-
+                name, version = _parse_package_spec(package)
                 if name not in data["devDependencies"]:
                     data["devDependencies"][name] = version
                     added.append(tool)
@@ -313,15 +330,7 @@ build-backend = "setuptools.build_meta"
         for tool in tools:
             package = JAVASCRIPT_PACKAGES.get(tool)
             if package:
-                if "@" in package and not package.startswith("@"):
-                    name, version = package.rsplit("@", 1)
-                elif package.startswith("@"):
-                    parts = package.split("@")
-                    name = f"@{parts[1]}"
-                    version = parts[2] if len(parts) > 2 else "latest"
-                else:
-                    name = package
-                    version = "latest"
+                name, version = _parse_package_spec(package)
                 data["devDependencies"][name] = version  # type: ignore[index]
 
         package_json_path = project_root / "package.json"

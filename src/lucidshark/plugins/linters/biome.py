@@ -81,6 +81,24 @@ class BiomeLinter(LinterPlugin):
         """Get Biome version."""
         return self._version
 
+    def _resolve_target_paths(self, context: ScanContext) -> List[str]:
+        """Resolve target paths for linting/checking.
+
+        Args:
+            context: Scan context with paths and configuration.
+
+        Returns:
+            List of path strings to check.
+        """
+        if context.paths:
+            return [p.as_posix() for p in context.paths]
+
+        src_dir = context.project_root / "src"
+        if src_dir.exists():
+            return [src_dir.as_posix()]
+
+        return ["."]
+
     def ensure_binary(self) -> Path:
         """Ensure Biome binary is available.
 
@@ -143,17 +161,7 @@ class BiomeLinter(LinterPlugin):
         ]
 
         # Add paths to check
-        # Use as_posix() for Windows compatibility (forward slashes)
-        if context.paths:
-            paths = [p.as_posix() for p in context.paths]
-        else:
-            src_dir = context.project_root / "src"
-            if src_dir.exists():
-                paths = [src_dir.as_posix()]
-            else:
-                paths = ["."]
-
-        cmd.extend(paths)
+        cmd.extend(self._resolve_target_paths(context))
 
         LOGGER.debug(f"Running: {' '.join(cmd)}")
 
@@ -199,17 +207,7 @@ class BiomeLinter(LinterPlugin):
             "--apply",
         ]
 
-        # Use as_posix() for Windows compatibility (forward slashes)
-        if context.paths:
-            paths = [p.as_posix() for p in context.paths]
-        else:
-            src_dir = context.project_root / "src"
-            if src_dir.exists():
-                paths = [src_dir.as_posix()]
-            else:
-                paths = ["."]
-
-        cmd.extend(paths)
+        cmd.extend(self._resolve_target_paths(context))
 
         LOGGER.debug(f"Running: {' '.join(cmd)}")
 

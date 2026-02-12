@@ -51,6 +51,9 @@ class JSONReporter(ReporterPlugin):
         if result.coverage_summary:
             output["coverage_summary"] = asdict(result.coverage_summary)
 
+        if result.duplication_summary:
+            output["duplication_summary"] = asdict(result.duplication_summary)
+
         return output
 
     def _issue_to_dict(self, issue: UnifiedIssue) -> Dict[str, Any]:

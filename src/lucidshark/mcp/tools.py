@@ -268,7 +268,9 @@ class MCPToolExecutor:
 
         # Format as AI instructions with domain status
         formatted_result = self.instruction_formatter.format_scan_result(
-            all_issues, checked_domains=checked_domain_names
+            all_issues,
+            checked_domains=checked_domain_names,
+            duplication_result=context.duplication_result,
         )
 
         # Add coverage summary if coverage was run

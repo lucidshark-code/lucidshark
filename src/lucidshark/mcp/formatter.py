@@ -9,6 +9,7 @@ from dataclasses import dataclass, asdict, field
 from typing import Any, Dict, List, Optional
 
 from lucidshark.core.models import ScanDomain, Severity, ToolDomain, UnifiedIssue
+from lucidshark.plugins.duplication.base import DuplicationResult
 
 
 @dataclass
@@ -60,12 +61,14 @@ class InstructionFormatter:
         self,
         issues: List[UnifiedIssue],
         checked_domains: Optional[List[str]] = None,
+        duplication_result: Optional[DuplicationResult] = None,
     ) -> Dict[str, Any]:
         """Format scan result as AI instructions.
 
         Args:
             issues: List of unified issues from scan.
             checked_domains: List of domain names that were checked.
+            duplication_result: Optional duplication detection result for percentage display.
 
         Returns:
             Dictionary with structured AI instructions including:
@@ -103,6 +106,21 @@ class InstructionFormatter:
         domain_status: Dict[str, Dict[str, Any]] = {}
         if checked_domains:
             for domain in checked_domains:
+                # Special handling for duplication domain - show percentage
+                if domain == "duplication" and duplication_result is not None:
+                    pct = duplication_result.duplication_percent
+                    threshold = duplication_result.threshold
+                    passed = duplication_result.passed
+                    status = "pass" if passed else "fail"
+                    status_display = f"{pct:.1f}% duplication (threshold: {threshold:.0f}%)"
+                    domain_status[domain] = {
+                        "status": status,
+                        "display": status_display,
+                        "duplication_percent": round(pct, 2),
+                        "threshold": threshold,
+                    }
+                    continue
+
                 domain_issues = issues_by_domain.get(domain, [])
                 issue_count = len(domain_issues)
                 fixable_count = sum(1 for i in domain_issues if i.get("fixable", False))

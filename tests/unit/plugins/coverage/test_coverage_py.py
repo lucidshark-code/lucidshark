@@ -212,33 +212,3 @@ class TestCoveragePyCoverageIssueCreation:
         assert metadata["covered_lines"] == 150
         assert metadata["missing_lines"] == 50
         assert metadata["gap_percentage"] == 5.0
-
-
-class TestCoveragePyIssueIdGeneration:
-    """Tests for deterministic issue ID generation."""
-
-    def test_same_input_same_id(self) -> None:
-        """Test same input produces same ID."""
-        plugin = CoveragePyPlugin()
-
-        id1 = plugin._generate_issue_id(75.0, 80.0)
-        id2 = plugin._generate_issue_id(75.0, 80.0)
-
-        assert id1 == id2
-
-    def test_different_input_different_id(self) -> None:
-        """Test different input produces different ID."""
-        plugin = CoveragePyPlugin()
-
-        id1 = plugin._generate_issue_id(75.0, 80.0)
-        id2 = plugin._generate_issue_id(60.0, 80.0)
-
-        assert id1 != id2
-
-    def test_id_format(self) -> None:
-        """Test ID format starts with coverage-."""
-        plugin = CoveragePyPlugin()
-
-        issue_id = plugin._generate_issue_id(75.0, 80.0)
-
-        assert issue_id.startswith("coverage-")

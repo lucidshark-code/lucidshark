@@ -22,6 +22,7 @@ from lucidshark.core.models import (
 )
 from lucidshark.core.subprocess_runner import run_with_streaming
 from lucidshark.plugins.type_checkers.base import TypeCheckerPlugin
+from lucidshark.plugins.utils import get_cli_version
 
 LOGGER = get_logger(__name__)
 
@@ -117,29 +118,15 @@ class MypyChecker(TypeCheckerPlugin):
         return True
 
     def get_version(self) -> str:
-        """Get mypy version.
-
-        Returns:
-            Version string or 'unknown' if unable to determine.
-        """
+        """Get mypy version."""
         try:
             binary = self.ensure_binary()
-            result = subprocess.run(
-                [str(binary), "--version"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=30,
-            )
             # Output is like "mypy 1.8.0 (compiled: yes)"
-            if result.returncode == 0:
-                parts = result.stdout.strip().split()
-                if len(parts) >= 2:
-                    return parts[1]
-        except Exception:
-            pass
-        return "unknown"
+            return get_cli_version(
+                binary, parser=lambda s: s.split()[1] if len(s.split()) >= 2 else s
+            )
+        except FileNotFoundError:
+            return "unknown"
 
     def ensure_binary(self) -> Path:
         """Ensure mypy is available.

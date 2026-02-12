@@ -6,8 +6,6 @@ https://www.jacoco.org/jacoco/
 
 from __future__ import annotations
 
-import hashlib
-import shutil
 import subprocess
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -15,12 +13,7 @@ from typing import List, Optional, Tuple
 import defusedxml.ElementTree as ET  # type: ignore[import-untyped]
 
 from lucidshark.core.logging import get_logger
-from lucidshark.core.models import (
-    ScanContext,
-    Severity,
-    ToolDomain,
-    UnifiedIssue,
-)
+from lucidshark.core.models import ScanContext, UnifiedIssue
 from lucidshark.core.subprocess_runner import run_with_streaming
 from lucidshark.plugins.coverage.base import (
     CoveragePlugin,
@@ -28,6 +21,7 @@ from lucidshark.plugins.coverage.base import (
     FileCoverage,
     TestStatistics,
 )
+from lucidshark.plugins.utils import find_java_build_tool, create_coverage_threshold_issue
 
 LOGGER = get_logger(__name__)
 
@@ -64,41 +58,9 @@ class JaCoCoPlugin(CoveragePlugin):
         return "integrated"
 
     def _detect_build_system(self) -> Tuple[Path, str]:
-        """Detect the build system (Maven or Gradle).
-
-        Returns:
-            Tuple of (binary_path, build_system_name).
-
-        Raises:
-            FileNotFoundError: If no build system is found.
-        """
+        """Detect the build system (Maven or Gradle)."""
         project_root = self._project_root or Path.cwd()
-
-        # Check for Gradle wrapper first (preferred)
-        gradlew = project_root / "gradlew"
-        if gradlew.exists():
-            return gradlew, "gradle"
-
-        # Check for Maven wrapper
-        mvnw = project_root / "mvnw"
-        if mvnw.exists():
-            return mvnw, "maven"
-
-        # Check for build.gradle (Gradle project)
-        if (project_root / "build.gradle").exists() or (project_root / "build.gradle.kts").exists():
-            gradle_path = shutil.which("gradle")
-            if gradle_path:
-                return Path(gradle_path), "gradle"
-
-        # Check for pom.xml (Maven project)
-        if (project_root / "pom.xml").exists():
-            mvn_path = shutil.which("mvn")
-            if mvn_path:
-                return Path(mvn_path), "maven"
-
-        raise FileNotFoundError(
-            "No build system found. Ensure pom.xml (Maven) or build.gradle (Gradle) exists."
-        )
+        return find_java_build_tool(project_root)
 
     def ensure_binary(self) -> Path:
         """Ensure Maven or Gradle is available.
@@ -577,68 +539,12 @@ class JaCoCoPlugin(CoveragePlugin):
         covered_lines: int,
         missing_lines: int,
     ) -> UnifiedIssue:
-        """Create a UnifiedIssue for coverage below threshold.
-
-        Args:
-            percentage: Actual coverage percentage.
-            threshold: Required coverage threshold.
-            total_lines: Total number of lines.
-            covered_lines: Number of covered lines.
-            missing_lines: Number of missing lines.
-
-        Returns:
-            UnifiedIssue for coverage failure.
-        """
-        # Determine severity based on how far below threshold
-        if percentage < 50:
-            severity = Severity.HIGH
-        elif percentage < threshold - 10:
-            severity = Severity.MEDIUM
-        else:
-            severity = Severity.LOW
-
-        # Generate deterministic ID
-        issue_id = self._generate_issue_id(percentage, threshold)
-
-        gap = threshold - percentage
-
-        return UnifiedIssue(
-            id=issue_id,
-            domain=ToolDomain.COVERAGE,
+        """Create a UnifiedIssue for coverage below threshold."""
+        return create_coverage_threshold_issue(
             source_tool="jacoco",
-            severity=severity,
-            rule_id="coverage_below_threshold",
-            title=f"Coverage {percentage:.1f}% is below threshold {threshold}%",
-            description=(
-                f"Project coverage is {percentage:.1f}%, which is {gap:.1f}% below "
-                f"the required threshold of {threshold}%. "
-                f"{missing_lines} lines are not covered."
-            ),
-            recommendation=f"Add tests to cover at least {gap:.1f}% more of the codebase.",
-            file_path=None,  # Project-level issue
-            line_start=None,
-            line_end=None,
-            fixable=False,
-            metadata={
-                "coverage_percentage": round(percentage, 2),
-                "threshold": threshold,
-                "total_lines": total_lines,
-                "covered_lines": covered_lines,
-                "missing_lines": missing_lines,
-                "gap_percentage": round(gap, 2),
-            },
+            percentage=percentage,
+            threshold=threshold,
+            total_lines=total_lines,
+            covered_lines=covered_lines,
+            missing_lines=missing_lines,
         )
-
-    def _generate_issue_id(self, percentage: float, threshold: float) -> str:
-        """Generate deterministic issue ID.
-
-        Args:
-            percentage: Coverage percentage.
-            threshold: Coverage threshold.
-
-        Returns:
-            Unique issue ID.
-        """
-        content = f"jacoco:{round(percentage)}:{threshold}"
-        hash_val = hashlib.sha256(content.encode()).hexdigest()[:12]
-        return f"jacoco-{hash_val}"

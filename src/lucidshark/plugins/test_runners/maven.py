@@ -10,7 +10,6 @@ Automatically detects the build system and parses JUnit XML reports.
 from __future__ import annotations
 
 import hashlib
-import shutil
 import subprocess
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -26,6 +25,7 @@ from lucidshark.core.models import (
 )
 from lucidshark.core.subprocess_runner import run_with_streaming
 from lucidshark.plugins.test_runners.base import TestRunnerPlugin, TestResult
+from lucidshark.plugins.utils import find_java_build_tool
 
 LOGGER = get_logger(__name__)
 
@@ -95,42 +95,9 @@ class MavenTestRunner(TestRunnerPlugin):
         return "unknown"
 
     def _detect_build_system(self) -> Tuple[Path, str]:
-        """Detect the build system (Maven or Gradle).
-
-        Returns:
-            Tuple of (binary_path, build_system_name).
-
-        Raises:
-            FileNotFoundError: If no build system is found.
-        """
+        """Detect the build system (Maven or Gradle)."""
         project_root = self._project_root or Path.cwd()
-
-        # Check for Gradle wrapper first (preferred)
-        gradlew = project_root / "gradlew"
-        if gradlew.exists():
-            return gradlew, "gradle"
-
-        # Check for Maven wrapper
-        mvnw = project_root / "mvnw"
-        if mvnw.exists():
-            return mvnw, "maven"
-
-        # Check for build.gradle (Gradle project)
-        if (project_root / "build.gradle").exists() or (project_root / "build.gradle.kts").exists():
-            gradle_path = shutil.which("gradle")
-            if gradle_path:
-                return Path(gradle_path), "gradle"
-
-        # Check for pom.xml (Maven project)
-        if (project_root / "pom.xml").exists():
-            mvn_path = shutil.which("mvn")
-            if mvn_path:
-                return Path(mvn_path), "maven"
-
-        raise FileNotFoundError(
-            "No build system found. Ensure pom.xml (Maven) or build.gradle (Gradle) exists, "
-            "and mvn/gradle is installed or a wrapper (mvnw/gradlew) is present."
-        )
+        return find_java_build_tool(project_root)
 
     def ensure_binary(self) -> Path:
         """Ensure Maven or Gradle is available.

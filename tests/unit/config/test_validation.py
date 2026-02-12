@@ -296,3 +296,220 @@ class TestConfigValidationIssue:
         assert issue.key == "fail_ob"
         assert issue.suggestion == "fail_on"
         assert issue.severity == ValidationSeverity.WARNING
+
+    def test_to_dict_basic(self) -> None:
+        """Test to_dict method without suggestion."""
+        issue = ConfigValidationIssue(
+            message="Test message",
+            source="test.yml",
+            severity=ValidationSeverity.ERROR,
+            key="test_key",
+        )
+        result = issue.to_dict()
+        assert result["message"] == "Test message"
+        assert result["key"] == "test_key"
+        assert "suggestion" not in result
+
+    def test_to_dict_with_suggestion(self) -> None:
+        """Test to_dict method with suggestion."""
+        issue = ConfigValidationIssue(
+            message="Unknown key",
+            source="test.yml",
+            severity=ValidationSeverity.WARNING,
+            key="fail_ob",
+            suggestion="fail_on",
+        )
+        result = issue.to_dict()
+        assert result["message"] == "Unknown key"
+        assert result["key"] == "fail_ob"
+        assert result["suggestion"] == "fail_on"
+
+
+class TestValidateConfigFailOnDict:
+    """Tests for fail_on dict format validation."""
+
+    def test_valid_fail_on_dict(self) -> None:
+        """Test valid fail_on dict format."""
+        data = {
+            "fail_on": {
+                "linting": "error",
+                "security": "high",
+                "testing": "any",
+            }
+        }
+        warnings = validate_config(data, source="test.yml")
+        assert len(warnings) == 0
+
+    def test_warns_on_unknown_fail_on_domain(self) -> None:
+        """Test warning for unknown domain in fail_on."""
+        data = {"fail_on": {"unknown_domain": "error"}}
+        warnings = validate_config(data, source="test.yml")
+        assert len(warnings) == 1
+        assert "Unknown domain" in warnings[0].message
+
+    def test_warns_on_invalid_fail_on_value(self) -> None:
+        """Test warning for invalid value in fail_on."""
+        data = {"fail_on": {"linting": "invalid_value"}}
+        warnings = validate_config(data, source="test.yml")
+        assert len(warnings) == 1
+        assert "Invalid value" in warnings[0].message
+
+    def test_warns_on_non_string_fail_on_value(self) -> None:
+        """Test warning for non-string fail_on value."""
+        data = {"fail_on": {"linting": 123}}
+        warnings = validate_config(data, source="test.yml")
+        assert len(warnings) == 1
+        assert "must be a string" in warnings[0].message
+
+
+class TestValidateConfigPipeline:
+    """Tests for pipeline section validation."""
+
+    def test_warns_on_invalid_pipeline_type(self) -> None:
+        """Test warning for non-dict pipeline."""
+        data = {"pipeline": "invalid"}
+        warnings = validate_config(data, source="test.yml")
+        assert len(warnings) == 1
+        assert "must be a mapping" in warnings[0].message
+
+    def test_warns_on_unknown_pipeline_key(self) -> None:
+        """Test warning for unknown pipeline key."""
+        data = {"pipeline": {"unknown_key": "value"}}
+        warnings = validate_config(data, source="test.yml")
+        assert len(warnings) == 1
+        assert "pipeline.unknown_key" in warnings[0].message
+
+    def test_warns_on_invalid_enrichers_type(self) -> None:
+        """Test warning for non-list enrichers."""
+        data = {"pipeline": {"enrichers": "not-a-list"}}
+        warnings = validate_config(data, source="test.yml")
+        assert len(warnings) == 1
+        assert "must be a list" in warnings[0].message
+
+    def test_warns_on_invalid_max_workers_type(self) -> None:
+        """Test warning for non-int max_workers."""
+        data = {"pipeline": {"max_workers": "four"}}
+        warnings = validate_config(data, source="test.yml")
+        assert len(warnings) == 1
+        assert "must be an integer" in warnings[0].message
+
+    def test_warns_on_missing_tools_when_enabled(self) -> None:
+        """Test warning for missing tools when domain is enabled."""
+        data = {"pipeline": {"linting": {"enabled": True}}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("tools" in w.message and "required" in w.message for w in warnings)
+
+    def test_warns_on_invalid_tools_type(self) -> None:
+        """Test warning for non-list tools."""
+        data = {"pipeline": {"linting": {"tools": "ruff"}}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("must be a list" in w.message for w in warnings)
+
+    def test_warns_on_invalid_coverage_threshold_type(self) -> None:
+        """Test warning for non-numeric coverage threshold."""
+        data = {"pipeline": {"coverage": {"tools": ["coverage_py"], "threshold": "80%"}}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("threshold" in w.message and "number" in w.message for w in warnings)
+
+
+class TestValidateConfigAI:
+    """Tests for AI section validation."""
+
+    def test_warns_on_invalid_ai_type(self) -> None:
+        """Test warning for non-dict ai section."""
+        data = {"ai": "enabled"}
+        warnings = validate_config(data, source="test.yml")
+        assert len(warnings) == 1
+        assert "must be a mapping" in warnings[0].message
+
+    def test_warns_on_unknown_ai_key(self) -> None:
+        """Test warning for unknown ai key."""
+        data = {"ai": {"unknown_key": "value"}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("ai.unknown_key" in w.message for w in warnings)
+
+    def test_warns_on_invalid_ai_enabled_type(self) -> None:
+        """Test warning for non-bool ai.enabled."""
+        data = {"ai": {"enabled": "yes"}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("must be a boolean" in w.message for w in warnings)
+
+    def test_warns_on_invalid_ai_provider(self) -> None:
+        """Test warning for unknown AI provider."""
+        data = {"ai": {"provider": "unknown_provider"}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("Unknown AI provider" in w.message for w in warnings)
+
+    def test_warns_on_invalid_ai_provider_type(self) -> None:
+        """Test warning for non-string AI provider."""
+        data = {"ai": {"provider": 123}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("must be a string" in w.message for w in warnings)
+
+    def test_warns_on_invalid_temperature_type(self) -> None:
+        """Test warning for non-numeric temperature."""
+        data = {"ai": {"temperature": "hot"}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("must be a number" in w.message for w in warnings)
+
+    def test_warns_on_invalid_max_tokens_type(self) -> None:
+        """Test warning for non-int max_tokens."""
+        data = {"ai": {"max_tokens": "1000"}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("must be an integer" in w.message for w in warnings)
+
+    def test_warns_on_invalid_send_code_snippets_type(self) -> None:
+        """Test warning for non-bool send_code_snippets."""
+        data = {"ai": {"send_code_snippets": "yes"}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("must be a boolean" in w.message for w in warnings)
+
+    def test_warns_on_invalid_cache_enabled_type(self) -> None:
+        """Test warning for non-bool cache_enabled."""
+        data = {"ai": {"cache_enabled": "true"}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("must be a boolean" in w.message for w in warnings)
+
+
+class TestValidateConfigSecurity:
+    """Tests for pipeline.security validation."""
+
+    def test_warns_on_invalid_security_tools_type(self) -> None:
+        """Test warning for non-list security tools."""
+        data = {"pipeline": {"security": {"tools": "trivy"}}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("must be a list" in w.message for w in warnings)
+
+    def test_warns_on_missing_tool_name(self) -> None:
+        """Test warning for security tool missing name."""
+        data = {"pipeline": {"security": {"tools": [{"domains": ["sca"]}]}}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("must have a 'name'" in w.message for w in warnings)
+
+    def test_warns_on_unknown_security_key(self) -> None:
+        """Test warning for unknown pipeline.security key."""
+        data = {"pipeline": {"security": {"unknown_key": "value"}}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("pipeline.security.unknown_key" in w.message for w in warnings)
+
+
+class TestValidateConfigDuplication:
+    """Tests for pipeline.duplication validation."""
+
+    def test_warns_on_unknown_duplication_key(self) -> None:
+        """Test warning for unknown duplication key."""
+        data = {"pipeline": {"duplication": {"unknown_key": "value"}}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("pipeline.duplication.unknown_key" in w.message for w in warnings)
+
+    def test_warns_on_invalid_duplication_threshold_type(self) -> None:
+        """Test warning for non-numeric duplication threshold."""
+        data = {"pipeline": {"duplication": {"threshold": "10%"}}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("threshold" in w.message and "number" in w.message for w in warnings)
+
+    def test_warns_on_invalid_exclude_type(self) -> None:
+        """Test warning for non-list exclude."""
+        data = {"pipeline": {"duplication": {"exclude": "*.test.py"}}}
+        warnings = validate_config(data, source="test.yml")
+        assert any("must be a list" in w.message for w in warnings)

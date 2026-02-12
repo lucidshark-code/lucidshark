@@ -8,13 +8,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from lucidshark.core.logging import get_logger
-from lucidshark.core.paths import resolve_node_bin
 from lucidshark.core.models import (
     ScanContext,
     Severity,
@@ -22,6 +20,7 @@ from lucidshark.core.models import (
     UnifiedIssue,
 )
 from lucidshark.plugins.test_runners.base import TestRunnerPlugin, TestResult
+from lucidshark.plugins.utils import ensure_node_binary, get_cli_version
 
 LOGGER = get_logger(__name__)
 
@@ -48,56 +47,25 @@ class PlaywrightRunner(TestRunnerPlugin):
         return ["javascript", "typescript"]
 
     def get_version(self) -> str:
-        """Get Playwright version.
-
-        Returns:
-            Version string or 'unknown' if unable to determine.
-        """
+        """Get Playwright version."""
         try:
             binary = self.ensure_binary()
-            result = subprocess.run(
-                [str(binary), "--version"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=30,
-            )
-            if result.returncode == 0:
+
+            def parse_playwright_version(output: str) -> str:
                 # Output is like "Version 1.55.0"
-                version = result.stdout.strip()
-                if version.startswith("Version "):
-                    return version[8:]
-                return version
-        except Exception:
-            pass
-        return "unknown"
+                if output.startswith("Version "):
+                    return output[8:]
+                return output
+
+            return get_cli_version(binary, parser=parse_playwright_version)
+        except FileNotFoundError:
+            return "unknown"
 
     def ensure_binary(self) -> Path:
-        """Ensure Playwright is available.
-
-        Checks for Playwright in:
-        1. Project's node_modules/.bin/playwright
-        2. System PATH (globally installed)
-
-        Returns:
-            Path to Playwright binary.
-
-        Raises:
-            FileNotFoundError: If Playwright is not installed.
-        """
-        # Check project node_modules first
-        if self._project_root:
-            node_playwright = resolve_node_bin(self._project_root, "playwright")
-            if node_playwright:
-                return node_playwright
-
-        # Check system PATH
-        playwright_path = shutil.which("playwright")
-        if playwright_path:
-            return Path(playwright_path)
-
-        raise FileNotFoundError(
+        """Ensure Playwright is available."""
+        return ensure_node_binary(
+            self._project_root,
+            "playwright",
             "Playwright is not installed. Install it with:\n"
             "  npm install @playwright/test --save-dev\n"
             "  npx playwright install"

@@ -24,6 +24,7 @@ from lucidshark.core.models import (
 )
 from lucidshark.core.subprocess_runner import run_with_streaming
 from lucidshark.plugins.test_runners.base import TestRunnerPlugin, TestResult
+from lucidshark.plugins.utils import ensure_python_binary, get_cli_version
 
 LOGGER = get_logger(__name__)
 
@@ -50,56 +51,22 @@ class PytestRunner(TestRunnerPlugin):
         return ["python"]
 
     def get_version(self) -> str:
-        """Get pytest version.
-
-        Returns:
-            Version string or 'unknown' if unable to determine.
-        """
+        """Get pytest version."""
         try:
             binary = self.ensure_binary()
-            result = subprocess.run(
-                [str(binary), "--version"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=30,
-            )
             # Output is like "pytest 8.0.0"
-            if result.returncode == 0:
-                parts = result.stdout.strip().split()
-                if len(parts) >= 2:
-                    return parts[1]
-        except Exception:
-            pass
-        return "unknown"
+            return get_cli_version(
+                binary, parser=lambda s: s.split()[1] if len(s.split()) >= 2 else s
+            )
+        except FileNotFoundError:
+            return "unknown"
 
     def ensure_binary(self) -> Path:
-        """Ensure pytest is available.
-
-        Checks for pytest in:
-        1. Project's .venv/bin/pytest
-        2. System PATH
-
-        Returns:
-            Path to pytest binary.
-
-        Raises:
-            FileNotFoundError: If pytest is not installed.
-        """
-        # Check project venv first
-        if self._project_root:
-            venv_pytest = self._project_root / ".venv" / "bin" / "pytest"
-            if venv_pytest.exists():
-                return venv_pytest
-
-        # Check system PATH
-        pytest_path = shutil.which("pytest")
-        if pytest_path:
-            return Path(pytest_path)
-
-        raise FileNotFoundError(
-            "pytest is not installed. Install it with: pip install pytest"
+        """Ensure pytest is available."""
+        return ensure_python_binary(
+            self._project_root,
+            "pytest",
+            "pytest is not installed. Install it with: pip install pytest",
         )
 
     def run_tests(
@@ -191,71 +158,77 @@ class PytestRunner(TestRunnerPlugin):
         except Exception:
             return False
 
+    def _build_base_cmd(
+        self,
+        binary: Path,
+        coverage_binary: Optional[Path] = None,
+    ) -> List[str]:
+        """Build base pytest command, optionally wrapped with coverage."""
+        if coverage_binary:
+            return [str(coverage_binary), "run", "-m", "pytest"]
+        return [str(binary)]
+
+    def _execute_pytest(
+        self,
+        cmd: List[str],
+        context: ScanContext,
+    ) -> bool:
+        """Execute pytest command with streaming output.
+
+        Note: Unlike linting, tests always run the full suite to ensure
+        complete test coverage. We don't pass context.paths to pytest
+        because:
+        1. Changed source files don't map directly to test files
+        2. Coverage measurement requires running ALL tests
+        3. Pytest's own test discovery (via testpaths) is more reliable
+
+        Returns:
+            True if execution succeeded, False on timeout/error.
+        """
+        # Don't pass context.paths - let pytest discover tests via its config
+        # This ensures full test suite runs for accurate coverage measurement
+
+        LOGGER.debug(f"Running: {' '.join(cmd)}")
+
+        try:
+            run_with_streaming(
+                cmd=cmd,
+                cwd=context.project_root,
+                tool_name="pytest",
+                stream_handler=context.stream_handler,
+                timeout=600,
+            )
+            return True
+        except subprocess.TimeoutExpired:
+            LOGGER.warning("pytest timed out after 600 seconds")
+            return False
+        except Exception as e:
+            LOGGER.error(f"Failed to run pytest: {e}")
+            return False
+
     def _run_with_json_report(
         self,
         binary: Path,
         context: ScanContext,
         coverage_binary: Optional[Path] = None,
     ) -> TestResult:
-        """Run pytest with JSON report output.
-
-        Args:
-            binary: Path to pytest binary.
-            context: Scan context with paths and configuration.
-            coverage_binary: Optional path to coverage binary for instrumentation.
-
-        Returns:
-            TestResult with test statistics and issues.
-        """
+        """Run pytest with JSON report output."""
         with tempfile.TemporaryDirectory() as tmpdir:
             report_file = Path(tmpdir) / "report.json"
 
-            # Build command - optionally wrap with coverage
-            if coverage_binary:
-                cmd = [
-                    str(coverage_binary),
-                    "run",
-                    "-m",
-                    "pytest",
-                ]
-            else:
-                cmd = [str(binary)]
-
+            cmd = self._build_base_cmd(binary, coverage_binary)
             cmd.extend([
-                "--tb=short",
-                "-v",
-                "--json-report",
-                f"--json-report-file={report_file}",
+                "--tb=short", "-v",
+                "--json-report", f"--json-report-file={report_file}",
             ])
 
-            # Add paths to test
-            # Use as_posix() for Windows compatibility (forward slashes)
-            paths = [p.as_posix() for p in context.paths] if context.paths else ["."]
-            cmd.extend(paths)
-
-            LOGGER.debug(f"Running: {' '.join(cmd)}")
-
-            try:
-                run_with_streaming(
-                    cmd=cmd,
-                    cwd=context.project_root,
-                    tool_name="pytest",
-                    stream_handler=context.stream_handler,
-                    timeout=600,
-                )
-            except subprocess.TimeoutExpired:
-                LOGGER.warning("pytest timed out after 600 seconds")
-                return TestResult()
-            except Exception as e:
-                LOGGER.error(f"Failed to run pytest: {e}")
+            if not self._execute_pytest(cmd, context):
                 return TestResult()
 
-            # Parse JSON report
             if report_file.exists():
                 return self._parse_json_report(report_file, context.project_root)
-            else:
-                LOGGER.warning("JSON report file not generated")
-                return TestResult()
+            LOGGER.warning("JSON report file not generated")
+            return TestResult()
 
     def _run_with_junit_xml(
         self,
@@ -263,64 +236,20 @@ class PytestRunner(TestRunnerPlugin):
         context: ScanContext,
         coverage_binary: Optional[Path] = None,
     ) -> TestResult:
-        """Run pytest with JUnit XML output (fallback).
-
-        Args:
-            binary: Path to pytest binary.
-            context: Scan context with paths and configuration.
-            coverage_binary: Optional path to coverage binary for instrumentation.
-
-        Returns:
-            TestResult with test statistics and issues.
-        """
+        """Run pytest with JUnit XML output (fallback)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             report_file = Path(tmpdir) / "junit.xml"
 
-            # Build command - optionally wrap with coverage
-            if coverage_binary:
-                cmd = [
-                    str(coverage_binary),
-                    "run",
-                    "-m",
-                    "pytest",
-                ]
-            else:
-                cmd = [str(binary)]
+            cmd = self._build_base_cmd(binary, coverage_binary)
+            cmd.extend(["--tb=short", "-v", f"--junit-xml={report_file}"])
 
-            cmd.extend([
-                "--tb=short",
-                "-v",
-                f"--junit-xml={report_file}",
-            ])
-
-            # Add paths to test
-            # Use as_posix() for Windows compatibility (forward slashes)
-            paths = [p.as_posix() for p in context.paths] if context.paths else ["."]
-            cmd.extend(paths)
-
-            LOGGER.debug(f"Running: {' '.join(cmd)}")
-
-            try:
-                run_with_streaming(
-                    cmd=cmd,
-                    cwd=context.project_root,
-                    tool_name="pytest",
-                    stream_handler=context.stream_handler,
-                    timeout=600,
-                )
-            except subprocess.TimeoutExpired:
-                LOGGER.warning("pytest timed out after 600 seconds")
-                return TestResult()
-            except Exception as e:
-                LOGGER.error(f"Failed to run pytest: {e}")
+            if not self._execute_pytest(cmd, context):
                 return TestResult()
 
-            # Parse JUnit XML report
             if report_file.exists():
                 return self._parse_junit_xml(report_file, context.project_root)
-            else:
-                LOGGER.warning("JUnit XML report file not generated")
-                return TestResult()
+            LOGGER.warning("JUnit XML report file not generated")
+            return TestResult()
 
     def _parse_json_report(
         self,
