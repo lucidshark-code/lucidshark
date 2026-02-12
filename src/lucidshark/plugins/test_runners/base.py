@@ -23,6 +23,7 @@ class TestResult:
     errors: int = 0
     duration_ms: int = 0
     issues: List[UnifiedIssue] = field(default_factory=list)
+    tool: str = ""  # Name of the test runner that produced this result
 
     @property
     def total(self) -> int:

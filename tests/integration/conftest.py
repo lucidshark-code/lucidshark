@@ -22,6 +22,9 @@ from lucidshark.plugins.test_runners.pytest import PytestRunner
 from lucidshark.plugins.test_runners.jest import JestRunner
 from lucidshark.plugins.coverage.coverage_py import CoveragePyPlugin
 from lucidshark.plugins.coverage.istanbul import IstanbulPlugin
+from lucidshark.plugins.type_checkers.spotbugs import SpotBugsChecker
+from lucidshark.plugins.test_runners.maven import MavenTestRunner
+from lucidshark.plugins.coverage.jacoco import JaCoCoPlugin
 
 
 def _ensure_trivy_downloaded() -> bool:
@@ -204,6 +207,22 @@ def _is_java_available() -> bool:
     return shutil.which("java") is not None
 
 
+def _is_maven_available() -> bool:
+    """Check if Maven is available (mvn or mvnw)."""
+    return shutil.which("mvn") is not None
+
+
+def _ensure_spotbugs_downloaded() -> bool:
+    """Ensure SpotBugs JAR is downloaded. Returns True if available."""
+    root = Path(__file__).parent.parent.parent
+    try:
+        checker = SpotBugsChecker(project_root=root)
+        checker.ensure_binary()
+        return True
+    except Exception:
+        return False
+
+
 # =============================================================================
 # Type checker availability checks
 # =============================================================================
@@ -263,6 +282,8 @@ _java_available = _is_java_available()
 _mypy_available = _ensure_mypy_available()
 _pyright_available = _ensure_pyright_available()
 _tsc_available = _ensure_tsc_available()
+_spotbugs_available = _java_available and _ensure_spotbugs_downloaded()
+_maven_available = _java_available and _is_maven_available()
 
 
 # Pytest markers for linters
@@ -289,6 +310,16 @@ node_available = pytest.mark.skipif(
 java_available = pytest.mark.skipif(
     not _java_available,
     reason="Java not available"
+)
+
+spotbugs_available = pytest.mark.skipif(
+    not _spotbugs_available,
+    reason="SpotBugs not available (requires Java)"
+)
+
+maven_available = pytest.mark.skipif(
+    not _maven_available,
+    reason="Maven not available (requires Java and mvn)"
 )
 
 # Pytest markers for type checkers
@@ -483,5 +514,34 @@ def coverage_py_plugin(project_root: Path) -> CoveragePyPlugin:
 def istanbul_plugin(project_root: Path) -> IstanbulPlugin:
     """Return an IstanbulPlugin instance with project root for node_modules detection."""
     return IstanbulPlugin(project_root=project_root)
+
+
+# =============================================================================
+# Java plugin fixtures
+# =============================================================================
+
+
+@pytest.fixture
+def spotbugs_checker(project_root: Path) -> SpotBugsChecker:
+    """Return a SpotBugsChecker instance with project root."""
+    return SpotBugsChecker(project_root=project_root)
+
+
+@pytest.fixture
+def java_webapp_project() -> Path:
+    """Return the path to the sample Java webapp integration test project."""
+    return Path(__file__).parent / "projects" / "java-webapp"
+
+
+@pytest.fixture
+def maven_runner(java_webapp_project: Path) -> MavenTestRunner:
+    """Return a MavenTestRunner instance with Java webapp project root."""
+    return MavenTestRunner(project_root=java_webapp_project)
+
+
+@pytest.fixture
+def jacoco_plugin(java_webapp_project: Path) -> JaCoCoPlugin:
+    """Return a JaCoCoPlugin instance with Java webapp project root."""
+    return JaCoCoPlugin(project_root=java_webapp_project)
 
 

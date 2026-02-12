@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -20,9 +19,9 @@ from lucidshark.core.models import (
     ToolDomain,
     UnifiedIssue,
 )
-from lucidshark.core.paths import resolve_node_bin
 from lucidshark.core.subprocess_runner import run_with_streaming
 from lucidshark.plugins.linters.base import FixResult, LinterPlugin
+from lucidshark.plugins.utils import ensure_node_binary, get_cli_version
 
 LOGGER = get_logger(__name__)
 
@@ -67,58 +66,43 @@ class ESLintLinter(LinterPlugin):
         return True
 
     def get_version(self) -> str:
-        """Get ESLint version.
-
-        Returns:
-            Version string or 'unknown' if unable to determine.
-        """
+        """Get ESLint version."""
         try:
             binary = self.ensure_binary()
-            result = subprocess.run(
-                [str(binary), "--version"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=30,
+            return get_cli_version(
+                binary, parser=lambda s: s.lstrip("v")
             )
-            # Output is like "v8.56.0"
-            if result.returncode == 0:
-                return result.stdout.strip().lstrip("v")
-        except Exception:
-            pass
-        return "unknown"
+        except FileNotFoundError:
+            return "unknown"
 
     def ensure_binary(self) -> Path:
-        """Ensure ESLint is available.
-
-        Checks for ESLint in:
-        1. Project's node_modules/.bin/eslint
-        2. System PATH (globally installed)
-
-        Returns:
-            Path to ESLint binary.
-
-        Raises:
-            FileNotFoundError: If ESLint is not installed.
-        """
-        # Check project node_modules first
-        if self._project_root:
-            node_eslint = resolve_node_bin(self._project_root, "eslint")
-            if node_eslint:
-                return node_eslint
-
-        # Check system PATH
-        eslint_path = shutil.which("eslint")
-        if eslint_path:
-            return Path(eslint_path)
-
-        raise FileNotFoundError(
+        """Ensure ESLint is available."""
+        return ensure_node_binary(
+            self._project_root,
+            "eslint",
             "ESLint is not installed. Install it with:\n"
             "  npm install eslint --save-dev\n"
             "  OR\n"
-            "  npm install -g eslint"
+            "  npm install -g eslint",
         )
+
+    def _resolve_target_paths(self, context: ScanContext) -> List[str]:
+        """Resolve target paths for linting/fixing.
+
+        Args:
+            context: Scan context with paths and configuration.
+
+        Returns:
+            List of filtered path strings, or empty list if no valid paths.
+        """
+        if context.paths:
+            return self._filter_paths(context.paths, context.project_root)
+
+        src_dir = context.project_root / "src"
+        if src_dir.exists():
+            return [str(src_dir)]
+
+        return ["."]
 
     def lint(self, context: ScanContext) -> List[UnifiedIssue]:
         """Run ESLint linting.
@@ -141,18 +125,8 @@ class ESLintLinter(LinterPlugin):
             "--format", "json",
         ]
 
-        # Add paths to check - default to src if exists, otherwise current dir
-        # Filter to only include JS/TS files to avoid ESLint errors on unsupported files
-        if context.paths:
-            paths = self._filter_paths(context.paths, context.project_root)
-        else:
-            src_dir = context.project_root / "src"
-            if src_dir.exists():
-                paths = [str(src_dir)]
-            else:
-                paths = ["."]
-
-        # If no valid paths after filtering, skip linting
+        # Add paths to check - filter to only include JS/TS files
+        paths = self._resolve_target_paths(context)
         if not paths:
             LOGGER.debug("No JavaScript/TypeScript files to lint")
             return []
@@ -212,16 +186,7 @@ class ESLintLinter(LinterPlugin):
             "--format", "json",
         ]
 
-        if context.paths:
-            paths = self._filter_paths(context.paths, context.project_root)
-        else:
-            src_dir = context.project_root / "src"
-            if src_dir.exists():
-                paths = [str(src_dir)]
-            else:
-                paths = ["."]
-
-        # If no valid paths after filtering, skip fix
+        paths = self._resolve_target_paths(context)
         if not paths:
             LOGGER.debug("No JavaScript/TypeScript files to fix")
             return FixResult()

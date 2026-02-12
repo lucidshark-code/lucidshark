@@ -24,7 +24,7 @@ AI writes code → LucidShark checks → AI fixes → repeat
 
 - **AI-native** - MCP integration with Claude Code and Cursor. Structured feedback that AI agents can act on directly.
 
-- **Unified pipeline** - Linting, type checking, security (SAST/SCA/IaC), tests, and coverage in one tool. Stop configuring 5+ separate tools.
+- **Unified pipeline** - Linting, type checking, security (SAST/SCA/IaC), tests, coverage, and duplication detection in one tool. Stop configuring 5+ separate tools.
 
 - **Open source & extensible** - Apache 2.0 licensed. Add your own tools via the plugin system.
 
@@ -130,13 +130,13 @@ Configures both Claude Code and Cursor.
 | Domain | Tools | What It Catches |
 |--------|-------|-----------------|
 | **Linting** | Ruff, ESLint, Biome, Checkstyle | Style issues, code smells |
-| **Type Checking** | mypy, pyright, TypeScript | Type errors |
+| **Type Checking** | mypy, pyright, TypeScript, SpotBugs | Type errors, static analysis bugs |
 | **Security (SAST)** | OpenGrep | Code vulnerabilities |
 | **Security (SCA)** | Trivy | Dependency vulnerabilities |
 | **Security (IaC)** | Checkov | Infrastructure misconfigurations |
 | **Security (Container)** | Trivy | Container image vulnerabilities |
-| **Testing** | pytest, Jest, Karma (Angular), Playwright (E2E) | Test failures |
-| **Coverage** | coverage.py, Istanbul | Coverage gaps |
+| **Testing** | pytest, Jest, Karma (Angular), Playwright (E2E), Maven/Gradle (JUnit) | Test failures |
+| **Coverage** | coverage.py, Istanbul, JaCoCo | Coverage gaps |
 | **Duplication** | Duplo | Code clones, duplicate blocks |
 
 All results are normalized to a common format.
@@ -203,7 +203,7 @@ lucidshark init --all                     # Configure all AI tools
 lucidshark autoconfigure [--ci github|gitlab|bitbucket] [--non-interactive]
 
 # Run quality pipeline
-lucidshark scan [--linting] [--type-checking] [--sca] [--sast] [--iac] [--container] [--testing] [--coverage] [--all]
+lucidshark scan [--linting] [--type-checking] [--sca] [--sast] [--iac] [--container] [--testing] [--coverage] [--duplication] [--all]
 lucidshark scan [--fix] [--stream] [--format table|json|sarif|summary]
 lucidshark scan [--fail-on critical|high|medium|low]
 
@@ -223,6 +223,7 @@ lucidshark status [--tools]
 | 1 | Issues found above threshold |
 | 2 | Tool execution error |
 | 3 | Configuration error |
+| 4 | Bootstrap/download failure |
 
 ## Development
 

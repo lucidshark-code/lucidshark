@@ -63,6 +63,16 @@ class ProjectContext:
         """Check if project has Go code."""
         return any(lang.name == "go" for lang in self.languages)
 
+    @property
+    def has_java(self) -> bool:
+        """Check if project has Java code."""
+        return any(lang.name == "java" for lang in self.languages)
+
+    @property
+    def has_kotlin(self) -> bool:
+        """Check if project has Kotlin code."""
+        return any(lang.name == "kotlin" for lang in self.languages)
+
 
 class CodebaseDetector:
     """Orchestrates codebase detection.
@@ -150,5 +160,12 @@ class CodebaseDetector:
         if any(lang.name == "rust" for lang in languages):
             if (project_root / "Cargo.toml").exists():
                 managers.append("cargo")
+
+        # Java/Kotlin
+        if any(lang.name in ("java", "kotlin") for lang in languages):
+            if (project_root / "pom.xml").exists():
+                managers.append("maven")
+            elif (project_root / "build.gradle").exists() or (project_root / "build.gradle.kts").exists():
+                managers.append("gradle")
 
         return managers

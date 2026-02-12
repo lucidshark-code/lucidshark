@@ -26,14 +26,17 @@ PLUGIN_LANGUAGES: Dict[str, List[str]] = {
     "mypy": ["python"],
     "pyright": ["python"],
     "typescript": ["typescript"],
+    "spotbugs": ["java"],
     # Test runners
     "pytest": ["python"],
     "jest": ["javascript", "typescript"],
     "karma": ["javascript", "typescript"],
     "playwright": ["javascript", "typescript"],
+    "maven": ["java", "kotlin"],
     # Coverage
     "coverage_py": ["python"],
     "istanbul": ["javascript", "typescript"],
+    "jacoco": ["java", "kotlin"],
     # Duplication detection
     "duplo": [
         "python",
@@ -102,16 +105,19 @@ def filter_plugins_by_config(
     plugins: Dict[str, Type[Any]],
     config: LucidSharkConfig,
     domain: str,
+    project_root: Optional[Path] = None,
 ) -> Dict[str, Type[Any]]:
     """Filter plugins based on configuration.
 
     First tries to filter by explicitly configured tools. If none are
-    configured, falls back to language-based filtering.
+    configured, falls back to language-based filtering. If no languages
+    are configured, auto-detects languages from the project.
 
     Args:
         plugins: Dict of plugin_name -> plugin_class.
         config: LucidShark configuration.
         domain: Domain name (linting, type_checking, testing, coverage).
+        project_root: Optional project root for auto-detecting languages.
 
     Returns:
         Filtered dict of plugins.
@@ -122,7 +128,17 @@ def filter_plugins_by_config(
             name: cls for name, cls in plugins.items()
             if name in configured_tools
         }
-    return filter_plugins_by_language(plugins, config.project.languages)
+
+    # Use configured languages or auto-detect from project
+    languages = config.project.languages
+    if not languages and project_root:
+        from lucidshark.detection.languages import detect_languages
+
+        detected = detect_languages(project_root)
+        languages = [lang.name.lower() for lang in detected]
+        LOGGER.debug(f"Auto-detected languages: {languages}")
+
+    return filter_plugins_by_language(plugins, languages)
 
 
 def filter_scanners_by_config(
@@ -178,6 +194,8 @@ def get_domains_for_language(language: str) -> List[str]:
     if language == "python":
         domains.extend(["type_checking", "testing", "coverage"])
     elif language in ("javascript", "typescript"):
+        domains.extend(["type_checking", "testing", "coverage"])
+    elif language in ("java", "kotlin"):
         domains.extend(["type_checking", "testing", "coverage"])
     elif language == "terraform":
         domains = ["iac"]
@@ -241,7 +259,7 @@ class DomainRunner:
             LOGGER.warning("No linter plugins found")
             return issues
 
-        linters = filter_plugins_by_config(linters, self.config, "linting")
+        linters = filter_plugins_by_config(linters, self.config, "linting", self.project_root)
 
         for name, plugin_class in linters.items():
             try:
@@ -283,7 +301,7 @@ class DomainRunner:
             LOGGER.warning("No type checker plugins found")
             return issues
 
-        checkers = filter_plugins_by_config(checkers, self.config, "type_checking")
+        checkers = filter_plugins_by_config(checkers, self.config, "type_checking", self.project_root)
 
         for name, plugin_class in checkers.items():
             try:
@@ -317,7 +335,7 @@ class DomainRunner:
             LOGGER.warning("No test runner plugins found")
             return issues
 
-        runners = filter_plugins_by_config(runners, self.config, "testing")
+        runners = filter_plugins_by_config(runners, self.config, "testing", self.project_root)
 
         for name, plugin_class in runners.items():
             try:
@@ -366,7 +384,7 @@ class DomainRunner:
             LOGGER.warning("No coverage plugins found")
             return issues
 
-        plugins = filter_plugins_by_config(plugins, self.config, "coverage")
+        plugins = filter_plugins_by_config(plugins, self.config, "coverage", self.project_root)
 
         for name, plugin_class in plugins.items():
             try:
@@ -438,7 +456,7 @@ class DomainRunner:
             LOGGER.warning("No duplication plugins found")
             return issues
 
-        plugins = filter_plugins_by_config(plugins, self.config, "duplication")
+        plugins = filter_plugins_by_config(plugins, self.config, "duplication", self.project_root)
 
         for name, plugin_class in plugins.items():
             try:

@@ -10,13 +10,18 @@ from lucidshark.detection.frameworks import (
     detect_frameworks,
     _get_python_dependencies,
     _get_js_dependencies,
+    _get_java_dependencies,
     _parse_pyproject_deps,
     _parse_requirements_txt,
     _extract_package_names,
+    _parse_maven_pom,
+    _parse_gradle_build,
     PYTHON_FRAMEWORKS,
     PYTHON_TEST_FRAMEWORKS,
     JS_FRAMEWORKS,
     JS_TEST_FRAMEWORKS,
+    JAVA_FRAMEWORKS,
+    JAVA_TEST_FRAMEWORKS,
 )
 
 
@@ -491,3 +496,247 @@ class TestConstants:
         assert "mocha" in JS_TEST_FRAMEWORKS
         assert "vitest" in JS_TEST_FRAMEWORKS
         assert "cypress" in JS_TEST_FRAMEWORKS
+
+    def test_java_frameworks_complete(self) -> None:
+        """Test JAVA_FRAMEWORKS contains common frameworks."""
+        assert "spring-boot" in JAVA_FRAMEWORKS
+        assert "spring" in JAVA_FRAMEWORKS
+        assert "quarkus" in JAVA_FRAMEWORKS
+        assert "micronaut" in JAVA_FRAMEWORKS
+
+    def test_java_test_frameworks_complete(self) -> None:
+        """Test JAVA_TEST_FRAMEWORKS contains common test frameworks."""
+        assert "junit5" in JAVA_TEST_FRAMEWORKS
+        assert "junit4" in JAVA_TEST_FRAMEWORKS
+        assert "testng" in JAVA_TEST_FRAMEWORKS
+        assert "mockito" in JAVA_TEST_FRAMEWORKS
+
+
+class TestDetectJavaFrameworks:
+    """Tests for Java framework detection."""
+
+    def test_detect_spring_boot_from_pom(self, tmp_path: Path) -> None:
+        """Test detecting Spring Boot from pom.xml."""
+        pom_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.0</version>
+    </parent>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+    </dependencies>
+</project>
+"""
+        (tmp_path / "pom.xml").write_text(pom_xml)
+
+        frameworks, test_frameworks = detect_frameworks(tmp_path)
+        assert "spring-boot" in frameworks
+
+    def test_detect_junit5_from_pom(self, tmp_path: Path) -> None:
+        """Test detecting JUnit 5 from pom.xml."""
+        pom_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.10.0</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
+"""
+        (tmp_path / "pom.xml").write_text(pom_xml)
+
+        frameworks, test_frameworks = detect_frameworks(tmp_path)
+        assert "junit5" in test_frameworks
+
+    def test_detect_mockito_from_pom(self, tmp_path: Path) -> None:
+        """Test detecting Mockito from pom.xml."""
+        pom_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <dependencies>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>5.8.0</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
+"""
+        (tmp_path / "pom.xml").write_text(pom_xml)
+
+        frameworks, test_frameworks = detect_frameworks(tmp_path)
+        assert "mockito" in test_frameworks
+
+    def test_detect_quarkus_from_gradle(self, tmp_path: Path) -> None:
+        """Test detecting Quarkus from build.gradle."""
+        build_gradle = """
+plugins {
+    id 'java'
+    id 'io.quarkus' version '3.6.0'
+}
+
+dependencies {
+    implementation 'io.quarkus:quarkus-core'
+    testImplementation 'io.quarkus:quarkus-junit5'
+}
+"""
+        (tmp_path / "build.gradle").write_text(build_gradle)
+
+        frameworks, test_frameworks = detect_frameworks(tmp_path)
+        assert "quarkus" in frameworks
+
+    def test_detect_spring_boot_from_gradle(self, tmp_path: Path) -> None:
+        """Test detecting Spring Boot from build.gradle with plugin."""
+        build_gradle = """
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.0'
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+}
+"""
+        (tmp_path / "build.gradle").write_text(build_gradle)
+
+        frameworks, test_frameworks = detect_frameworks(tmp_path)
+        assert "spring-boot" in frameworks
+
+
+class TestGetJavaDependencies:
+    """Tests for _get_java_dependencies function."""
+
+    def test_from_pom_xml(self, tmp_path: Path) -> None:
+        """Test getting dependencies from pom.xml."""
+        pom_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+    </dependencies>
+</project>
+"""
+        (tmp_path / "pom.xml").write_text(pom_xml)
+
+        deps = _get_java_dependencies(tmp_path)
+        assert "org.springframework.boot:spring-boot-starter-web" in deps
+        assert "spring-boot-starter-web" in deps
+
+    def test_from_build_gradle(self, tmp_path: Path) -> None:
+        """Test getting dependencies from build.gradle."""
+        build_gradle = """
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web:3.2.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+}
+"""
+        (tmp_path / "build.gradle").write_text(build_gradle)
+
+        deps = _get_java_dependencies(tmp_path)
+        assert "org.springframework.boot:spring-boot-starter-web" in deps
+        assert "spring-boot-starter-web" in deps
+        assert "org.junit.jupiter:junit-jupiter" in deps
+
+    def test_no_java_files(self, tmp_path: Path) -> None:
+        """Test when no Java build files exist."""
+        deps = _get_java_dependencies(tmp_path)
+        assert deps == set()
+
+
+class TestParseMavenPom:
+    """Tests for _parse_maven_pom function."""
+
+    def test_parse_dependencies(self) -> None:
+        """Test parsing dependencies from pom.xml."""
+        content = """<?xml version="1.0"?>
+<project>
+    <dependencies>
+        <dependency>
+            <groupId>com.example</groupId>
+            <artifactId>my-library</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+    </dependencies>
+</project>
+"""
+        deps = _parse_maven_pom(content)
+        assert "com.example:my-library" in deps
+        assert "my-library" in deps
+
+    def test_parse_parent_pom(self) -> None:
+        """Test parsing parent from pom.xml."""
+        content = """<?xml version="1.0"?>
+<project>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.2.0</version>
+    </parent>
+</project>
+"""
+        deps = _parse_maven_pom(content)
+        assert "org.springframework.boot:spring-boot-starter-parent" in deps
+        assert "spring-boot-starter-parent" in deps
+
+    def test_empty_pom(self) -> None:
+        """Test parsing empty pom."""
+        deps = _parse_maven_pom("<project></project>")
+        assert deps == set()
+
+
+class TestParseGradleBuild:
+    """Tests for _parse_gradle_build function."""
+
+    def test_parse_implementation_single_quotes(self) -> None:
+        """Test parsing implementation with single quotes."""
+        content = "implementation 'org.example:library:1.0.0'"
+
+        deps = _parse_gradle_build(content)
+        assert "org.example:library" in deps
+        assert "library" in deps
+
+    def test_parse_implementation_double_quotes(self) -> None:
+        """Test parsing implementation with double quotes."""
+        content = 'implementation "org.example:library:1.0.0"'
+
+        deps = _parse_gradle_build(content)
+        assert "org.example:library" in deps
+
+    def test_parse_implementation_parens(self) -> None:
+        """Test parsing implementation with parentheses (Kotlin DSL)."""
+        content = 'implementation("org.example:library:1.0.0")'
+
+        deps = _parse_gradle_build(content)
+        assert "org.example:library" in deps
+
+    def test_parse_test_implementation(self) -> None:
+        """Test parsing testImplementation."""
+        content = "testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'"
+
+        deps = _parse_gradle_build(content)
+        assert "org.junit.jupiter:junit-jupiter" in deps
+
+    def test_detect_spring_boot_plugin(self) -> None:
+        """Test detecting Spring Boot from plugin."""
+        content = """
+plugins {
+    id 'org.springframework.boot' version '3.2.0'
+}
+"""
+        deps = _parse_gradle_build(content)
+        assert "spring-boot-starter" in deps
+
+    def test_empty_gradle(self) -> None:
+        """Test parsing empty gradle file."""
+        deps = _parse_gradle_build("")
+        assert deps == set()

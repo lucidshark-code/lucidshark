@@ -1,0 +1,550 @@
+"""JaCoCo coverage plugin.
+
+JaCoCo is a free code coverage library for Java.
+https://www.jacoco.org/jacoco/
+"""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+import defusedxml.ElementTree as ET  # type: ignore[import-untyped]
+
+from lucidshark.core.logging import get_logger
+from lucidshark.core.models import ScanContext, UnifiedIssue
+from lucidshark.core.subprocess_runner import run_with_streaming
+from lucidshark.plugins.coverage.base import (
+    CoveragePlugin,
+    CoverageResult,
+    FileCoverage,
+    TestStatistics,
+)
+from lucidshark.plugins.utils import find_java_build_tool, create_coverage_threshold_issue
+
+LOGGER = get_logger(__name__)
+
+
+class JaCoCoPlugin(CoveragePlugin):
+    """JaCoCo plugin for Java code coverage analysis."""
+
+    def __init__(self, project_root: Optional[Path] = None):
+        """Initialize JaCoCoPlugin.
+
+        Args:
+            project_root: Optional project root for finding build tools.
+        """
+        self._project_root = project_root
+
+    @property
+    def name(self) -> str:
+        """Plugin identifier."""
+        return "jacoco"
+
+    @property
+    def languages(self) -> List[str]:
+        """Supported languages."""
+        return ["java", "kotlin"]
+
+    def get_version(self) -> str:
+        """Get JaCoCo version from build config.
+
+        Returns:
+            Version string or 'unknown' if unable to determine.
+        """
+        # JaCoCo version is typically defined in pom.xml or build.gradle
+        # We return a generic version indicator
+        return "integrated"
+
+    def _detect_build_system(self) -> Tuple[Path, str]:
+        """Detect the build system (Maven or Gradle)."""
+        project_root = self._project_root or Path.cwd()
+        return find_java_build_tool(project_root)
+
+    def ensure_binary(self) -> Path:
+        """Ensure Maven or Gradle is available.
+
+        Returns:
+            Path to build tool binary.
+
+        Raises:
+            FileNotFoundError: If no build tool is found.
+        """
+        binary, _ = self._detect_build_system()
+        return binary
+
+    def measure_coverage(
+        self,
+        context: ScanContext,
+        threshold: float = 80.0,
+        run_tests: bool = True,
+    ) -> CoverageResult:
+        """Run JaCoCo coverage analysis.
+
+        If run_tests is True and no existing JaCoCo report is found, runs
+        Maven/Gradle to generate coverage data. If a report already exists,
+        it will be used directly (useful for CI where tests were already run).
+
+        Args:
+            context: Scan context with paths and configuration.
+            threshold: Coverage percentage threshold (default 80%).
+            run_tests: Whether to run tests if no existing coverage data exists.
+
+        Returns:
+            CoverageResult with coverage statistics and issues if below threshold.
+        """
+        try:
+            binary, build_system = self._detect_build_system()
+        except FileNotFoundError as e:
+            LOGGER.warning(str(e))
+            return CoverageResult(threshold=threshold, tool="jacoco")
+
+        test_stats: Optional[TestStatistics] = None
+
+        # Check if JaCoCo report already exists (e.g., from CI pipeline)
+        report_exists = self._jacoco_report_exists(context.project_root, build_system)
+
+        if run_tests and not report_exists:
+            LOGGER.info("Running tests with JaCoCo coverage...")
+            if build_system == "maven":
+                success, test_stats = self._run_maven_with_jacoco(binary, context)
+            else:
+                success, test_stats = self._run_gradle_with_jacoco(binary, context)
+
+            if not success:
+                LOGGER.warning("Failed to run tests with JaCoCo")
+                return CoverageResult(threshold=threshold, tool="jacoco")
+        elif report_exists:
+            LOGGER.info("Using existing JaCoCo report...")
+
+        # Parse JaCoCo report
+        result = self._parse_jacoco_report(context.project_root, threshold, build_system)
+        result.test_stats = test_stats
+
+        return result
+
+    def _run_maven_with_jacoco(
+        self,
+        binary: Path,
+        context: ScanContext,
+    ) -> Tuple[bool, Optional[TestStatistics]]:
+        """Run Maven tests with JaCoCo coverage.
+
+        Tries multiple strategies to generate JaCoCo report:
+        1. First tries standard approach: mvn test jacoco:report
+        2. If no report generated, falls back to: mvn verify (for projects
+           that configure JaCoCo report during verify phase)
+
+        Extra Maven arguments can be configured via lucidshark.yml:
+        ```yaml
+        pipeline:
+          coverage:
+            extra_args:
+              - "-DskipITs"
+              - "-Ddocker.skip=true"
+        ```
+
+        Args:
+            binary: Path to Maven binary.
+            context: Scan context.
+
+        Returns:
+            Tuple of (success, test_stats).
+        """
+        test_stats: Optional[TestStatistics] = None
+
+        # Get extra args from config if available
+        extra_args: List[str] = []
+        if context.config and context.config.pipeline.coverage:
+            extra_args = context.config.pipeline.coverage.extra_args or []
+
+        # Strategy 1: Standard approach - test phase with explicit jacoco:report
+        cmd = [
+            str(binary),
+            "clean",
+            "test",
+            "jacoco:report",
+            "-B",  # Batch mode
+        ]
+        cmd.extend(extra_args)
+
+        LOGGER.debug(f"Running: {' '.join(cmd)}")
+
+        try:
+            result = run_with_streaming(
+                cmd=cmd,
+                cwd=context.project_root,
+                tool_name="maven-jacoco",
+                stream_handler=context.stream_handler,
+                timeout=600,
+            )
+            test_stats = self._parse_maven_test_output(result.stdout + "\n" + result.stderr)
+
+            # Check if report was generated
+            if self._jacoco_report_exists(context.project_root, "maven"):
+                return True, test_stats
+
+        except subprocess.TimeoutExpired:
+            LOGGER.warning("Maven JaCoCo timed out after 600 seconds")
+            return False, None
+        except Exception as e:
+            LOGGER.debug(f"Maven test phase completed with: {e}")
+            # Continue to try verify phase
+
+        # Strategy 2: Try verify phase (some projects configure JaCoCo there)
+        # Check if report exists first (from previous run or test phase)
+        if self._jacoco_report_exists(context.project_root, "maven"):
+            return True, test_stats
+
+        LOGGER.debug("JaCoCo report not found after test phase, trying verify phase...")
+        cmd = [
+            str(binary),
+            "clean",
+            "verify",
+            "-B",  # Batch mode
+        ]
+        cmd.extend(extra_args)
+
+        LOGGER.debug(f"Running: {' '.join(cmd)}")
+
+        try:
+            result = run_with_streaming(
+                cmd=cmd,
+                cwd=context.project_root,
+                tool_name="maven-jacoco",
+                stream_handler=context.stream_handler,
+                timeout=600,
+            )
+            test_stats = self._parse_maven_test_output(result.stdout + "\n" + result.stderr)
+            return True, test_stats
+        except subprocess.TimeoutExpired:
+            LOGGER.warning("Maven JaCoCo (verify) timed out after 600 seconds")
+            return False, None
+        except Exception as e:
+            # Maven returns non-zero on test failures, but we still want the coverage
+            LOGGER.debug(f"Maven verify completed with: {e}")
+            return True, test_stats or TestStatistics()
+
+    def _jacoco_report_exists(self, project_root: Path, build_system: str) -> bool:
+        """Check if JaCoCo report exists.
+
+        Args:
+            project_root: Project root directory.
+            build_system: Build system (maven or gradle).
+
+        Returns:
+            True if report exists.
+        """
+        if build_system == "maven":
+            paths = [
+                project_root / "target" / "site" / "jacoco" / "jacoco.xml",
+                project_root / "target" / "jacoco.xml",
+                project_root / "jacoco" / "jacoco.xml",
+            ]
+        else:
+            paths = [
+                project_root / "build" / "reports" / "jacoco" / "test" / "jacocoTestReport.xml",
+                project_root / "build" / "jacoco" / "test.xml",
+            ]
+
+        return any(p.exists() for p in paths)
+
+    def _run_gradle_with_jacoco(
+        self,
+        binary: Path,
+        context: ScanContext,
+    ) -> Tuple[bool, Optional[TestStatistics]]:
+        """Run Gradle tests with JaCoCo coverage.
+
+        Args:
+            binary: Path to Gradle binary.
+            context: Scan context.
+
+        Returns:
+            Tuple of (success, test_stats).
+        """
+        # Gradle command to run tests with JaCoCo
+        cmd = [
+            str(binary),
+            "clean",
+            "test",
+            "jacocoTestReport",
+            "--no-daemon",
+        ]
+
+        LOGGER.debug(f"Running: {' '.join(cmd)}")
+
+        try:
+            result = run_with_streaming(
+                cmd=cmd,
+                cwd=context.project_root,
+                tool_name="gradle-jacoco",
+                stream_handler=context.stream_handler,
+                timeout=600,
+            )
+            test_stats = self._parse_gradle_test_output(result.stdout + "\n" + result.stderr)
+            return True, test_stats
+        except subprocess.TimeoutExpired:
+            LOGGER.warning("Gradle JaCoCo timed out after 600 seconds")
+            return False, None
+        except Exception as e:
+            LOGGER.debug(f"Gradle completed with: {e}")
+            return True, TestStatistics()
+
+    def _parse_maven_test_output(self, output: str) -> TestStatistics:
+        """Parse Maven test output for statistics.
+
+        Args:
+            output: Maven stdout/stderr output.
+
+        Returns:
+            TestStatistics with parsed counts.
+        """
+        import re
+
+        stats = TestStatistics()
+
+        # Look for Surefire summary like:
+        # "Tests run: 10, Failures: 1, Errors: 0, Skipped: 2"
+        pattern = r"Tests run:\s*(\d+),\s*Failures:\s*(\d+),\s*Errors:\s*(\d+),\s*Skipped:\s*(\d+)"
+
+        total_run = 0
+        total_failures = 0
+        total_errors = 0
+        total_skipped = 0
+
+        for match in re.finditer(pattern, output):
+            total_run += int(match.group(1))
+            total_failures += int(match.group(2))
+            total_errors += int(match.group(3))
+            total_skipped += int(match.group(4))
+
+        stats.total = total_run
+        stats.failed = total_failures
+        stats.errors = total_errors
+        stats.skipped = total_skipped
+        stats.passed = total_run - total_failures - total_errors - total_skipped
+
+        return stats
+
+    def _parse_gradle_test_output(self, output: str) -> TestStatistics:
+        """Parse Gradle test output for statistics.
+
+        Args:
+            output: Gradle stdout/stderr output.
+
+        Returns:
+            TestStatistics with parsed counts.
+        """
+        import re
+
+        stats = TestStatistics()
+
+        # Gradle test summary pattern:
+        # "10 tests completed, 2 failed, 1 skipped"
+        pattern = r"(\d+)\s+tests?\s+completed(?:,\s*(\d+)\s+failed)?(?:,\s*(\d+)\s+skipped)?"
+
+        for match in re.finditer(pattern, output):
+            stats.total += int(match.group(1))
+            if match.group(2):
+                stats.failed += int(match.group(2))
+            if match.group(3):
+                stats.skipped += int(match.group(3))
+
+        stats.passed = stats.total - stats.failed - stats.errors - stats.skipped
+
+        return stats
+
+    def _parse_jacoco_report(
+        self,
+        project_root: Path,
+        threshold: float,
+        build_system: str,
+    ) -> CoverageResult:
+        """Parse JaCoCo XML report.
+
+        Args:
+            project_root: Project root directory.
+            threshold: Coverage percentage threshold.
+            build_system: Build system name (maven or gradle).
+
+        Returns:
+            CoverageResult with parsed data.
+        """
+        # Find JaCoCo XML report
+        report_paths = []
+
+        if build_system == "maven":
+            report_paths = [
+                project_root / "target" / "site" / "jacoco" / "jacoco.xml",
+                project_root / "target" / "jacoco.xml",
+                # Additional common locations used by some projects
+                project_root / "jacoco" / "jacoco.xml",
+                project_root / "target" / "jacoco-report" / "jacoco.xml",
+                project_root / "target" / "coverage-reports" / "jacoco.xml",
+            ]
+        else:  # gradle
+            report_paths = [
+                project_root / "build" / "reports" / "jacoco" / "test" / "jacocoTestReport.xml",
+                project_root / "build" / "jacoco" / "test.xml",
+            ]
+
+        # Check multi-module projects
+        for child in project_root.iterdir():
+            if child.is_dir() and not child.name.startswith("."):
+                if build_system == "maven":
+                    report_paths.append(child / "target" / "site" / "jacoco" / "jacoco.xml")
+                else:
+                    report_paths.append(child / "build" / "reports" / "jacoco" / "test" / "jacocoTestReport.xml")
+
+        # Find existing report
+        report_file = None
+        for path in report_paths:
+            if path.exists():
+                report_file = path
+                break
+
+        if not report_file:
+            LOGGER.warning(
+                "JaCoCo report not found. Ensure JaCoCo plugin is configured in your build."
+            )
+            return CoverageResult(threshold=threshold, tool="jacoco")
+
+        return self._parse_xml_report(report_file, project_root, threshold)
+
+    def _parse_xml_report(
+        self,
+        report_file: Path,
+        project_root: Path,
+        threshold: float,
+    ) -> CoverageResult:
+        """Parse JaCoCo XML report file.
+
+        Args:
+            report_file: Path to JaCoCo XML report.
+            project_root: Project root directory.
+            threshold: Coverage percentage threshold.
+
+        Returns:
+            CoverageResult with parsed data.
+        """
+        try:
+            tree = ET.parse(report_file)
+            root = tree.getroot()
+        except Exception as e:
+            LOGGER.error(f"Failed to parse JaCoCo XML report: {e}")
+            return CoverageResult(threshold=threshold, tool="jacoco")
+
+        # Parse overall counters
+        total_lines = 0
+        covered_lines = 0
+        missed_lines = 0
+
+        # JaCoCo uses INSTRUCTION, BRANCH, LINE, COMPLEXITY, METHOD, CLASS counters
+        # We focus on LINE coverage - get the report-level counter (direct child of root)
+        line_counter = root.find("counter[@type='LINE']")
+        if line_counter is not None:
+            missed_lines = int(line_counter.get("missed", 0))
+            covered_lines = int(line_counter.get("covered", 0))
+            total_lines = missed_lines + covered_lines
+
+        result = CoverageResult(
+            total_lines=total_lines,
+            covered_lines=covered_lines,
+            missing_lines=missed_lines,
+            threshold=threshold,
+            tool="jacoco",
+        )
+
+        # Parse per-package/class coverage
+        for package in root.findall(".//package"):
+            package_name = package.get("name", "")
+
+            for sourcefile in package.findall("sourcefile"):
+                source_name = sourcefile.get("name", "")
+                file_path = self._resolve_source_path(
+                    project_root, package_name, source_name
+                )
+
+                line_counter = sourcefile.find("counter[@type='LINE']")
+                if line_counter is not None:
+                    file_missed = int(line_counter.get("missed", 0))
+                    file_covered = int(line_counter.get("covered", 0))
+
+                    # Get missing line numbers
+                    missing_lines = []
+                    for line in sourcefile.findall("line"):
+                        if int(line.get("mi", 0)) > 0:  # mi = missed instructions
+                            missing_lines.append(int(line.get("nr", 0)))
+
+                    file_coverage = FileCoverage(
+                        file_path=file_path,
+                        total_lines=file_missed + file_covered,
+                        covered_lines=file_covered,
+                        missing_lines=missing_lines,
+                    )
+                    result.files[str(file_path)] = file_coverage
+
+        # Calculate percentage
+        percentage = result.percentage
+
+        # Generate issue if below threshold
+        if percentage < threshold:
+            issue = self._create_coverage_issue(
+                percentage, threshold, total_lines, covered_lines, missed_lines
+            )
+            result.issues.append(issue)
+
+        LOGGER.info(
+            f"JaCoCo coverage: {percentage:.1f}% ({covered_lines}/{total_lines} lines) "
+            f"- threshold: {threshold}%"
+        )
+
+        return result
+
+    def _resolve_source_path(
+        self,
+        project_root: Path,
+        package_name: str,
+        source_name: str,
+    ) -> Path:
+        """Resolve source file path from package and filename.
+
+        Args:
+            project_root: Project root directory.
+            package_name: Java package name (e.g., "com/example/service").
+            source_name: Source file name (e.g., "MyService.java").
+
+        Returns:
+            Resolved path to source file.
+        """
+        # Convert package path to directory path
+        relative_path = Path(package_name) / source_name
+
+        # Check common source directories
+        for src_dir in ["src/main/java", "src/test/java", "src"]:
+            potential_path = project_root / src_dir / relative_path
+            if potential_path.exists():
+                return potential_path
+
+        # Return best guess
+        return project_root / "src" / "main" / "java" / relative_path
+
+    def _create_coverage_issue(
+        self,
+        percentage: float,
+        threshold: float,
+        total_lines: int,
+        covered_lines: int,
+        missing_lines: int,
+    ) -> UnifiedIssue:
+        """Create a UnifiedIssue for coverage below threshold."""
+        return create_coverage_threshold_issue(
+            source_tool="jacoco",
+            percentage=percentage,
+            threshold=threshold,
+            total_lines=total_lines,
+            covered_lines=covered_lines,
+            missing_lines=missing_lines,
+        )

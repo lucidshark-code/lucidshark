@@ -106,7 +106,7 @@ Run the quality/security pipeline. By default, scans only changed files (uncommi
 | Flag | Domain | Description |
 |------|--------|-------------|
 | `--linting` | linting | Code style and linting (Ruff, ESLint, Biome, Checkstyle) |
-| `--type-checking` | type_checking | Static type analysis (mypy, pyright, TypeScript) |
+| `--type-checking` | type_checking | Static type analysis (mypy, pyright, TypeScript, SpotBugs) |
 | `--sca` | sca | Dependency vulnerability scanning (Trivy) |
 | `--sast` | sast | Code security patterns (OpenGrep) |
 | `--iac` | iac | Infrastructure-as-Code scanning (Checkov) |
@@ -386,8 +386,11 @@ Get current LucidShark status and configuration.
   "project_root": "/path/to/project",
   "available_tools": {
     "scanners": ["trivy", "opengrep", "checkov"],
-    "linters": ["ruff", "eslint", "biome"],
-    "type_checkers": ["mypy", "pyright", "typescript"]
+    "linters": ["ruff", "eslint", "biome", "checkstyle"],
+    "type_checkers": ["mypy", "pyright", "typescript", "spotbugs"],
+    "test_runners": ["pytest", "jest", "karma", "playwright", "maven"],
+    "coverage": ["coverage_py", "istanbul", "jacoco"],
+    "duplication": ["duplo"]
   },
   "enabled_domains": ["sca", "sast", "linting"],
   "cached_issues": 5
@@ -436,12 +439,20 @@ Get instructions for auto-configuring LucidShark for the project. Returns guidan
     "python": {
       "linter": "ruff (recommended)",
       "type_checker": "mypy (recommended)",
-      "test_runner": "pytest"
+      "test_runner": "pytest",
+      "coverage": "coverage_py"
     },
     "javascript_typescript": {
       "linter": "eslint or biome",
       "type_checker": "typescript (tsc)",
-      "test_runner": "jest or playwright"
+      "test_runner": "jest or playwright",
+      "coverage": "istanbul"
+    },
+    "java": {
+      "linter": "checkstyle",
+      "type_checker": "spotbugs",
+      "test_runner": "maven (JUnit/TestNG)",
+      "coverage": "jacoco"
     }
   },
   "security_tools": {
@@ -550,6 +561,7 @@ pipeline:
         strict: true
       - name: pyright
       - name: typescript
+      - name: spotbugs  # For Java projects (requires compiled classes)
 
   security:
     enabled: true
@@ -568,11 +580,13 @@ pipeline:
       - name: jest        # JavaScript/TypeScript tests
       - name: karma       # Angular unit tests (Jasmine)
       - name: playwright  # E2E tests
+      - name: maven       # Java tests (JUnit/TestNG via Maven/Gradle)
 
   coverage:
     enabled: true
-    tools: [coverage_py]  # Required: coverage_py for Python, istanbul for JS/TS
+    tools: [coverage_py]  # coverage_py for Python, istanbul for JS/TS, jacoco for Java
     threshold: 80  # Fail if coverage below this
+    # extra_args: ["-DskipITs", "-Ddocker.skip=true"]  # For Java: skip integration tests
 
   duplication:
     enabled: true
@@ -631,8 +645,9 @@ output:
 | `testing.enabled` | bool | false | Enable test execution |
 | `testing.tools` | array | (auto) | Test frameworks |
 | `coverage.enabled` | bool | false | Enable coverage analysis |
-| `coverage.tools` | array | **required** | Coverage tools (coverage_py, istanbul) |
+| `coverage.tools` | array | **required** | Coverage tools (coverage_py, istanbul, jacoco) |
 | `coverage.threshold` | int | 80 | Coverage percentage threshold |
+| `coverage.extra_args` | array | [] | Extra Maven/Gradle arguments (Java only) |
 | `duplication.enabled` | bool | false | Enable duplication detection |
 | `duplication.threshold` | float | 10.0 | Max allowed duplication percentage |
 | `duplication.min_lines` | int | 4 | Minimum lines for a duplicate block |
@@ -911,8 +926,9 @@ All linting tools support the `files` parameter for partial scanning.
 | mypy | Python | ✅ Yes |
 | pyright | Python | ✅ Yes |
 | TypeScript (tsc) | TypeScript | ❌ No (project-wide only) |
+| SpotBugs | Java | ❌ No (requires compiled classes) |
 
-**Note:** TypeScript (tsc) does not support file-level scanning - it always analyzes the full project based on `tsconfig.json`.
+**Note:** TypeScript (tsc) does not support file-level scanning - it always analyzes the full project based on `tsconfig.json`. SpotBugs requires compiled Java classes (run `mvn compile` or `gradle build` first).
 
 ### Security Scanning
 
@@ -932,6 +948,7 @@ All linting tools support the `files` parameter for partial scanning.
 | Jest | JavaScript, TypeScript | ✅ Yes |
 | Karma | JavaScript, TypeScript (Angular) | ❌ No (config-based) |
 | Playwright | JavaScript, TypeScript (E2E) | ✅ Yes |
+| Maven | Java (JUnit/TestNG) | ❌ No (project-wide) |
 
 **Note:** While test runners support running specific test files, it's recommended to run the full test suite before commits to catch regressions.
 
@@ -941,8 +958,19 @@ All linting tools support the `files` parameter for partial scanning.
 |------|-----------|--------------|
 | coverage.py | Python | ⚠️ Partial (filter output) |
 | Istanbul/nyc | JavaScript, TypeScript | ⚠️ Partial (filter output) |
+| JaCoCo | Java | ❌ No (project-wide) |
 
 **Note:** Coverage tools run the full test suite but can filter the coverage report to show only changed files.
+
+**Java Coverage (JaCoCo):** For Java projects with integration tests that require Docker or external services, use `extra_args` to skip them:
+```yaml
+pipeline:
+  coverage:
+    enabled: true
+    tools: [jacoco]
+    threshold: 80
+    extra_args: ["-DskipITs", "-Ddocker.skip=true"]
+```
 
 ### Duplication Detection
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -16,7 +15,7 @@ from lucidshark.bootstrap.paths import LucidsharkPaths
 from lucidshark.bootstrap.platform import get_platform_info
 from lucidshark.bootstrap.versions import get_tool_version
 from lucidshark.core.logging import get_logger
-from lucidshark.core.subprocess_runner import run_with_streaming
+from lucidshark.core.subprocess_runner import run_with_streaming, temporary_env
 
 LOGGER = get_logger(__name__)
 
@@ -216,33 +215,26 @@ class OpenGrepScanner(ScannerPlugin):
 
         LOGGER.debug(f"Running: {' '.join(cmd)}")
 
-        # Set environment variables for the scan
-        env = self._get_scan_env()
-        old_env: Dict[str, Optional[str]] = {}
-        for key, value in env.items():
-            if key not in os.environ or os.environ[key] != value:
-                old_env[key] = os.environ.get(key)
-                os.environ[key] = value
-
         try:
-            result = run_with_streaming(
-                cmd=cmd,
-                cwd=context.project_root,
-                tool_name="opengrep",
-                stream_handler=context.stream_handler,
-                timeout=180,
-            )
+            with temporary_env(self._get_scan_env()):
+                result = run_with_streaming(
+                    cmd=cmd,
+                    cwd=context.project_root,
+                    tool_name="opengrep",
+                    stream_handler=context.stream_handler,
+                    timeout=180,
+                )
 
-            # OpenGrep returns non-zero exit code when findings exist
-            # This is expected behavior, not an error
-            if result.returncode not in (0, 1) and result.stderr:
-                LOGGER.warning(f"OpenGrep stderr: {result.stderr}")
+                # OpenGrep returns non-zero exit code when findings exist
+                # This is expected behavior, not an error
+                if result.returncode not in (0, 1) and result.stderr:
+                    LOGGER.warning(f"OpenGrep stderr: {result.stderr}")
 
-            if not result.stdout.strip():
-                LOGGER.debug("OpenGrep returned empty output")
-                return []
+                if not result.stdout.strip():
+                    LOGGER.debug("OpenGrep returned empty output")
+                    return []
 
-            return self._parse_opengrep_json(result.stdout, context.project_root)
+                return self._parse_opengrep_json(result.stdout, context.project_root)
 
         except subprocess.TimeoutExpired:
             LOGGER.warning("OpenGrep scan timed out after 180 seconds")
@@ -250,21 +242,14 @@ class OpenGrepScanner(ScannerPlugin):
         except Exception as e:
             LOGGER.error(f"OpenGrep scan failed: {e}")
             return []
-        finally:
-            # Restore original environment
-            for key, value in old_env.items():  # type: ignore[assignment]
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
 
     def _get_scan_env(self) -> Dict[str, str]:
-        """Get environment variables for the scan process."""
-        env = os.environ.copy()
+        """Get extra environment variables for the scan process."""
         # Disable telemetry/metrics
-        env["SEMGREP_SEND_METRICS"] = "off"
-        env["OPENGREP_SEND_METRICS"] = "off"
-        return env
+        return {
+            "SEMGREP_SEND_METRICS": "off",
+            "OPENGREP_SEND_METRICS": "off",
+        }
 
     def _parse_opengrep_json(
         self,

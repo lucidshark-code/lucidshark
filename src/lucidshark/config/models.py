@@ -89,6 +89,9 @@ class CoveragePipelineConfig:
     enabled: bool = False
     threshold: int = 80
     tools: List[ToolConfig] = field(default_factory=list)
+    # Extra arguments to pass to Maven/Gradle when running coverage tests
+    # e.g., ["-DskipITs", "-Ddocker.skip=true"]
+    extra_args: List[str] = field(default_factory=list)
 
 
 @dataclass

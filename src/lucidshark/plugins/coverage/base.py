@@ -65,6 +65,7 @@ class CoverageResult:
     issues: List[UnifiedIssue] = field(default_factory=list)
     # Test statistics (populated when tests are run for coverage)
     test_stats: Optional[TestStatistics] = None
+    tool: str = ""  # Name of the coverage tool that produced this result
 
     @property
     def percentage(self) -> float:

@@ -54,6 +54,27 @@ class SummaryReporter(ReporterPlugin):
         else:
             lines.append("No summary available.")
 
+        # Coverage summary
+        if result.coverage_summary:
+            cs = result.coverage_summary
+            status = "PASSED" if cs.passed else "FAILED"
+            lines.append(f"\nCoverage: {cs.coverage_percentage:.1f}% ({status})")
+            lines.append(f"  Threshold: {cs.threshold}%")
+            lines.append(f"  Lines: {cs.covered_lines}/{cs.total_lines} covered")
+            if cs.tests_total > 0:
+                lines.append(
+                    f"  Tests: {cs.tests_passed} passed, {cs.tests_failed} failed, "
+                    f"{cs.tests_skipped} skipped"
+                )
+
+        # Duplication summary
+        if result.duplication_summary:
+            ds = result.duplication_summary
+            status = "PASSED" if ds.passed else "FAILED"
+            lines.append(f"\nDuplication: {ds.duplication_percent:.1f}% ({status})")
+            lines.append(f"  Threshold: {ds.threshold}%")
+            lines.append(f"  Blocks: {ds.duplicate_blocks}, Lines: {ds.duplicate_lines}")
+
         if result.metadata:
             lines.append(f"\nScan duration: {result.metadata.duration_ms}ms")
             lines.append(f"Project: {result.metadata.project_root}")

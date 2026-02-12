@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import re
-import shutil
 import subprocess
 from pathlib import Path
 from typing import List, Optional
@@ -20,8 +19,8 @@ from lucidshark.core.models import (
     ToolDomain,
     UnifiedIssue,
 )
-from lucidshark.core.paths import resolve_node_bin
 from lucidshark.plugins.type_checkers.base import TypeCheckerPlugin
+from lucidshark.plugins.utils import ensure_node_binary, get_cli_version
 
 LOGGER = get_logger(__name__)
 
@@ -58,59 +57,25 @@ class TypeScriptChecker(TypeCheckerPlugin):
         return True
 
     def get_version(self) -> str:
-        """Get TypeScript version.
-
-        Returns:
-            Version string or 'unknown' if unable to determine.
-        """
+        """Get TypeScript version."""
         try:
             binary = self.ensure_binary()
-            result = subprocess.run(
-                [str(binary), "--version"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=30,
-            )
             # Output is like "Version 5.3.3"
-            if result.returncode == 0:
-                parts = result.stdout.strip().split()
-                if len(parts) >= 2:
-                    return parts[1]
-        except Exception:
-            pass
-        return "unknown"
+            return get_cli_version(
+                binary, parser=lambda s: s.split()[1] if len(s.split()) >= 2 else s
+            )
+        except FileNotFoundError:
+            return "unknown"
 
     def ensure_binary(self) -> Path:
-        """Ensure tsc is available.
-
-        Checks for tsc in:
-        1. Project's node_modules/.bin/tsc
-        2. System PATH (globally installed)
-
-        Returns:
-            Path to tsc binary.
-
-        Raises:
-            FileNotFoundError: If TypeScript is not installed.
-        """
-        # Check project node_modules first
-        if self._project_root:
-            node_tsc = resolve_node_bin(self._project_root, "tsc")
-            if node_tsc:
-                return node_tsc
-
-        # Check system PATH
-        tsc_path = shutil.which("tsc")
-        if tsc_path:
-            return Path(tsc_path)
-
-        raise FileNotFoundError(
+        """Ensure tsc is available."""
+        return ensure_node_binary(
+            self._project_root,
+            "tsc",
             "TypeScript is not installed. Install it with:\n"
             "  npm install typescript --save-dev\n"
             "  OR\n"
-            "  npm install -g typescript"
+            "  npm install -g typescript",
         )
 
     def check(self, context: ScanContext) -> List[UnifiedIssue]:

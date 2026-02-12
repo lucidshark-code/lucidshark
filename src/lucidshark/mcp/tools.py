@@ -268,7 +268,9 @@ class MCPToolExecutor:
 
         # Format as AI instructions with domain status
         formatted_result = self.instruction_formatter.format_scan_result(
-            all_issues, checked_domains=checked_domain_names
+            all_issues,
+            checked_domains=checked_domain_names,
+            duplication_result=context.duplication_result,
         )
 
         # Add coverage summary if coverage was run
@@ -500,12 +502,18 @@ class MCPToolExecutor:
                         "playwright.config.ts",
                         ".nycrc",
                         ".nycrc.json",
+                        "pom.xml (look for jacoco-maven-plugin and surefire-plugin)",
+                        "build.gradle (look for jacoco plugin and test configuration)",
+                        "src/test/java/ (standard Maven/Gradle test directory)",
                     ],
                     "what_to_look_for": (
                         "Test framework configurations and existing coverage settings. "
                         "Check if there's an existing coverage threshold defined. "
                         "pytest = Python tests, jest = JS/TS tests, "
-                        "karma = Angular tests, playwright = E2E tests"
+                        "karma = Angular tests, playwright = E2E tests, "
+                        "maven/gradle with JaCoCo = Java tests with coverage. "
+                        "For Java: check if project has integration tests (src/test/java/**/*IT.java) "
+                        "that require Docker - if so, suggest extra_args to skip them."
                     ),
                 },
                 {
@@ -589,6 +597,21 @@ class MCPToolExecutor:
                             "suggest gradual mode. Otherwise, default to strict."
                         ),
                     },
+                    {
+                        "id": "java_extra_args",
+                        "ask_when": "Java project with integration tests (*IT.java files) or Docker dependencies",
+                        "question": "Skip integration tests during coverage? (Recommended if tests need Docker/databases)",
+                        "options": {
+                            "skip": "Add extra_args: [\"-DskipITs\", \"-Ddocker.skip=true\"] to skip integration tests",
+                            "include": "Run all tests including integration tests (requires Docker running)",
+                        },
+                        "how_to_detect": (
+                            "Look for src/test/java/**/*IT.java files (integration tests), "
+                            "or pom.xml containing docker-maven-plugin, testcontainers dependency, "
+                            "or failsafe-maven-plugin configuration."
+                        ),
+                        "applies_to": "coverage.extra_args in lucidshark.yml",
+                    },
                 ],
                 "always_use_defaults": {
                     "security": "Always enable security scanning (trivy + opengrep). Fail on 'high' severity.",
@@ -600,8 +623,10 @@ class MCPToolExecutor:
             },
             "common_pitfalls": [
                 "Always add '**/.venv/**' and '**/node_modules/**' to ignore list",
+                "For Java projects: add '**/target/**' to ignore list",
                 "For legacy codebases: start with fail_on: none, fix issues gradually",
                 "Check current coverage with 'pytest --cov' before setting threshold",
+                "For Java with integration tests: use extra_args to skip tests requiring Docker",
             ],
             "tool_recommendations": {
                 "python": {
@@ -618,7 +643,12 @@ class MCPToolExecutor:
                 },
                 "java": {
                     "linter": "checkstyle",
-                    "test_runner": "junit (via maven/gradle)",
+                    "test_runner": "maven (runs JUnit/TestNG tests)",
+                    "coverage": "jacoco (Maven/Gradle plugin)",
+                    "note": (
+                        "For Java projects with integration tests requiring Docker or external services, "
+                        "use extra_args to skip them: extra_args: [\"-DskipITs\", \"-Ddocker.skip=true\"]"
+                    ),
                 },
             },
             "security_tools": {
@@ -727,6 +757,49 @@ ignore:
   - "**/dist/**"
   - "**/build/**"
   - "**/coverage/**"
+  - "**/.git/**"
+""",
+                "java_with_coverage": """version: 1
+
+project:
+  name: my-java-project
+  languages: [java]
+
+pipeline:
+  linting:
+    enabled: true
+    tools: [checkstyle]
+  security:
+    enabled: true
+    tools:
+      - name: trivy
+        domains: [sca]
+      - name: opengrep
+        domains: [sast]
+  testing:
+    enabled: true
+    tools: [maven]
+  coverage:
+    enabled: true
+    tools: [jacoco]
+    threshold: 80
+    # Use extra_args to skip integration tests that require Docker or external services
+    # extra_args: ["-DskipITs", "-Ddocker.skip=true"]
+  duplication:
+    enabled: true
+    threshold: 10.0
+    min_lines: 4
+    tools: [duplo]
+
+fail_on:
+  linting: error
+  security: high
+  testing: any
+  coverage: any
+  duplication: any
+
+ignore:
+  - "**/target/**"
   - "**/.git/**"
 """,
                 "gradual_adoption": """# Configuration for gradual adoption (legacy codebase)

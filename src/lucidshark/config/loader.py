@@ -334,6 +334,7 @@ def _parse_coverage_pipeline_config(
         enabled=coverage_data.get("enabled", False),
         threshold=coverage_data.get("threshold", 80),
         tools=tools,
+        extra_args=coverage_data.get("extra_args", []),
     )
 
 

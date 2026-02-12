@@ -20,11 +20,11 @@ class InitChoices:
     """User choices made during initialization."""
 
     # Linting
-    linter: Optional[str] = None  # "ruff", "eslint", "biome", or None
+    linter: Optional[str] = None  # "ruff", "eslint", "biome", "checkstyle", or None
     linter_config: Optional[str] = None  # Path to existing config or None
 
     # Type checking
-    type_checker: Optional[str] = None  # "mypy", "pyright", "typescript", or None
+    type_checker: Optional[str] = None  # "mypy", "pyright", "typescript", "spotbugs", or None
     type_checker_strict: bool = False
 
     # Security
@@ -32,9 +32,10 @@ class InitChoices:
     security_tools: list[str] = field(default_factory=lambda: ["trivy", "opengrep"])
 
     # Testing
-    test_runner: Optional[str] = None  # "pytest", "jest", or None
+    test_runner: Optional[str] = None  # "pytest", "jest", "maven", or None
     coverage_enabled: bool = False
     coverage_threshold: int = 80
+    coverage_tool: Optional[str] = None  # "coverage_py", "istanbul", "jacoco", or None
 
     # Duplication detection
     duplication_enabled: bool = True
@@ -217,10 +218,16 @@ class ConfigGenerator:
 
     def _build_coverage_section(self, choices: InitChoices) -> dict:
         """Build coverage pipeline section."""
-        return {
+        section: dict = {
             "enabled": True,
             "threshold": choices.coverage_threshold,
         }
+
+        # Add coverage tool if specified
+        if choices.coverage_tool:
+            section["tools"] = [{"name": choices.coverage_tool}]
+
+        return section
 
     def _build_duplication_section(self, choices: InitChoices) -> dict:
         """Build duplication pipeline section."""
@@ -270,6 +277,15 @@ class ConfigGenerator:
                 "**/coverage/**",
                 "**/.next/**",
                 "**/.nuxt/**",
+            ])
+
+        if context.has_java or context.has_kotlin:
+            patterns.extend([
+                "**/target/**",
+                "**/build/**",
+                "**/.gradle/**",
+                "**/.idea/**",
+                "**/*.class",
             ])
 
         return patterns

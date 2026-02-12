@@ -8,14 +8,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from lucidshark.core.logging import get_logger
-from lucidshark.core.paths import resolve_node_bin
 from lucidshark.core.models import (
     ScanContext,
     Severity,
@@ -23,6 +21,7 @@ from lucidshark.core.models import (
     UnifiedIssue,
 )
 from lucidshark.plugins.test_runners.base import TestRunnerPlugin, TestResult
+from lucidshark.plugins.utils import ensure_node_binary, get_cli_version
 
 LOGGER = get_logger(__name__)
 
@@ -49,53 +48,18 @@ class JestRunner(TestRunnerPlugin):
         return ["javascript", "typescript"]
 
     def get_version(self) -> str:
-        """Get Jest version.
-
-        Returns:
-            Version string or 'unknown' if unable to determine.
-        """
+        """Get Jest version."""
         try:
             binary = self.ensure_binary()
-            result = subprocess.run(
-                [str(binary), "--version"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=30,
-            )
-            # Output is just the version number like "29.7.0"
-            if result.returncode == 0:
-                return result.stdout.strip()
-        except Exception:
-            pass
-        return "unknown"
+            return get_cli_version(binary)
+        except FileNotFoundError:
+            return "unknown"
 
     def ensure_binary(self) -> Path:
-        """Ensure Jest is available.
-
-        Checks for Jest in:
-        1. Project's node_modules/.bin/jest
-        2. System PATH (globally installed)
-
-        Returns:
-            Path to Jest binary.
-
-        Raises:
-            FileNotFoundError: If Jest is not installed.
-        """
-        # Check project node_modules first
-        if self._project_root:
-            node_jest = resolve_node_bin(self._project_root, "jest")
-            if node_jest:
-                return node_jest
-
-        # Check system PATH
-        jest_path = shutil.which("jest")
-        if jest_path:
-            return Path(jest_path)
-
-        raise FileNotFoundError(
+        """Ensure Jest is available."""
+        return ensure_node_binary(
+            self._project_root,
+            "jest",
             "Jest is not installed. Install it with:\n"
             "  npm install jest --save-dev\n"
             "  OR\n"

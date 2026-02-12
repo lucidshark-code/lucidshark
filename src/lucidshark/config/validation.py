@@ -92,6 +92,7 @@ VALID_PIPELINE_COVERAGE_KEYS: Set[str] = {
     "enabled",
     "tools",
     "threshold",
+    "extra_args",  # Extra arguments to pass to Maven/Gradle
 }
 
 # Valid keys under pipeline.security section

@@ -78,4 +78,16 @@ class TableReporter(ReporterPlugin):
             if sev_parts:
                 lines.append(f"By severity: {', '.join(sev_parts)}")
 
+        # Coverage summary
+        if result.coverage_summary:
+            cs = result.coverage_summary
+            status = "PASSED" if cs.passed else "FAILED"
+            lines.append(f"Coverage: {cs.coverage_percentage:.1f}% (threshold: {cs.threshold}%) - {status}")
+
+        # Duplication summary
+        if result.duplication_summary:
+            ds = result.duplication_summary
+            status = "PASSED" if ds.passed else "FAILED"
+            lines.append(f"Duplication: {ds.duplication_percent:.1f}% (threshold: {ds.threshold}%) - {status}")
+
         return lines

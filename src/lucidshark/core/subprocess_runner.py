@@ -5,11 +5,13 @@ Provides utilities for running external tools with real-time output streaming.
 
 from __future__ import annotations
 
+import os
 import queue
 import subprocess
 import threading
+from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Dict, Generator, List, Optional, Union
 
 from lucidshark.core.streaming import (
     NullStreamHandler,
@@ -162,3 +164,41 @@ def run_with_streaming(
     except Exception as e:
         handler.end_tool(tool_name, False)
         raise subprocess.SubprocessError(f"Failed to run {tool_name}: {e}") from e
+
+
+@contextmanager
+def temporary_env(env_vars: Dict[str, str]) -> Generator[None, None, None]:
+    """Context manager for temporarily setting environment variables.
+
+    Saves the current state of the specified environment variables,
+    sets the new values, and restores the originals on exit.
+
+    Args:
+        env_vars: Dictionary of environment variable names to values.
+
+    Yields:
+        None
+
+    Example:
+        with temporary_env({"MY_VAR": "value"}):
+            # MY_VAR is set to "value" here
+            run_subprocess()
+        # MY_VAR is restored to original value (or unset if it wasn't set)
+    """
+    old_env: Dict[str, Optional[str]] = {}
+
+    # Save old values and set new ones
+    for key, value in env_vars.items():
+        if key not in os.environ or os.environ[key] != value:
+            old_env[key] = os.environ.get(key)
+            os.environ[key] = value
+
+    try:
+        yield
+    finally:
+        # Restore original environment
+        for key, old_value in old_env.items():
+            if old_value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old_value

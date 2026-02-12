@@ -6,28 +6,26 @@ https://coverage.readthedocs.io/
 
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 from lucidshark.core.logging import get_logger
-from lucidshark.core.models import (
-    ScanContext,
-    Severity,
-    ToolDomain,
-    UnifiedIssue,
-)
+from lucidshark.core.models import ScanContext, UnifiedIssue
 from lucidshark.core.subprocess_runner import run_with_streaming
 from lucidshark.plugins.coverage.base import (
     CoveragePlugin,
     CoverageResult,
     FileCoverage,
     TestStatistics,
+)
+from lucidshark.plugins.utils import (
+    ensure_python_binary,
+    get_cli_version,
+    create_coverage_threshold_issue,
 )
 
 LOGGER = get_logger(__name__)
@@ -55,59 +53,27 @@ class CoveragePyPlugin(CoveragePlugin):
         return ["python"]
 
     def get_version(self) -> str:
-        """Get coverage.py version.
-
-        Returns:
-            Version string or 'unknown' if unable to determine.
-        """
+        """Get coverage.py version."""
         try:
             binary = self.ensure_binary()
-            result = subprocess.run(
-                [str(binary), "--version"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-            )
             # Output is like "Coverage.py, version 7.4.0 ..."
-            if result.returncode == 0:
-                output = result.stdout.strip()
+            def parse_coverage_version(output: str) -> str:
                 if "version" in output:
-                    # Extract version number
                     parts = output.split("version")
                     if len(parts) >= 2:
                         version = parts[1].strip().split()[0]
                         return version.rstrip(",")
-        except Exception:
-            pass
-        return "unknown"
+                return output
+            return get_cli_version(binary, parser=parse_coverage_version)
+        except FileNotFoundError:
+            return "unknown"
 
     def ensure_binary(self) -> Path:
-        """Ensure coverage is available.
-
-        Checks for coverage in:
-        1. Project's .venv/bin/coverage
-        2. System PATH
-
-        Returns:
-            Path to coverage binary.
-
-        Raises:
-            FileNotFoundError: If coverage is not installed.
-        """
-        # Check project venv first
-        if self._project_root:
-            venv_coverage = self._project_root / ".venv" / "bin" / "coverage"
-            if venv_coverage.exists():
-                return venv_coverage
-
-        # Check system PATH
-        coverage_path = shutil.which("coverage")
-        if coverage_path:
-            return Path(coverage_path)
-
-        raise FileNotFoundError(
-            "coverage is not installed. Install it with: pip install coverage"
+        """Ensure coverage is available."""
+        return ensure_python_binary(
+            self._project_root,
+            "coverage",
+            "coverage is not installed. Install it with: pip install coverage",
         )
 
     def measure_coverage(
@@ -130,7 +96,7 @@ class CoveragePyPlugin(CoveragePlugin):
             binary = self.ensure_binary()
         except FileNotFoundError as e:
             LOGGER.warning(str(e))
-            return CoverageResult(threshold=threshold)
+            return CoverageResult(threshold=threshold, tool="coverage_py")
 
         test_stats: Optional[TestStatistics] = None
 
@@ -140,13 +106,56 @@ class CoveragePyPlugin(CoveragePlugin):
             success, test_stats = self._run_tests_with_coverage(binary, context)
             if not success:
                 LOGGER.warning("Failed to run tests with coverage")
-                return CoverageResult(threshold=threshold)
+                return CoverageResult(threshold=threshold, tool="coverage_py")
 
         # Generate JSON report from coverage data
         result = self._generate_and_parse_report(binary, context, threshold)
         result.test_stats = test_stats
 
         return result
+
+    def _detect_source_directory(self, project_root: Path) -> Optional[str]:
+        """Detect the source directory for coverage measurement.
+
+        Args:
+            project_root: Project root directory.
+
+        Returns:
+            Source directory path relative to project root, or None.
+        """
+        # Check common source directory patterns
+        src_dir = project_root / "src"
+        if src_dir.exists() and src_dir.is_dir():
+            # Look for a package inside src/
+            for child in src_dir.iterdir():
+                if child.is_dir() and (child / "__init__.py").exists():
+                    return str(child.relative_to(project_root))
+            # Fallback to src/ itself
+            return "src"
+
+        # Check for package at root level (same name as project directory)
+        project_name = project_root.name.replace("-", "_")
+        package_dir = project_root / project_name
+        if package_dir.exists() and (package_dir / "__init__.py").exists():
+            return project_name
+
+        # Check pyproject.toml for package configuration
+        pyproject = project_root / "pyproject.toml"
+        if pyproject.exists():
+            try:
+                import tomllib
+                with open(pyproject, "rb") as f:
+                    data = tomllib.load(f)
+                # Check [tool.setuptools.packages.find] or [project]
+                packages = data.get("tool", {}).get("setuptools", {}).get("packages", {})
+                if isinstance(packages, dict) and "where" in packages:
+                    where = packages["where"]
+                    if isinstance(where, list) and where:
+                        return where[0]
+            except Exception:
+                pass
+
+        return None
 
     def _run_tests_with_coverage(
         self,
@@ -179,17 +188,28 @@ class CoveragePyPlugin(CoveragePlugin):
             LOGGER.warning("pytest not found, cannot run tests for coverage")
             return False, None
 
+        # Detect source directory for accurate coverage measurement
+        source_dir = self._detect_source_directory(context.project_root)
+
         # Build command to run coverage with pytest
         # Always run full test suite - coverage needs complete test runs to be meaningful
         # (unlike linting which can work on individual changed files)
         cmd = [
             str(binary),
             "run",
+        ]
+
+        # Add --source to measure only the project's source code, not tests/libraries
+        if source_dir:
+            cmd.extend(["--source", source_dir])
+            LOGGER.debug(f"Measuring coverage for source: {source_dir}")
+
+        cmd.extend([
             "-m",
             "pytest",
             "--tb=no",
             "-q",
-        ]
+        ])
 
         LOGGER.debug(f"Running: {' '.join(cmd)}")
 
@@ -296,18 +316,18 @@ class CoveragePyPlugin(CoveragePlugin):
 
                 if result.returncode != 0:
                     LOGGER.warning(f"Coverage json failed: {result.stderr}")
-                    return CoverageResult(threshold=threshold)
+                    return CoverageResult(threshold=threshold, tool="coverage_py")
 
             except Exception as e:
                 LOGGER.error(f"Failed to generate coverage report: {e}")
-                return CoverageResult(threshold=threshold)
+                return CoverageResult(threshold=threshold, tool="coverage_py")
 
             # Parse JSON report
             if report_file.exists():
                 return self._parse_json_report(report_file, context.project_root, threshold)
             else:
                 LOGGER.warning("Coverage JSON report not generated")
-                return CoverageResult(threshold=threshold)
+                return CoverageResult(threshold=threshold, tool="coverage_py")
 
     def _parse_json_report(
         self,
@@ -330,7 +350,7 @@ class CoveragePyPlugin(CoveragePlugin):
                 report = json.load(f)
         except Exception as e:
             LOGGER.error(f"Failed to parse coverage JSON report: {e}")
-            return CoverageResult(threshold=threshold)
+            return CoverageResult(threshold=threshold, tool="coverage_py")
 
         totals = report.get("totals", {})
         files_data = report.get("files", {})
@@ -348,6 +368,7 @@ class CoveragePyPlugin(CoveragePlugin):
             missing_lines=missing_lines,
             excluded_lines=excluded_lines,
             threshold=threshold,
+            tool="coverage_py",
         )
 
         # Parse per-file coverage
@@ -386,69 +407,12 @@ class CoveragePyPlugin(CoveragePlugin):
         covered_lines: int,
         missing_lines: int,
     ) -> UnifiedIssue:
-        """Create a UnifiedIssue for coverage below threshold.
-
-        Args:
-            percentage: Actual coverage percentage.
-            threshold: Required coverage threshold.
-            total_lines: Total number of lines.
-            covered_lines: Number of covered lines.
-            missing_lines: Number of missing lines.
-
-        Returns:
-            UnifiedIssue for coverage failure.
-        """
-        # Determine severity based on how far below threshold
-        if percentage < 50:
-            severity = Severity.HIGH
-        elif percentage < threshold - 10:
-            severity = Severity.MEDIUM
-        else:
-            severity = Severity.LOW
-
-        # Generate deterministic ID
-        issue_id = self._generate_issue_id(percentage, threshold)
-
-        gap = threshold - percentage
-
-        return UnifiedIssue(
-            id=issue_id,
-            domain=ToolDomain.COVERAGE,
+        """Create a UnifiedIssue for coverage below threshold."""
+        return create_coverage_threshold_issue(
             source_tool="coverage.py",
-            severity=severity,
-            rule_id="coverage_below_threshold",
-            title=f"Coverage {percentage:.1f}% is below threshold {threshold}%",
-            description=(
-                f"Project coverage is {percentage:.1f}%, which is {gap:.1f}% below "
-                f"the required threshold of {threshold}%. "
-                f"{missing_lines} lines are not covered."
-            ),
-            recommendation=f"Add tests to cover at least {gap:.1f}% more of the codebase.",
-            file_path=None,  # Project-level issue
-            line_start=None,
-            line_end=None,
-            fixable=False,
-            metadata={
-                "coverage_percentage": round(percentage, 2),
-                "threshold": threshold,
-                "total_lines": total_lines,
-                "covered_lines": covered_lines,
-                "missing_lines": missing_lines,
-                "gap_percentage": round(gap, 2),
-            },
+            percentage=percentage,
+            threshold=threshold,
+            total_lines=total_lines,
+            covered_lines=covered_lines,
+            missing_lines=missing_lines,
         )
-
-    def _generate_issue_id(self, percentage: float, threshold: float) -> str:
-        """Generate deterministic issue ID.
-
-        Args:
-            percentage: Coverage percentage.
-            threshold: Coverage threshold.
-
-        Returns:
-            Unique issue ID.
-        """
-        # ID based on rounded percentage and threshold for stability
-        content = f"coverage:{round(percentage)}:{threshold}"
-        hash_val = hashlib.sha256(content.encode()).hexdigest()[:12]
-        return f"coverage-{hash_val}"

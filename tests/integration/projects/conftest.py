@@ -33,6 +33,8 @@ from tests.integration.conftest import (
     jest_runner_available,
     coverage_py_available,
     nyc_available,
+    spotbugs_available,
+    maven_available,
 )
 
 __all__ = [
@@ -53,11 +55,15 @@ __all__ = [
     "jest_runner_available",
     "coverage_py_available",
     "nyc_available",
+    "spotbugs_available",
+    "maven_available",
     # Fixtures
     "python_project",
     "python_project_with_deps",
     "typescript_project",
     "typescript_project_with_deps",
+    "java_project",
+    "java_project_with_deps",
     # Helpers
     "run_lucidshark",
     "ScanResult",
@@ -152,6 +158,10 @@ def run_lucidshark(
                 cmd.append("--sca")
             elif domain == "iac":
                 cmd.append("--iac")
+            elif domain == "testing":
+                cmd.append("--testing")
+            elif domain == "coverage":
+                cmd.append("--coverage")
             elif domain == "all":
                 cmd.append("--all")
 
@@ -195,6 +205,7 @@ def run_lucidshark(
 PROJECTS_DIR = Path(__file__).parent
 PYTHON_PROJECT = PROJECTS_DIR / "python-webapp"
 TYPESCRIPT_PROJECT = PROJECTS_DIR / "typescript-api"
+JAVA_PROJECT = PROJECTS_DIR / "java-webapp"
 
 
 # =============================================================================
@@ -303,6 +314,76 @@ def _setup_node_modules(project_path: Path) -> Path:
 
 
 # =============================================================================
+# Java project setup
+# =============================================================================
+
+
+def _setup_java_project(project_path: Path) -> Path:
+    """Compile Java project with Maven.
+
+    Returns the path to target/classes.
+    """
+    target_classes = project_path / "target" / "classes"
+
+    if target_classes.exists():
+        return target_classes
+
+    # Check if Maven is available
+    mvn = shutil.which("mvn")
+    if not mvn:
+        pytest.skip("Maven not available - cannot compile Java project")
+
+    # Check if Java is available
+    java = shutil.which("java")
+    if not java:
+        pytest.skip("Java not available - cannot compile Java project")
+
+    print(f"\n[Setup] Running mvn compile in {project_path}...")
+
+    result = subprocess.run(
+        [mvn, "compile", "-q"],
+        cwd=project_path,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+    if result.returncode != 0:
+        print(f"[Setup] mvn compile failed: {result.stderr}")
+        pytest.skip(f"Maven compile failed: {result.stderr[:200]}")
+
+    print(f"[Setup] Java classes ready at {target_classes}")
+    return target_classes
+
+
+def _run_java_tests(project_path: Path) -> Path:
+    """Run Java tests with Maven.
+
+    Returns the path to target/surefire-reports.
+    """
+    surefire_reports = project_path / "target" / "surefire-reports"
+
+    # Check if Maven is available
+    mvn = shutil.which("mvn")
+    if not mvn:
+        pytest.skip("Maven not available - cannot run Java tests")
+
+    print(f"\n[Setup] Running mvn test in {project_path}...")
+
+    result = subprocess.run(
+        [mvn, "test", "-q"],
+        cwd=project_path,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+
+    # Tests might fail, but we still want the reports
+    print(f"[Setup] Maven tests completed (exit code {result.returncode})")
+    return surefire_reports
+
+
+# =============================================================================
 # Project fixtures
 # =============================================================================
 
@@ -331,3 +412,16 @@ def typescript_project_with_deps(typescript_project: Path) -> Path:
     """Return TypeScript project path after ensuring dependencies are installed."""
     _setup_node_modules(typescript_project)
     return typescript_project
+
+
+@pytest.fixture(scope="session")
+def java_project() -> Path:
+    """Return path to the Java test project (not compiled)."""
+    return JAVA_PROJECT
+
+
+@pytest.fixture(scope="session")
+def java_project_with_deps(java_project: Path) -> Path:
+    """Return Java project path after ensuring it's compiled with Maven."""
+    _setup_java_project(java_project)
+    return java_project

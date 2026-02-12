@@ -18,7 +18,7 @@ from lucidshark.bootstrap.paths import LucidsharkPaths
 from lucidshark.bootstrap.platform import get_platform_info
 from lucidshark.bootstrap.versions import get_tool_version
 from lucidshark.core.logging import get_logger
-from lucidshark.core.subprocess_runner import run_with_streaming
+from lucidshark.core.subprocess_runner import run_with_streaming, temporary_env
 
 LOGGER = get_logger(__name__)
 
@@ -259,35 +259,27 @@ class CheckovScanner(ScannerPlugin):
 
         LOGGER.debug(f"Running: {' '.join(cmd)}")
 
-        # Checkov doesn't support custom env in run_with_streaming, so set env vars first
-        import os
-        env = self._get_scan_env()
-        old_env: Dict[str, Optional[str]] = {}
-        for key, value in env.items():
-            if key not in os.environ or os.environ[key] != value:
-                old_env[key] = os.environ.get(key)
-                os.environ[key] = value
-
         try:
-            result = run_with_streaming(
-                cmd=cmd,
-                cwd=context.project_root,
-                tool_name="checkov",
-                stream_handler=context.stream_handler,
-                timeout=180,
-            )
+            with temporary_env(self._get_scan_env()):
+                result = run_with_streaming(
+                    cmd=cmd,
+                    cwd=context.project_root,
+                    tool_name="checkov",
+                    stream_handler=context.stream_handler,
+                    timeout=180,
+                )
 
-            # Checkov returns non-zero exit code when findings exist
-            # Exit code 1 means findings found (expected)
-            # Exit code 2 means error
-            if result.returncode == 2 and result.stderr:
-                LOGGER.warning(f"Checkov stderr: {result.stderr}")
+                # Checkov returns non-zero exit code when findings exist
+                # Exit code 1 means findings found (expected)
+                # Exit code 2 means error
+                if result.returncode == 2 and result.stderr:
+                    LOGGER.warning(f"Checkov stderr: {result.stderr}")
 
-            if not result.stdout.strip():
-                LOGGER.debug("Checkov returned empty output")
-                return []
+                if not result.stdout.strip():
+                    LOGGER.debug("Checkov returned empty output")
+                    return []
 
-            return self._parse_checkov_json(result.stdout, context.project_root)
+                return self._parse_checkov_json(result.stdout, context.project_root)
 
         except subprocess.TimeoutExpired:
             LOGGER.warning("Checkov scan timed out after 180 seconds")
@@ -295,22 +287,14 @@ class CheckovScanner(ScannerPlugin):
         except Exception as e:
             LOGGER.error(f"Checkov scan failed: {e}")
             return []
-        finally:
-            # Restore original environment
-            for key, value in old_env.items():  # type: ignore[assignment]
-                if value is None:
-                    os.environ.pop(key, None)
-                else:
-                    os.environ[key] = value
 
     def _get_scan_env(self) -> Dict[str, str]:
-        """Get environment variables for the scan process."""
-        import os
-        env = os.environ.copy()
+        """Get extra environment variables for the scan process."""
         # Disable telemetry/analytics
-        env["BC_SKIP_MAPPING"] = "TRUE"
-        env["CHECKOV_RUN_SCA_PACKAGE_SCAN"] = "false"
-        return env
+        return {
+            "BC_SKIP_MAPPING": "TRUE",
+            "CHECKOV_RUN_SCA_PACKAGE_SCAN": "false",
+        }
 
     def _parse_checkov_json(
         self,
