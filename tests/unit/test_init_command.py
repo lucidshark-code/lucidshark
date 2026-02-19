@@ -318,9 +318,10 @@ class TestSetupCursor:
             remove=False,
         )
 
-        with patch.object(cmd, "_get_cursor_config_path", return_value=config_path):
-            with patch.object(cmd, "_find_lucidshark_path", return_value="/usr/local/bin/lucidshark"):
-                exit_code = cmd.execute(args)
+        with patch.object(Path, "cwd", return_value=tmp_path):
+            with patch.object(cmd, "_get_cursor_config_path", return_value=config_path):
+                with patch.object(cmd, "_find_lucidshark_path", return_value="/usr/local/bin/lucidshark"):
+                    exit_code = cmd.execute(args)
 
         assert exit_code == EXIT_SUCCESS
         assert config_path.exists()
@@ -344,7 +345,7 @@ class TestConfigureClaudeSkill:
 
         assert success
         assert skill_path.exists()
-        content = skill_path.read_text()
+        content = skill_path.read_text(encoding="utf-8")
         assert "LucidShark" in content
 
     def test_skips_if_already_configured(self, tmp_path: Path, capsys) -> None:
@@ -352,7 +353,7 @@ class TestConfigureClaudeSkill:
         cmd = InitCommand(version="1.0.0")
         skill_path = tmp_path / ".claude" / "skills" / "lucidshark" / "SKILL.md"
         skill_path.parent.mkdir(parents=True)
-        skill_path.write_text(LUCIDSHARK_SKILL_CONTENT)
+        skill_path.write_text(LUCIDSHARK_SKILL_CONTENT, encoding="utf-8")
 
         with patch.object(Path, "cwd", return_value=tmp_path):
             success = cmd._configure_claude_skill(dry_run=False, force=False, remove=False)
@@ -372,7 +373,7 @@ class TestConfigureClaudeSkill:
             success = cmd._configure_claude_skill(dry_run=False, force=True, remove=False)
 
         assert success
-        content = skill_path.read_text()
+        content = skill_path.read_text(encoding="utf-8")
         assert "Old skill content" not in content
         assert "LucidShark" in content
 
@@ -394,7 +395,7 @@ class TestConfigureClaudeSkill:
         cmd = InitCommand(version="1.0.0")
         skill_path = tmp_path / ".claude" / "skills" / "lucidshark" / "SKILL.md"
         skill_path.parent.mkdir(parents=True)
-        skill_path.write_text(LUCIDSHARK_SKILL_CONTENT)
+        skill_path.write_text(LUCIDSHARK_SKILL_CONTENT, encoding="utf-8")
 
         with patch.object(Path, "cwd", return_value=tmp_path):
             success = cmd._configure_claude_skill(dry_run=False, force=False, remove=True)

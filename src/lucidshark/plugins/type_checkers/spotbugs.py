@@ -7,6 +7,8 @@ https://spotbugs.github.io/
 from __future__ import annotations
 
 import hashlib
+import os
+import platform
 import shutil
 import subprocess
 from pathlib import Path
@@ -175,6 +177,9 @@ class SpotBugsChecker(TypeCheckerPlugin):
                     member_path = (install_dir / member.name).resolve()
                     if not str(member_path).startswith(str(install_dir.resolve())):
                         raise ValueError(f"Path traversal attempt: {member.name}")
+                    # Skip symlinks on Windows (unsupported in most environments)
+                    if platform.system() == "Windows" and (member.issym() or member.islnk()):
+                        continue
                     # Extract individual member safely
                     tar.extract(member, path=install_dir)
 
@@ -299,7 +304,7 @@ class SpotBugsChecker(TypeCheckerPlugin):
 
         # Add source path for better reporting
         if source_dirs:
-            cmd.extend(["-sourcepath", ":".join(str(d) for d in source_dirs)])
+            cmd.extend(["-sourcepath", os.pathsep.join(str(d) for d in source_dirs)])
 
         # Add auxiliary classpath if available (for better analysis)
         aux_classpath = self._find_aux_classpath(context.project_root)
@@ -355,7 +360,7 @@ class SpotBugsChecker(TypeCheckerPlugin):
             jars.extend(gradle_cache.glob("*.jar"))
 
         if jars:
-            return ":".join(str(j) for j in jars)
+            return os.pathsep.join(str(j) for j in jars)
         return None
 
     def _parse_output(
