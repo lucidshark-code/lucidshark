@@ -16,6 +16,8 @@ venv/
 ENV/
 env/
 
+.tasks/
+
 # pytest / coverage
 .pytest_cache/
 .coverage
