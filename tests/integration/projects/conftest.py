@@ -346,6 +346,7 @@ def _setup_java_project(project_path: Path) -> Path:
         capture_output=True,
         text=True,
         timeout=120,
+        shell=sys.platform == "win32",
     )
 
     if result.returncode != 0:
@@ -376,6 +377,7 @@ def _run_java_tests(project_path: Path) -> Path:
         capture_output=True,
         text=True,
         timeout=180,
+        shell=sys.platform == "win32",
     )
 
     # Tests might fail, but we still want the reports
