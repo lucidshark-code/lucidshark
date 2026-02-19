@@ -22,7 +22,7 @@ AI writes code → LucidShark checks → AI fixes → repeat
 
 - **Configuration-as-code** - `lucidshark.yml` lives in your repo. Same rules for everyone, changes go through code review.
 
-- **AI-native** - MCP integration with Claude Code and Cursor. Structured feedback that AI agents can act on directly.
+- **AI-native** - MCP integration with Claude Code. Structured feedback that AI agents can act on directly.
 
 - **Unified pipeline** - Linting, type checking, security (SAST/SCA/IaC), tests, coverage, and duplication detection in one tool. Stop configuring 5+ separate tools.
 
@@ -42,8 +42,8 @@ curl -fsSL https://raw.githubusercontent.com/lucidshark-code/lucidshark/main/ins
 # Windows (PowerShell):
 irm https://raw.githubusercontent.com/lucidshark-code/lucidshark/main/install.ps1 | iex
 
-# 2. Set up your AI tools (Claude Code and/or Cursor)
-lucidshark init --all
+# 2. Set up Claude Code
+lucidshark init --claude-code
 
 # 3. Restart your AI tool, then ask it:
 #    "Autoconfigure LucidShark for this project"
@@ -126,14 +126,12 @@ This checks:
 - Tool availability (security scanners, linters, type checkers)
 - Python environment compatibility
 - Git repository status
-- MCP integrations (Claude Code, Cursor)
+- MCP integration (Claude Code)
 
 ### AI Tool Setup
 
 ```bash
 lucidshark init --claude-code    # Configure Claude Code (.mcp.json + CLAUDE.md)
-lucidshark init --cursor         # Configure Cursor (mcp.json + rules)
-lucidshark init --all            # Configure all AI tools
 ```
 
 Restart your AI tool after running `init` to activate.
@@ -214,7 +212,7 @@ See [docs/help.md](docs/help.md) for the full configuration reference.
 |---------|-------------|
 | `lucidshark scan --all` | Run all quality checks |
 | `lucidshark scan --linting --fix` | Lint and auto-fix |
-| `lucidshark init --all` | Configure AI tools (Claude Code, Cursor) |
+| `lucidshark init --claude-code` | Configure Claude Code integration |
 | `lucidshark autoconfigure` | Auto-detect project and generate config |
 | `lucidshark doctor` | Check setup and environment health |
 | `lucidshark validate` | Validate `lucidshark.yml` |

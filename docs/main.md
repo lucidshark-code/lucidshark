@@ -2,7 +2,7 @@
 
 ## 1. Problem Statement
 
-AI coding assistants have fundamentally changed software development. Tools like Claude Code, Cursor, GitHub Copilot, and Windsurf can generate hundreds of lines of code in seconds. But this speed creates a new problem: **developers cannot trust AI-generated code**.
+AI coding assistants have fundamentally changed software development. Tools like Claude Code, GitHub Copilot, and Windsurf can generate hundreds of lines of code in seconds. But this speed creates a new problem: **developers cannot trust AI-generated code**.
 
 The trust gap manifests in several ways:
 
@@ -36,8 +36,8 @@ This trust layer doesn't replace existing tools - it orchestrates them and bridg
 LucidShark is the **trust layer for AI-assisted development**. It provides:
 
 ```
-lucidshark init --all
-→ Configures AI tools (Claude Code, Cursor)
+lucidshark init --claude-code
+→ Configures Claude Code
 
 "Autoconfigure LucidShark" (via AI)
 → AI analyzes your codebase
@@ -66,8 +66,8 @@ LucidShark is a **unified code quality pipeline** with native AI agent integrati
 ### 2.1 Zero-Config Initialization
 
 ```bash
-# 1. Set up AI tools
-lucidshark init --all
+# 1. Set up Claude Code
+lucidshark init --claude-code
 
 # 2. Ask your AI: "Autoconfigure LucidShark for this project"
 ```
@@ -103,12 +103,10 @@ All results normalized to a common schema. One exit code for automation.
 LucidShark bridges deterministic tools and AI agents via MCP (Model Context Protocol):
 
 ```bash
-# Configure AI tools (creates MCP config and instructions)
-lucidshark init --claude-code  # Configure Claude Code
-lucidshark init --cursor       # Configure Cursor
-lucidshark init --all          # Configure all AI tools
+# Configure Claude Code (creates MCP config and instructions)
+lucidshark init --claude-code
 
-# Then restart your AI tool for changes to take effect
+# Then restart Claude Code for changes to take effect
 ```
 
 When configured:
@@ -157,7 +155,7 @@ LucidShark uses AI to **explain and fix** issues, not to decide what matters.
 ### 4.1 Primary: Developers Using AI Coding Tools
 
 Developers who:
-- Use Claude Code, Cursor, Copilot, or similar AI assistants
+- Use Claude Code, Copilot, or similar AI assistants
 - Want confidence that AI-generated code is production-ready
 - Need fast feedback loops without manual tool orchestration
 - Work in teams with shared quality standards
@@ -531,7 +529,7 @@ output:
   format: json | table | sarif | summary
 ```
 
-> **Note**: AI tool integration is configured via `lucidshark init --claude-code` or `lucidshark init --cursor`, not through lucidshark.yml.
+> **Note**: AI tool integration is configured via `lucidshark init --claude-code`, not through lucidshark.yml.
 
 #### 5.4.2 Exclude File
 
@@ -631,7 +629,7 @@ Binaries are cached in `{project_root}/.lucidshark/` by default. The `LUCIDSHARK
 │                        LucidShark CLI                            │
 ├─────────────────────────────────────────────────────────────────┤
 │  Commands                                                       │
-│  ├── init           → Configure AI tools (Claude Code, Cursor)  │
+│  ├── init           → Configure Claude Code integration           │
 │  ├── autoconfigure  → Detect project, generate lucidshark.yml   │
 │  ├── scan           → Pipeline execution                        │
 │  ├── serve          → MCP server / file watcher                 │
@@ -1031,18 +1029,6 @@ lucidshark serve --mcp
 }
 ```
 
-**For Cursor** (MCP configuration):
-```json
-{
-  "mcpServers": {
-    "lucidshark": {
-      "command": "lucidshark",
-      "args": ["serve", "--mcp"]
-    }
-  }
-}
-```
-
 #### 7.1.2 Hooks Mode
 
 LucidShark can run via editor hooks:
@@ -1138,7 +1124,6 @@ The AI integration creates an automated feedback loop with partial scanning for 
 
 The feedback loop is driven by instructions provided to the AI tool via `lucidshark init`, which creates:
 - `.claude/CLAUDE.md` for Claude Code with scan workflow instructions
-- `.cursor/rules/lucidshark.mdc` for Cursor with auto-scan rules
 
 These instruct the AI to:
 - Run **default scans** (changed files only) after code changes for fast feedback
@@ -1197,20 +1182,16 @@ Global Options:
 ```
 lucidshark init [OPTIONS]
 
-Configure AI tools (Claude Code, Cursor) to use LucidShark.
+Configure Claude Code to use LucidShark.
 
 Options:
   --claude-code        Configure Claude Code MCP settings
-  --cursor             Configure Cursor MCP settings
-  --all                Configure all supported AI tools
   --dry-run            Show changes without applying
   --force              Overwrite existing configuration
   --remove             Remove LucidShark from tool configuration
 
 Examples:
   lucidshark init --claude-code      # Configure Claude Code
-  lucidshark init --cursor           # Configure Cursor
-  lucidshark init --all              # Configure all AI tools
 ```
 
 #### 8.2.2 `autoconfigure`
@@ -1290,14 +1271,14 @@ lucidshark serve [OPTIONS] [PATH]
 Run LucidShark as a server for AI integration.
 
 Options:
-  --mcp                Run as MCP server (for Claude Code, Cursor)
+  --mcp                Run as MCP server (for Claude Code)
   --watch              Watch files and run incremental checks on changes
   --port PORT          HTTP port for status endpoint (default: 7432)
   --debounce MS        Debounce delay for file watcher (default: 1000ms)
   PATH                 Project directory to serve (default: current directory)
 
 Examples:
-  lucidshark serve --mcp             # MCP server for Claude Code/Cursor
+  lucidshark serve --mcp             # MCP server for Claude Code
   lucidshark serve --watch           # File watcher mode
 ```
 
@@ -1343,7 +1324,7 @@ Checks:
   - Configuration: lucidshark.yml presence and validity
   - Tools: Scanner plugin availability and versions
   - Environment: Python version, platform, git repository
-  - Integrations: Claude Code and Cursor MCP configuration
+  - Integrations: Claude Code MCP configuration
 
 Examples:
   lucidshark doctor                  # Run all health checks
@@ -1494,7 +1475,6 @@ pipeline:
 - [x] AI instruction formatter
 - [x] File watcher mode
 - [x] Claude Code integration (`lucidshark init --claude-code`)
-- [x] Cursor integration (`lucidshark init --cursor`)
 - [x] Feedback loop configuration
 - [x] MCP autoconfigure tool (AI-driven project setup)
 - [x] MCP validate_config tool

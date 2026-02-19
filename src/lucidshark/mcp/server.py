@@ -216,7 +216,7 @@ class LucidSharkMCPServer:
                 """Send progress event via MCP progress notification.
 
                 Uses the standard MCP progress notification mechanism which
-                clients (Claude/Cursor) display prominently during tool execution.
+                clients (Claude Code) display prominently during tool execution.
                 Falls back to MCP logging if progress tokens are not supported.
                 """
                 tool_name = event.get("tool", "lucidshark")

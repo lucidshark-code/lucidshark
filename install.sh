@@ -278,8 +278,6 @@ main() {
     echo "Then configure your AI tool:"
     echo ""
     success "  lucidshark init --claude-code    # For Claude Code"
-    echo "  lucidshark init --cursor         # For Cursor"
-    echo "  lucidshark init --all            # For both"
     echo ""
     info "This sets up MCP integration so AI tools can scan automatically."
     echo ""

@@ -228,27 +228,13 @@ This modifies files in place. Only linting issues are auto-fixable -- type error
 
 ## Set Up AI Integration
 
-LucidShark integrates with Claude Code and Cursor via MCP (Model Context Protocol). Your AI assistant can run scans, read results, and fix issues directly.
-
-### Claude Code
+LucidShark integrates with Claude Code via MCP (Model Context Protocol). Your AI assistant can run scans, read results, and fix issues directly.
 
 ```bash
 lucidshark init --claude-code
 ```
 
 Restart Claude Code, then ask it: "Autoconfigure LucidShark for this project" or "Run a LucidShark scan."
-
-### Cursor
-
-```bash
-lucidshark init --cursor
-```
-
-### Both
-
-```bash
-lucidshark init --all
-```
 
 ## Common TypeScript Tips
 
