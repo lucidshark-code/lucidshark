@@ -1,7 +1,7 @@
 """Argument parser construction for lucidshark CLI.
 
 This module builds the argument parser with subcommands:
-- lucidshark init          - Configure AI tools (Claude Code, Cursor)
+- lucidshark init          - Configure AI tools (Claude Code)
 - lucidshark autoconfigure - Auto-configure project (generate lucidshark.yml)
 - lucidshark scan          - Run security/quality scans
 - lucidshark status        - Show configuration and tool status
@@ -41,13 +41,13 @@ def _add_global_options(parser: argparse.ArgumentParser) -> None:
 def _build_init_parser(subparsers: argparse._SubParsersAction) -> None:
     """Build the 'init' subcommand parser.
 
-    This command configures AI tools (Claude Code, Cursor) to use LucidShark.
+    This command configures AI tools (Claude Code) to use LucidShark.
     """
     init_parser = subparsers.add_parser(
         "init",
         help="Configure AI tools to use LucidShark.",
         description=(
-            "Configure Claude Code, Cursor, or other MCP-compatible AI tools "
+            "Configure Claude Code or other MCP-compatible AI tools "
             "to use LucidShark for code quality checks."
         ),
     )
@@ -58,11 +58,6 @@ def _build_init_parser(subparsers: argparse._SubParsersAction) -> None:
         "--claude-code",
         action="store_true",
         help="Configure Claude Code MCP settings.",
-    )
-    tool_group.add_argument(
-        "--cursor",
-        action="store_true",
-        help="Configure Cursor MCP settings.",
     )
     tool_group.add_argument(
         "--all",
@@ -316,7 +311,7 @@ def _build_serve_parser(subparsers: argparse._SubParsersAction) -> None:
         "serve",
         help="Run LucidShark as a server for AI integration.",
         description=(
-            "Run LucidShark as an MCP server for Claude Code, Cursor, "
+            "Run LucidShark as an MCP server for Claude Code "
             "or as a file watcher for real-time checking."
         ),
     )
@@ -326,7 +321,7 @@ def _build_serve_parser(subparsers: argparse._SubParsersAction) -> None:
     mode_group.add_argument(
         "--mcp",
         action="store_true",
-        help="Run as MCP server (for Claude Code, Cursor).",
+        help="Run as MCP server (for Claude Code).",
     )
     mode_group.add_argument(
         "--watch",
@@ -417,7 +412,6 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Examples:\n"
             "  lucidshark init --claude-code       # Configure Claude Code\n"
-            "  lucidshark init --cursor            # Configure Cursor\n"
             "  lucidshark autoconfigure            # Auto-configure project\n"
             "  lucidshark scan --sca               # Scan dependencies\n"
             "  lucidshark scan --all               # Run all scans\n"

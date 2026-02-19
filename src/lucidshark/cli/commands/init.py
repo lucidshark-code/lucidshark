@@ -1,6 +1,6 @@
 """Init command implementation.
 
-Configure AI tools (Claude Code, Cursor) to use LucidShark via MCP.
+Configure AI tools (Claude Code) to use LucidShark via MCP.
 """
 
 from __future__ import annotations
@@ -82,64 +82,6 @@ Run scans proactively after code changes. Don't wait for user to ask.
 | `get_help()` | Full documentation |
 """
 
-# Cursor rules for proactive lucidshark usage
-LUCIDSHARK_CURSOR_RULES = """---
-description: "PROACTIVE code quality scanning. Run after writing/editing code, fixing bugs, adding features, refactoring, before commits. Auto-run - don't wait for user to ask."
-globs: ["**/*.py", "**/*.ts", "**/*.js", "**/*.tsx", "**/*.jsx", "**/*.java", "**/*.go", "**/*.rs"]
-alwaysApply: true
----
-
-# LucidShark Code Quality Scanner
-
-Run scans proactively after code changes. Don't wait for user to ask.
-
-## When to Scan
-
-| Trigger | Action |
-|---------|--------|
-| After editing code | `scan(fix=true)` |
-| After fixing bugs | `scan(fix=true)` to verify no new issues |
-| After adding features | Scan before reporting done |
-| Before commits | `scan(domains=["all"])` |
-| User says "check/scan/lint/quality/errors" | Run appropriate scan |
-
-**Skip scanning** if user explicitly says "don't scan" or "skip checks".
-
-## Commands
-
-| Command | Use Case |
-|---------|----------|
-| `scan(fix=true)` | Default after code changes (auto-fixes linting) |
-| `scan(domains=["all"])` | Full scan before commits |
-| `scan(all_files=true)` | Scan entire project, not just changed files |
-| `check_file(file_path="...")` | Check single file |
-
-**Domains:** `linting`, `type_checking`, `sast`, `sca`, `iac`, `container`, `testing`, `coverage`, `duplication`, `all`
-
-**Default:** Scans only uncommitted changes. Use `all_files=true` for full project.
-
-## Fixing Issues
-
-1. `scan(fix=true)` - Auto-fixes linting issues
-2. `get_fix_instructions(issue_id)` - Detailed guidance for manual fixes
-3. `apply_fix(issue_id)` - Apply auto-fix for specific issue
-4. Re-scan after fixes to confirm resolution
-
-## Workflow
-
-1. Make code changes → 2. `scan(fix=true)` → 3. Fix remaining issues → 4. Re-scan if needed → 5. Report done
-
-**Task is complete when scan shows zero issues.**
-
-## Setup & Config
-
-| Command | Purpose |
-|---------|---------|
-| `get_status()` | Show configuration and cached issues |
-| `autoconfigure()` | Guide for creating lucidshark.yml |
-| `validate_config()` | Validate configuration file |
-| `get_help()` | Full documentation |
-"""
 
 class InitCommand(Command):
     """Configure AI tools to use LucidShark via MCP."""
@@ -169,15 +111,13 @@ class InitCommand(Command):
         """
         # Determine which tools to configure
         configure_claude = getattr(args, "claude_code", False)
-        configure_cursor = getattr(args, "cursor", False)
         configure_all = getattr(args, "init_all", False)
 
         if configure_all:
             configure_claude = True
-            configure_cursor = True
 
-        if not configure_claude and not configure_cursor:
-            print("No AI tool specified. Use --claude-code, --cursor, or --all.")
+        if not configure_claude:
+            print("No AI tool specified. Use --claude-code or --all.")
             print("\nRun 'lucidshark init --help' for more options.")
             return EXIT_INVALID_USAGE
 
@@ -189,10 +129,6 @@ class InitCommand(Command):
 
         if configure_claude:
             if not self._setup_claude_code(dry_run, force, remove):
-                success = False
-
-        if configure_cursor:
-            if not self._setup_cursor(dry_run, force, remove):
                 success = False
 
         if success and not dry_run:
@@ -241,47 +177,6 @@ class InitCommand(Command):
         )
 
         return mcp_success and skill_success
-
-    def _setup_cursor(
-        self,
-        dry_run: bool = False,
-        force: bool = False,
-        remove: bool = False,
-    ) -> bool:
-        """Configure Cursor MCP settings.
-
-        Args:
-            dry_run: If True, only show what would be done.
-            force: If True, overwrite existing config.
-            remove: If True, remove LucidShark from config.
-
-        Returns:
-            True if successful.
-        """
-        print("Configuring Cursor...")
-
-        config_path = self._get_cursor_config_path()
-        if config_path is None:
-            print("  Could not determine Cursor config location.")
-            return False
-
-        mcp_success = self._configure_mcp_tool(
-            tool_name="Cursor",
-            config_path=config_path,
-            config_key="mcpServers",
-            dry_run=dry_run,
-            force=force,
-            remove=remove,
-        )
-
-        # Configure Cursor rules for automatic scanning
-        rules_success = self._configure_cursor_rules(
-            dry_run=dry_run,
-            force=force,
-            remove=remove,
-        )
-
-        return mcp_success and rules_success
 
     def _find_lucidshark_path(self, portable: bool = False) -> Optional[str]:
         """Find the lucidshark executable path.
@@ -510,56 +405,6 @@ class InitCommand(Command):
             print(f"  Error creating skill: {e}")
             return False
 
-    def _configure_cursor_rules(
-        self,
-        dry_run: bool = False,
-        force: bool = False,
-        remove: bool = False,
-    ) -> bool:
-        """Configure Cursor rules for automatic scanning.
-
-        Args:
-            dry_run: If True, only show what would be done.
-            force: If True, overwrite existing rules.
-            remove: If True, remove lucidshark rules.
-
-        Returns:
-            True if successful.
-        """
-        rules_dir = Path.cwd() / ".cursor" / "rules"
-        rules_file = rules_dir / "lucidshark.mdc"
-
-        print("Configuring Cursor rules...")
-
-        if remove:
-            if rules_file.exists():
-                if dry_run:
-                    print(f"  Would remove {rules_file}")
-                else:
-                    rules_file.unlink()
-                    print(f"  Removed {rules_file}")
-            else:
-                print(f"  LucidShark rules not found at {rules_file}")
-            return True
-
-        if rules_file.exists() and not force:
-            print(f"  LucidShark rules already exist at {rules_file}")
-            print("  Use --force to overwrite.")
-            return True
-
-        if dry_run:
-            print(f"  Would create {rules_file}")
-            return True
-
-        rules_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            rules_file.write_text(LUCIDSHARK_CURSOR_RULES.lstrip(), encoding="utf-8")
-            print(f"  Created {rules_file}")
-            return True
-        except Exception as e:
-            print(f"  Error writing {rules_file}: {e}")
-            return False
-
     def _get_claude_code_config_path(self) -> Optional[Path]:
         """Get the Claude Code MCP config file path.
 
@@ -568,24 +413,6 @@ class InitCommand(Command):
         """
         # Claude Code project-scoped MCP servers in .mcp.json
         return Path.cwd() / ".mcp.json"
-
-    def _get_cursor_config_path(self) -> Optional[Path]:
-        """Get the Cursor MCP config file path.
-
-        Returns:
-            Path to config file or None if not determinable.
-        """
-        home = Path.home()
-
-        if sys.platform == "win32":
-            # Windows: %USERPROFILE%\.cursor\mcp.json
-            return home / ".cursor" / "mcp.json"
-        elif sys.platform == "darwin":
-            # macOS: ~/.cursor/mcp.json
-            return home / ".cursor" / "mcp.json"
-        else:
-            # Linux: ~/.cursor/mcp.json
-            return home / ".cursor" / "mcp.json"
 
     def _read_json_config(self, path: Path) -> Tuple[Dict[str, Any], Optional[str]]:
         """Read a JSON config file.

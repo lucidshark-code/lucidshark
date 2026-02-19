@@ -281,18 +281,6 @@ class DoctorCommand(Command):
         if claude_result is not None:
             results.append(claude_result)
 
-        # Check Cursor MCP config (global and project-level)
-        cursor_result = self._check_mcp_config(
-            name="cursor_mcp",
-            display_name="Cursor",
-            global_config=Path.home() / ".cursor" / "mcp.json",
-            project_config=project_root / ".cursor" / "mcp.json",
-            init_command="lucidshark init --cursor",
-            report_if_missing=False,  # Don't report Cursor as missing if not installed
-        )
-        if cursor_result is not None:
-            results.append(cursor_result)
-
         return results
 
     def _check_mcp_config(
@@ -387,7 +375,7 @@ class DoctorCommand(Command):
             "Configuration": ["config_file", "config_valid"],
             "Tools": [r.name for r in results if r.name.startswith("tool_")],
             "Environment": ["python_version", "platform", "git_repo"],
-            "Integrations": ["claude_code_mcp", "cursor_mcp"],
+            "Integrations": ["claude_code_mcp"],
         }
 
         for category, keys in categories.items():

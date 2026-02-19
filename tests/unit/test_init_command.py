@@ -30,7 +30,6 @@ class TestInitCommand:
         cmd = InitCommand(version="1.0.0")
         args = Namespace(
             claude_code=False,
-            cursor=False,
             init_all=False,
             dry_run=False,
             force=False,
@@ -42,12 +41,11 @@ class TestInitCommand:
         captured = capsys.readouterr()
         assert "No AI tool specified" in captured.out
 
-    def test_init_all_configures_both_tools(self, tmp_path: Path, capsys) -> None:
-        """Test that --all configures both Claude Code and Cursor."""
+    def test_init_all_configures_claude_code(self, tmp_path: Path, capsys) -> None:
+        """Test that --all configures Claude Code."""
         cmd = InitCommand(version="1.0.0")
         args = Namespace(
             claude_code=False,
-            cursor=False,
             init_all=True,
             dry_run=True,
             force=False,
@@ -55,17 +53,14 @@ class TestInitCommand:
         )
 
         claude_config = tmp_path / ".mcp.json"
-        cursor_config = tmp_path / ".cursor" / "mcp.json"
 
         with patch.object(Path, "cwd", return_value=tmp_path):
             with patch.object(cmd, "_get_claude_code_config_path", return_value=claude_config):
-                with patch.object(cmd, "_get_cursor_config_path", return_value=cursor_config):
-                    exit_code = cmd.execute(args)
+                exit_code = cmd.execute(args)
 
         assert exit_code == EXIT_SUCCESS
         captured = capsys.readouterr()
         assert "Claude Code" in captured.out
-        assert "Cursor" in captured.out
 
 
 class TestSetupClaudeCode:
@@ -78,7 +73,6 @@ class TestSetupClaudeCode:
 
         args = Namespace(
             claude_code=True,
-            cursor=False,
             init_all=False,
             dry_run=False,
             force=False,
@@ -118,7 +112,6 @@ class TestSetupClaudeCode:
 
         args = Namespace(
             claude_code=True,
-            cursor=False,
             init_all=False,
             dry_run=False,
             force=False,
@@ -154,7 +147,6 @@ class TestSetupClaudeCode:
 
         args = Namespace(
             claude_code=True,
-            cursor=False,
             init_all=False,
             dry_run=False,
             force=False,
@@ -188,7 +180,6 @@ class TestSetupClaudeCode:
 
         args = Namespace(
             claude_code=True,
-            cursor=False,
             init_all=False,
             dry_run=False,
             force=True,
@@ -213,7 +204,6 @@ class TestSetupClaudeCode:
 
         args = Namespace(
             claude_code=True,
-            cursor=False,
             init_all=False,
             dry_run=True,
             force=False,
@@ -250,7 +240,6 @@ class TestSetupClaudeCode:
 
         args = Namespace(
             claude_code=True,
-            cursor=False,
             init_all=False,
             dry_run=False,
             force=False,
@@ -285,7 +274,6 @@ class TestSetupClaudeCode:
 
         args = Namespace(
             claude_code=True,
-            cursor=False,
             init_all=False,
             dry_run=False,
             force=False,
@@ -299,37 +287,6 @@ class TestSetupClaudeCode:
         assert exit_code == EXIT_SUCCESS
         captured = capsys.readouterr()
         assert "not found" in captured.out
-
-
-class TestSetupCursor:
-    """Tests for Cursor setup."""
-
-    def test_creates_cursor_config(self, tmp_path: Path) -> None:
-        """Test creating Cursor config file."""
-        cmd = InitCommand(version="1.0.0")
-        config_path = tmp_path / ".cursor" / "mcp.json"
-
-        args = Namespace(
-            claude_code=False,
-            cursor=True,
-            init_all=False,
-            dry_run=False,
-            force=False,
-            remove=False,
-        )
-
-        with patch.object(Path, "cwd", return_value=tmp_path):
-            with patch.object(cmd, "_get_cursor_config_path", return_value=config_path):
-                with patch.object(cmd, "_find_lucidshark_path", return_value="/usr/local/bin/lucidshark"):
-                    exit_code = cmd.execute(args)
-
-        assert exit_code == EXIT_SUCCESS
-        assert config_path.exists()
-
-        config = json.loads(config_path.read_text())
-        assert "mcpServers" in config
-        assert "lucidshark" in config["mcpServers"]
-        assert config["mcpServers"]["lucidshark"]["command"] == "/usr/local/bin/lucidshark"
 
 
 class TestConfigureClaudeSkill:
@@ -459,20 +416,20 @@ class TestFindLucidsharkPath:
     def test_fallback_uses_bare_command(self, tmp_path: Path, capsys) -> None:
         """Test that fallback uses 'lucidshark' when path not found."""
         cmd = InitCommand(version="1.0.0")
-        config_path = tmp_path / ".cursor" / "mcp.json"
+        config_path = tmp_path / ".mcp.json"
 
         args = Namespace(
-            claude_code=False,
-            cursor=True,
+            claude_code=True,
             init_all=False,
             dry_run=False,
             force=False,
             remove=False,
         )
 
-        with patch.object(cmd, "_get_cursor_config_path", return_value=config_path):
-            with patch.object(cmd, "_find_lucidshark_path", return_value=None):
-                exit_code = cmd.execute(args)
+        with patch.object(Path, "cwd", return_value=tmp_path):
+            with patch.object(cmd, "_get_claude_code_config_path", return_value=config_path):
+                with patch.object(cmd, "_find_lucidshark_path", return_value=None):
+                    exit_code = cmd.execute(args)
 
         assert exit_code == EXIT_SUCCESS
 
@@ -493,15 +450,6 @@ class TestConfigPaths:
         path = cmd._get_claude_code_config_path()
         assert path is not None
         assert ".mcp.json" in str(path)
-
-    def test_cursor_config_path_unix(self) -> None:
-        """Test Cursor config path on Unix systems."""
-        cmd = InitCommand(version="1.0.0")
-        with patch("sys.platform", "darwin"):
-            path = cmd._get_cursor_config_path()
-            assert path is not None
-            assert ".cursor" in str(path)
-            assert "mcp.json" in str(path)
 
 
 class TestJsonConfigOperations:

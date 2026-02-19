@@ -2,7 +2,7 @@
 
 > **Vision**: Unified code quality pipeline for AI-assisted development
 
-LucidShark unifies code quality tools (linting, type checking, security, testing, coverage, duplication detection) into a single pipeline that auto-configures for any project and integrates with AI coding tools like Claude Code and Cursor.
+LucidShark unifies code quality tools (linting, type checking, security, testing, coverage, duplication detection) into a single pipeline that auto-configures for any project and integrates with Claude Code.
 
 ---
 
@@ -62,7 +62,6 @@ All foundational work is complete. LucidShark is a fully functional code quality
 
 ```bash
 lucidshark init --claude-code         # Configure Claude Code
-lucidshark init --cursor              # Configure Cursor
 lucidshark autoconfigure              # Generate lucidshark.yml
 lucidshark scan --all                 # Run complete pipeline
 lucidshark scan --linting --fix       # Lint with auto-fix

@@ -13,10 +13,10 @@ pip install lucidshark
 ### Recommended Setup (AI-Assisted)
 
 ```bash
-# 1. Set up your AI tools
-lucidshark init --all
+# 1. Set up Claude Code
+lucidshark init --claude-code
 
-# 2. Restart Claude Code or Cursor, then ask:
+# 2. Restart Claude Code, then ask:
 #    "Autoconfigure LucidShark for this project"
 ```
 
@@ -68,13 +68,11 @@ These options are available for all commands:
 
 ### `lucidshark init`
 
-Configure AI tools (Claude Code, Cursor) to use LucidShark via MCP.
+Configure Claude Code to use LucidShark via MCP.
 
 | Option | Description |
 |--------|-------------|
 | `--claude-code` | Configure Claude Code MCP settings |
-| `--cursor` | Configure Cursor MCP settings |
-| `--all` | Configure all supported AI tools |
 | `--dry-run` | Show changes without applying |
 | `--force` | Overwrite existing configuration |
 | `--remove` | Remove LucidShark from tool configuration |
@@ -82,8 +80,6 @@ Configure AI tools (Claude Code, Cursor) to use LucidShark via MCP.
 **Examples:**
 ```bash
 lucidshark init --claude-code
-lucidshark init --cursor
-lucidshark init --all
 lucidshark init --claude-code --remove
 ```
 
@@ -206,7 +202,7 @@ Run LucidShark as a server for AI tool integration.
 
 | Option | Description |
 |--------|-------------|
-| `--mcp` | Run as MCP server (for Claude Code, Cursor) |
+| `--mcp` | Run as MCP server (for Claude Code) |
 | `--watch` | Watch files and run incremental checks |
 | `--port PORT` | HTTP port for status endpoint (default: 7432) |
 | `--debounce MS` | File watcher debounce delay (default: 1000) |
@@ -238,7 +234,7 @@ Run health checks on the LucidShark setup and environment. Checks configuration,
 - Common linters/type checkers available (ruff, mypy, pyright)
 - Python version (requires 3.10+)
 - Git repository detected
-- Claude Code and Cursor MCP integrations configured
+- Claude Code MCP integration configured
 
 **Examples:**
 ```bash
@@ -984,28 +980,6 @@ Or manually create `.mcp.json`:
 ```
 
 **Note:** The `command` path is auto-detected. For venv installs, it will use the relative path (e.g., `.venv/bin/lucidshark`). For standalone installs, it uses `./lucidshark`.
-
-### Cursor
-
-```bash
-lucidshark init --cursor
-```
-
-This creates:
-- `~/.cursor/mcp.json` - MCP server configuration
-- `.cursor/rules/lucidshark.mdc` - Cursor rules
-
-Or manually add to `~/.cursor/mcp.json`:
-```json
-{
-  "mcpServers": {
-    "lucidshark": {
-      "command": "lucidshark",
-      "args": ["serve", "--mcp"]
-    }
-  }
-}
-```
 
 ---
 

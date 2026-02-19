@@ -1,7 +1,7 @@
 """MCP (Model Context Protocol) integration for LucidShark.
 
 This package provides MCP server functionality for AI agent integration,
-enabling tools like Claude Code and Cursor to invoke LucidShark checks.
+enabling tools like Claude Code to invoke LucidShark checks.
 """
 
 from __future__ import annotations

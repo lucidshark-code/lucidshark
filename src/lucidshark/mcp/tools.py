@@ -568,9 +568,9 @@ class MCPToolExecutor:
                     "guidance": (
                         "After generating the config, tell the user: "
                         "1) Which tools need to be installed (security tools are auto-downloaded), "
-                        "2) Run 'lucidshark init --claude-code' or '--cursor' for AI integration, "
+                        "2) Run 'lucidshark init --claude-code' for AI integration, "
                         "3) Run 'lucidshark scan --all' to verify the configuration works, "
-                        "4) IMPORTANT: Restart Claude Code or Cursor for the configuration to take effect."
+                        "4) IMPORTANT: Restart Claude Code for the configuration to take effect."
                     ),
                 },
             ],
@@ -844,11 +844,11 @@ ignore:
 """,
             },
             "post_config_steps": [
-                "Run 'lucidshark init --claude-code' or 'lucidshark init --cursor' to set up AI tool integration",
+                "Run 'lucidshark init --claude-code' to set up AI tool integration",
                 "Install required linting/testing tools via package manager (security tools auto-download)",
                 "Run 'lucidshark scan --all' to test the configuration and see initial results",
                 "If many issues appear, consider starting with relaxed thresholds (see gradual_adoption example)",
-                "IMPORTANT: Restart Claude Code or Cursor for the new configuration to take effect",
+                "IMPORTANT: Restart Claude Code for the new configuration to take effect",
             ],
         }
 
