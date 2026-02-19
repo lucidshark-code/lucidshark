@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any, Dict
 from unittest.mock import patch
 
 import pytest
 
 from lucidshark.config.loader import (
     ConfigError,
+    _parse_coverage_pipeline_config,
+    _parse_domain_pipeline_config,
     dict_to_config,
     expand_env_vars,
     find_project_config,
@@ -159,6 +162,108 @@ class TestDictToConfig:
         config = dict_to_config(data)
         assert config.enrichers == {"ai": {"enabled": False}}
 
+    def test_top_level_exclude_maps_to_ignore(self) -> None:
+        """Top-level 'exclude' key should be stored in the 'ignore' field."""
+        config = dict_to_config({"exclude": ["vendor/**", "*.pb.go"]})
+        assert config.ignore == ["vendor/**", "*.pb.go"]
+
+    def test_top_level_exclude_takes_precedence_over_ignore(self) -> None:
+        """When both 'exclude' and 'ignore' are present, 'exclude' wins."""
+        config = dict_to_config({
+            "ignore": ["old_pattern/**"],
+            "exclude": ["new_pattern/**"],
+        })
+        assert config.ignore == ["new_pattern/**"]
+
+    def test_top_level_ignore_still_works_without_exclude(self) -> None:
+        """Backward compat: 'ignore' still works when 'exclude' is absent."""
+        config = dict_to_config({"ignore": ["tests/**"]})
+        assert config.ignore == ["tests/**"]
+
+    def test_parses_domain_pipeline_exclude(self) -> None:
+        """Domain pipeline configs should parse the 'exclude' field."""
+        data = {
+            "pipeline": {
+                "linting": {
+                    "tools": ["ruff"],
+                    "exclude": ["generated/**"],
+                },
+            },
+        }
+        config = dict_to_config(data)
+        assert config.pipeline.linting is not None
+        assert config.pipeline.linting.exclude == ["generated/**"]
+
+    def test_parses_type_checking_exclude(self) -> None:
+        """Type checking domain should parse 'exclude'."""
+        data = {
+            "pipeline": {
+                "type_checking": {
+                    "tools": ["mypy"],
+                    "exclude": ["stubs/**"],
+                },
+            },
+        }
+        config = dict_to_config(data)
+        assert config.pipeline.type_checking is not None
+        assert config.pipeline.type_checking.exclude == ["stubs/**"]
+
+    def test_parses_testing_exclude(self) -> None:
+        """Testing domain should parse 'exclude'."""
+        data = {
+            "pipeline": {
+                "testing": {
+                    "tools": ["pytest"],
+                    "exclude": ["integration/**"],
+                },
+            },
+        }
+        config = dict_to_config(data)
+        assert config.pipeline.testing is not None
+        assert config.pipeline.testing.exclude == ["integration/**"]
+
+    def test_parses_security_exclude(self) -> None:
+        """Security domain should parse 'exclude'."""
+        data = {
+            "pipeline": {
+                "security": {
+                    "tools": [{"name": "trivy", "domains": ["sca"]}],
+                    "exclude": ["test_data/**"],
+                },
+            },
+        }
+        config = dict_to_config(data)
+        assert config.pipeline.security is not None
+        assert config.pipeline.security.exclude == ["test_data/**"]
+
+    def test_parses_coverage_exclude(self) -> None:
+        """Coverage domain should parse 'exclude'."""
+        data = {
+            "pipeline": {
+                "coverage": {
+                    "enabled": True,
+                    "tools": ["coverage_py"],
+                    "exclude": ["tests/**", "conftest.py"],
+                },
+            },
+        }
+        config = dict_to_config(data)
+        assert config.pipeline.coverage is not None
+        assert config.pipeline.coverage.exclude == ["tests/**", "conftest.py"]
+
+    def test_domain_exclude_defaults_to_empty_list(self) -> None:
+        """Domain exclude should default to empty list when not specified."""
+        data = {
+            "pipeline": {
+                "linting": {
+                    "tools": ["ruff"],
+                },
+            },
+        }
+        config = dict_to_config(data)
+        assert config.pipeline.linting is not None
+        assert config.pipeline.linting.exclude == []
+
 
 class TestFindProjectConfig:
     """Tests for find_project_config function."""
@@ -294,3 +399,94 @@ class TestLoadConfigMerging:
         assert sca_config.enabled is True
         assert sca_config.options.get("ignore_unfixed") is True
         assert sca_config.options.get("severity") == ["HIGH", "CRITICAL"]
+
+
+class TestParseDomainPipelineConfigExclude:
+    """Tests for _parse_domain_pipeline_config handling of exclude."""
+
+    def test_parses_exclude_field(self) -> None:
+        """Test that exclude is parsed from domain config dict."""
+        data = {
+            "enabled": True,
+            "tools": [{"name": "ruff"}],
+            "exclude": ["scripts/**", "generated/**"],
+        }
+        result = _parse_domain_pipeline_config(data)
+        assert result is not None
+        assert result.exclude == ["scripts/**", "generated/**"]
+
+    def test_exclude_defaults_to_empty(self) -> None:
+        """Test that exclude defaults to empty when not in dict."""
+        data = {
+            "enabled": True,
+            "tools": [{"name": "ruff"}],
+        }
+        result = _parse_domain_pipeline_config(data)
+        assert result is not None
+        assert result.exclude == []
+
+    def test_returns_none_for_none_input(self) -> None:
+        """Test that None input returns None."""
+        assert _parse_domain_pipeline_config(None) is None
+
+    def test_exclude_with_empty_list(self) -> None:
+        """Test that explicit empty list is preserved."""
+        data: Dict[str, Any] = {"tools": [], "exclude": []}
+        result = _parse_domain_pipeline_config(data)
+        assert result is not None
+        assert result.exclude == []
+
+    def test_exclude_preserves_pattern_order(self) -> None:
+        """Test that pattern order is preserved."""
+        data = {
+            "tools": [{"name": "ruff"}],
+            "exclude": ["z/**", "a/**", "m/**"],
+        }
+        result = _parse_domain_pipeline_config(data)
+        assert result is not None
+        assert result.exclude == ["z/**", "a/**", "m/**"]
+
+
+class TestParseCoveragePipelineConfigExclude:
+    """Tests for _parse_coverage_pipeline_config handling of exclude."""
+
+    def test_parses_exclude_field(self) -> None:
+        """Test that exclude is parsed from coverage config dict."""
+        data = {
+            "enabled": True,
+            "tools": [{"name": "coverage_py"}],
+            "threshold": 80,
+            "exclude": ["tests/**"],
+        }
+        result = _parse_coverage_pipeline_config(data)
+        assert result is not None
+        assert result.exclude == ["tests/**"]
+
+    def test_exclude_defaults_to_empty(self) -> None:
+        """Test that exclude defaults to empty when not in dict."""
+        data = {
+            "enabled": True,
+            "tools": [{"name": "coverage_py"}],
+        }
+        result = _parse_coverage_pipeline_config(data)
+        assert result is not None
+        assert result.exclude == []
+
+    def test_returns_none_for_none_input(self) -> None:
+        """Test that None input returns None."""
+        assert _parse_coverage_pipeline_config(None) is None
+
+    def test_exclude_coexists_with_threshold_and_extra_args(self) -> None:
+        """Test that exclude does not interfere with other coverage fields."""
+        data = {
+            "enabled": True,
+            "tools": [{"name": "coverage_py"}],
+            "threshold": 90,
+            "extra_args": ["-DskipITs"],
+            "exclude": ["vendor/**"],
+        }
+        result = _parse_coverage_pipeline_config(data)
+        assert result is not None
+        assert result.threshold == 90
+        assert result.extra_args == ["-DskipITs"]
+        assert result.exclude == ["vendor/**"]

@@ -132,7 +132,7 @@ fail_on:
   testing: any
   coverage: below_threshold
 
-ignore:
+exclude:
   - "**/node_modules/**"
   - "**/dist/**"
   - "**/build/**"
@@ -142,7 +142,7 @@ ignore:
 Key sections:
 - **pipeline** -- Which tools to run. Each domain can be toggled independently.
 - **fail_on** -- When LucidShark returns a non-zero exit code.
-- **ignore** -- Glob patterns for files to skip (gitignore-style syntax).
+- **exclude** -- Glob patterns for files to exclude (gitignore-style syntax).
 
 You can skip the config file entirely and use a preset:
 
@@ -324,7 +324,7 @@ For code security patterns (OpenGrep SAST):
 const secret = process.env.API_KEY; // nosemgrep: hardcoded-secret
 ```
 
-See [Ignore Patterns](ignore-patterns.md) for the full reference.
+See [Exclude Patterns](exclude-patterns.md) for the full reference.
 
 ## Adding to CI
 
@@ -356,5 +356,5 @@ LucidShark exits with code `1` when issues exceed thresholds, which fails the CI
 ## Next Steps
 
 - [LLM Reference](help.md) -- Full CLI and configuration reference
-- [Ignore Patterns](ignore-patterns.md) -- Detailed guide for excluding files and findings
+- [Exclude Patterns](exclude-patterns.md) -- Detailed guide for exclude patterns and per-domain exclusions
 - [Full Specification](main.md) -- Architecture and design documentation

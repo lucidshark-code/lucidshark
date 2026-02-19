@@ -350,7 +350,8 @@ def _parse_domain_pipeline_config(
             # Simple string format: just the tool name
             tools.append(ToolConfig(name=tool_data))
 
-    return DomainPipelineConfig(enabled=enabled, tools=tools)
+    exclude = domain_data.get("exclude", [])
+    return DomainPipelineConfig(enabled=enabled, tools=tools, exclude=exclude)
 
 
 def _parse_coverage_pipeline_config(
@@ -382,6 +383,7 @@ def _parse_coverage_pipeline_config(
         threshold=coverage_data.get("threshold", 80),
         tools=tools,
         extra_args=coverage_data.get("extra_args", []),
+        exclude=coverage_data.get("exclude", []),
     )
 
 
@@ -499,7 +501,7 @@ def dict_to_config(data: Dict[str, Any]) -> LucidSharkConfig:
     return LucidSharkConfig(
         project=project,
         fail_on=fail_on,
-        ignore=data.get("ignore", []),
+        ignore=data.get("exclude", data.get("ignore", [])),
         output=output,
         scanners=scanners,
         enrichers=enrichers,

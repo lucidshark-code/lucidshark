@@ -236,20 +236,51 @@ class DomainRunner:
         else:
             LOGGER.debug(message)
 
+    def _context_with_domain_excludes(
+        self,
+        context: ScanContext,
+        domain_exclude_patterns: Optional[List[str]],
+    ) -> ScanContext:
+        """Create a ScanContext with domain-specific exclude patterns merged in.
+
+        If domain_exclude_patterns is provided and non-empty, merges them
+        with the context's existing ignore_patterns. Otherwise returns
+        the context unchanged.
+
+        Args:
+            context: Original scan context.
+            domain_exclude_patterns: Additional exclude patterns for this domain.
+
+        Returns:
+            ScanContext with merged ignore patterns, or the original context.
+        """
+        if not domain_exclude_patterns:
+            return context
+        from dataclasses import replace
+
+        from lucidshark.config.ignore import IgnorePatterns
+
+        domain_patterns = IgnorePatterns(domain_exclude_patterns, source="domain-config")
+        merged = IgnorePatterns.merge(context.ignore_patterns, domain_patterns)
+        return replace(context, ignore_patterns=merged)
+
     def run_linting(
         self,
         context: ScanContext,
         fix: bool = False,
+        exclude_patterns: Optional[List[str]] = None,
     ) -> List[UnifiedIssue]:
         """Run linting checks.
 
         Args:
             context: Scan context.
             fix: Whether to apply automatic fixes.
+            exclude_patterns: Domain-specific exclude patterns to merge.
 
         Returns:
             List of linting issues.
         """
+        context = self._context_with_domain_excludes(context, exclude_patterns)
         from lucidshark.plugins.linters import discover_linter_plugins
 
         issues: List[UnifiedIssue] = []
@@ -283,15 +314,21 @@ class DomainRunner:
 
         return issues
 
-    def run_type_checking(self, context: ScanContext) -> List[UnifiedIssue]:
+    def run_type_checking(
+        self,
+        context: ScanContext,
+        exclude_patterns: Optional[List[str]] = None,
+    ) -> List[UnifiedIssue]:
         """Run type checking.
 
         Args:
             context: Scan context.
+            exclude_patterns: Domain-specific exclude patterns to merge.
 
         Returns:
             List of type checking issues.
         """
+        context = self._context_with_domain_excludes(context, exclude_patterns)
         from lucidshark.plugins.type_checkers import discover_type_checker_plugins
 
         issues: List[UnifiedIssue] = []
@@ -315,17 +352,22 @@ class DomainRunner:
         return issues
 
     def run_tests(
-        self, context: ScanContext, with_coverage: bool = False
+        self,
+        context: ScanContext,
+        with_coverage: bool = False,
+        exclude_patterns: Optional[List[str]] = None,
     ) -> List[UnifiedIssue]:
         """Run test suite.
 
         Args:
             context: Scan context.
             with_coverage: If True, run tests with coverage instrumentation.
+            exclude_patterns: Domain-specific exclude patterns to merge.
 
         Returns:
             List of test failure issues.
         """
+        context = self._context_with_domain_excludes(context, exclude_patterns)
         from lucidshark.plugins.test_runners import discover_test_runner_plugins
 
         issues: List[UnifiedIssue] = []
@@ -364,6 +406,7 @@ class DomainRunner:
         context: ScanContext,
         threshold: float = 80.0,
         run_tests: bool = True,
+        exclude_patterns: Optional[List[str]] = None,
     ) -> List[UnifiedIssue]:
         """Run coverage analysis.
 
@@ -371,10 +414,12 @@ class DomainRunner:
             context: Scan context.
             threshold: Coverage percentage threshold.
             run_tests: Whether to run tests for coverage.
+            exclude_patterns: Domain-specific exclude patterns to merge.
 
         Returns:
             List of coverage issues.
         """
+        context = self._context_with_domain_excludes(context, exclude_patterns)
         from lucidshark.plugins.coverage import discover_coverage_plugins
 
         issues: List[UnifiedIssue] = []
@@ -494,16 +539,19 @@ class DomainRunner:
         self,
         context: ScanContext,
         domain: ScanDomain,
+        exclude_patterns: Optional[List[str]] = None,
     ) -> List[UnifiedIssue]:
         """Run security scanner for a specific domain.
 
         Args:
             context: Scan context.
             domain: Scanner domain (SAST, SCA, IAC, CONTAINER).
+            exclude_patterns: Domain-specific exclude patterns to merge.
 
         Returns:
             List of security issues.
         """
+        context = self._context_with_domain_excludes(context, exclude_patterns)
         from lucidshark.plugins.scanners import discover_scanner_plugins
 
         issues: List[UnifiedIssue] = []

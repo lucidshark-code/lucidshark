@@ -173,7 +173,10 @@ class ScanCommand(Command):
         linting_enabled = linting_flag or (all_flag and linting_configured)
 
         if linting_enabled:
-            all_issues.extend(runner.run_linting(context, fix_enabled))
+            linting_exclude = None
+            if config.pipeline.linting and config.pipeline.linting.exclude:
+                linting_exclude = config.pipeline.linting.exclude
+            all_issues.extend(runner.run_linting(context, fix_enabled, exclude_patterns=linting_exclude))
 
         # Run type checking if requested or if --all and type_checking is configured
         type_checking_flag = getattr(args, "type_checking", False)
@@ -186,7 +189,10 @@ class ScanCommand(Command):
         )
 
         if type_checking_enabled:
-            all_issues.extend(runner.run_type_checking(context))
+            tc_exclude = None
+            if config.pipeline.type_checking and config.pipeline.type_checking.exclude:
+                tc_exclude = config.pipeline.type_checking.exclude
+            all_issues.extend(runner.run_type_checking(context, exclude_patterns=tc_exclude))
 
         # Run tests if requested or if --all and testing is configured
         testing_flag = getattr(args, "testing", False)
@@ -207,7 +213,10 @@ class ScanCommand(Command):
         # Then coverage domain just reads the file to generate reports.
         if testing_enabled:
             # Run tests, with coverage instrumentation if coverage is also enabled
-            all_issues.extend(runner.run_tests(context, with_coverage=coverage_enabled))
+            testing_exclude = None
+            if config.pipeline.testing and config.pipeline.testing.exclude:
+                testing_exclude = config.pipeline.testing.exclude
+            all_issues.extend(runner.run_tests(context, with_coverage=coverage_enabled, exclude_patterns=testing_exclude))
 
         coverage_summary: Optional[CoverageSummary] = None
         if coverage_enabled:
@@ -215,8 +224,11 @@ class ScanCommand(Command):
             # If testing ran with coverage, just read the .coverage file
             # Otherwise, run tests to generate coverage data
             run_tests_for_coverage = not testing_enabled
+            coverage_exclude = None
+            if config.pipeline.coverage and config.pipeline.coverage.exclude:
+                coverage_exclude = config.pipeline.coverage.exclude
             all_issues.extend(
-                runner.run_coverage(context, coverage_threshold, run_tests_for_coverage)
+                runner.run_coverage(context, coverage_threshold, run_tests_for_coverage, exclude_patterns=coverage_exclude)
             )
 
             # Build coverage summary from context.coverage_result

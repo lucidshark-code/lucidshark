@@ -575,6 +575,9 @@ pipeline:
 
   linting:
     enabled: true
+    exclude:          # Patterns to exclude from linting
+      - "migrations/**"
+      - "generated/**"
     tools:
       - name: ruff
         config: ruff.toml  # Optional custom config path
@@ -584,6 +587,8 @@ pipeline:
 
   type_checking:
     enabled: true
+    exclude:          # Patterns to exclude from type checking
+      - "**/*_pb2.py"
     tools:
       - name: mypy
         strict: true
@@ -593,6 +598,9 @@ pipeline:
 
   security:
     enabled: true
+    exclude:          # Patterns to exclude from security scanning
+      - "tests/**"
+      - "examples/**"
     tools:
       - name: trivy
         domains: [sca, container]
@@ -603,6 +611,8 @@ pipeline:
 
   testing:
     enabled: true
+    exclude:          # Patterns to exclude from test execution
+      - "tests/integration/**"
     tools:
       - name: pytest      # Python unit tests
       - name: jest        # JavaScript/TypeScript tests
@@ -612,6 +622,8 @@ pipeline:
 
   coverage:
     enabled: true
+    exclude:          # Patterns to exclude from coverage analysis
+      - "scripts/**"
     tools: [coverage_py]  # coverage_py for Python, istanbul for JS/TS, jacoco for Java
     threshold: 80  # Fail if coverage below this
     # extra_args: ["-DskipITs", "-Ddocker.skip=true"]  # For Java: skip integration tests
@@ -637,8 +649,8 @@ fail_on:
 # Alternative: single threshold for all security
 # fail_on: high
 
-# Files/directories to ignore
-ignore:
+# Global file/directory excludes (applies to all domains)
+exclude:
   - "**/node_modules/**"
   - "**/.venv/**"
   - "**/dist/**"
@@ -675,7 +687,7 @@ pipeline:
 fail_on:
   linting: error
   type_checking: error
-ignore:
+exclude:
   - "**/__pycache__/**"
   - "**/.venv/**"
 ```
@@ -701,7 +713,7 @@ pipeline:
 fail_on:
   linting: error
   type_checking: error
-ignore:
+exclude:
   - "**/node_modules/**"
   - "**/dist/**"
 ```
@@ -739,7 +751,7 @@ fail_on:
   type_checking: error
   testing: any
   coverage: below_threshold
-ignore:
+exclude:
   - "**/__pycache__/**"
   - "**/.venv/**"
   - "**/.pytest_cache/**"
@@ -777,7 +789,7 @@ fail_on:
   type_checking: error
   testing: any
   coverage: below_threshold
-ignore:
+exclude:
   - "**/node_modules/**"
   - "**/dist/**"
   - "**/build/**"
@@ -802,7 +814,7 @@ pipeline:
         domains: [sast]
 fail_on:
   security: high
-ignore:
+exclude:
   - "**/.git/**"
   - "**/node_modules/**"
   - "**/__pycache__/**"
@@ -842,7 +854,7 @@ fail_on:
   type_checking: error
   testing: any
   coverage: below_threshold
-ignore:
+exclude:
   - "**/target/**"
   - "**/.gradle/**"
 ```
@@ -862,14 +874,19 @@ ignore:
 |-------|------|---------|-------------|
 | `max_workers` | int | 4 | Maximum parallel workers |
 | `linting.enabled` | bool | true | Enable linting |
+| `linting.exclude` | array | [] | Patterns to exclude from linting (combined with global `exclude`) |
 | `linting.tools` | array | (auto) | List of linting tools |
 | `type_checking.enabled` | bool | true | Enable type checking |
+| `type_checking.exclude` | array | [] | Patterns to exclude from type checking (combined with global `exclude`) |
 | `type_checking.tools` | array | (auto) | List of type checkers |
 | `security.enabled` | bool | true | Enable security scanning |
+| `security.exclude` | array | [] | Patterns to exclude from security scanning (combined with global `exclude`) |
 | `security.tools` | array | (auto) | Security tools with domains |
 | `testing.enabled` | bool | false | Enable test execution |
+| `testing.exclude` | array | [] | Patterns to exclude from test execution (combined with global `exclude`) |
 | `testing.tools` | array | (auto) | Test frameworks |
 | `coverage.enabled` | bool | false | Enable coverage analysis |
+| `coverage.exclude` | array | [] | Patterns to exclude from coverage analysis (combined with global `exclude`) |
 | `coverage.tools` | array | **required** | Coverage tools (coverage_py, istanbul, jacoco) |
 | `coverage.threshold` | int | 80 | Coverage percentage threshold |
 | `coverage.extra_args` | array | [] | Extra Maven/Gradle arguments (Java only) |
@@ -877,7 +894,7 @@ ignore:
 | `duplication.threshold` | float | 10.0 | Max allowed duplication percentage |
 | `duplication.min_lines` | int | 4 | Minimum lines for a duplicate block |
 | `duplication.min_chars` | int | 3 | Minimum characters per line |
-| `duplication.exclude` | array | [] | Patterns to exclude from duplication scan |
+| `duplication.exclude` | array | [] | Patterns to exclude from duplication scan (combined with global `exclude`) |
 | `duplication.tools` | array | (auto) | Duplication detection tools (duplo) |
 
 #### Tool Configuration
@@ -909,16 +926,18 @@ Per-domain failure thresholds:
 - `below_threshold` (coverage): Fail if coverage percentage is below `pipeline.coverage.threshold`
 - `above_threshold` (duplication): Fail if duplication percentage exceeds `pipeline.duplication.threshold`
 
-#### `ignore`
+#### `exclude`
 
-Array of glob patterns for files/directories to skip:
+Global array of glob patterns for files/directories to exclude from all domains:
 
 ```yaml
-ignore:
+exclude:
   - "**/node_modules/**"
   - "**/.venv/**"
   - "**/test_*.py"
 ```
+
+Per-domain `exclude` patterns can be set in each pipeline section for domain-specific exclusions. The effective excludes for any domain are the union of global `exclude`, `.lucidsharkignore`, and the domain's own `exclude` patterns. See [Exclude Patterns](exclude-patterns.md) for the full reference.
 
 ### Config File Locations
 
@@ -1206,7 +1225,7 @@ pipeline:
 |------|-----------|--------------|
 | Duplo | Python, Rust, Java, JavaScript, TypeScript, C, C++, C#, Go, Ruby, Erlang, VB, HTML, CSS | ❌ No (project-wide) |
 
-**Note:** Duplication detection always scans the entire project to find cross-file duplicates. Use the `exclude` configuration to skip generated or vendor files.
+**Note:** Duplication detection always scans the entire project to find cross-file duplicates. Use domain-specific `exclude` patterns to skip generated or vendor files. All domains support `exclude` -- the effective excludes are the union of global `exclude`, `.lucidsharkignore`, and the domain's own `exclude` patterns.
 
 **Configuration example:**
 ```yaml

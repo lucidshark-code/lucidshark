@@ -949,9 +949,13 @@ ignore:
             List of linting issues.
         """
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, self._runner.run_linting, context, fix
+        linting_exclude = None
+        if self.config.pipeline.linting and self.config.pipeline.linting.exclude:
+            linting_exclude = self.config.pipeline.linting.exclude
+        run_fn = functools.partial(
+            self._runner.run_linting, context, fix, exclude_patterns=linting_exclude
         )
+        return await loop.run_in_executor(None, run_fn)
 
     async def _run_type_checking(self, context: ScanContext) -> List[UnifiedIssue]:
         """Run type checking asynchronously.
@@ -963,9 +967,13 @@ ignore:
             List of type checking issues.
         """
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, self._runner.run_type_checking, context
+        tc_exclude = None
+        if self.config.pipeline.type_checking and self.config.pipeline.type_checking.exclude:
+            tc_exclude = self.config.pipeline.type_checking.exclude
+        run_fn = functools.partial(
+            self._runner.run_type_checking, context, exclude_patterns=tc_exclude
         )
+        return await loop.run_in_executor(None, run_fn)
 
     async def _run_testing(
         self, context: ScanContext, with_coverage: bool = False
@@ -980,9 +988,13 @@ ignore:
             List of test failure issues.
         """
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, self._runner.run_tests, context, with_coverage
+        testing_exclude = None
+        if self.config.pipeline.testing and self.config.pipeline.testing.exclude:
+            testing_exclude = self.config.pipeline.testing.exclude
+        run_fn = functools.partial(
+            self._runner.run_tests, context, with_coverage, exclude_patterns=testing_exclude
         )
+        return await loop.run_in_executor(None, run_fn)
 
     async def _run_coverage(
         self,
@@ -999,11 +1011,14 @@ ignore:
             List of coverage issues.
         """
         loop = asyncio.get_event_loop()
-        # Use functools.partial to pass run_tests parameter
+        coverage_exclude = None
+        if self.config.pipeline.coverage and self.config.pipeline.coverage.exclude:
+            coverage_exclude = self.config.pipeline.coverage.exclude
         run_coverage_fn = functools.partial(
             self._runner.run_coverage,
             context,
             run_tests=run_tests,
+            exclude_patterns=coverage_exclude,
         )
         issues = await loop.run_in_executor(None, run_coverage_fn)
         # Coverage result is stored in context.coverage_result by DomainRunner
@@ -1024,9 +1039,13 @@ ignore:
             List of security issues.
         """
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, self._runner.run_security, context, domain
+        security_exclude = None
+        if self.config.pipeline.security and self.config.pipeline.security.exclude:
+            security_exclude = self.config.pipeline.security.exclude
+        run_fn = functools.partial(
+            self._runner.run_security, context, domain, exclude_patterns=security_exclude
         )
+        return await loop.run_in_executor(None, run_fn)
 
     async def _run_duplication(self, context: ScanContext) -> List[UnifiedIssue]:
         """Run duplication detection asynchronously.

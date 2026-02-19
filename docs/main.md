@@ -270,6 +270,8 @@ pipeline:
     enabled: true
     threshold: 10.0  # Max allowed duplication percentage
     min_lines: 4     # Minimum lines for a duplicate block
+    exclude:         # Patterns to exclude from duplication scan
+      - "htmlcov/**"
     tools:
       - name: duplo
 
@@ -281,7 +283,7 @@ fail_on:
   coverage: below_threshold  # Fail if coverage below pipeline.coverage.threshold
   duplication: above_threshold  # Fail if duplication exceeds pipeline.duplication.threshold
 
-ignore:
+exclude:
   - "**/__pycache__/**"
   - "**/node_modules/**"
   - "**/.venv/**"
@@ -467,6 +469,7 @@ project:
 pipeline:
   linting:
     enabled: boolean
+    exclude: [string]  # Patterns to exclude from linting
     tools:
       - name: string
         config: string  # Path to tool config
@@ -474,6 +477,7 @@ pipeline:
 
   type_checking:
     enabled: boolean
+    exclude: [string]  # Patterns to exclude from type checking
     tools:
       - name: string
         strict: boolean
@@ -481,6 +485,7 @@ pipeline:
 
   security:
     enabled: boolean
+    exclude: [string]  # Patterns to exclude from security scanning
     tools:
       - name: string
         domains: [sca, sast, iac, container]
@@ -488,6 +493,7 @@ pipeline:
 
   testing:
     enabled: boolean
+    exclude: [string]  # Patterns to exclude from testing
     tools:
       - name: string
         args: [string]
@@ -495,6 +501,7 @@ pipeline:
 
   coverage:
     enabled: boolean
+    exclude: [string]  # Patterns to exclude from coverage analysis
     threshold: number  # Default: 80
     tools:
       - name: string  # coverage_py for Python, istanbul for JS/TS, jacoco for Java
@@ -502,10 +509,10 @@ pipeline:
 
   duplication:
     enabled: boolean
+    exclude: [string]  # Patterns to exclude from duplication scan
     threshold: number  # Default: 10.0 (max allowed duplication %)
     min_lines: number  # Default: 4 (minimum lines for duplicate block)
     min_chars: number  # Default: 3 (minimum characters per line)
-    exclude: [string]  # Patterns to exclude from duplication scan
     tools:
       - name: string  # duplo
 
@@ -517,8 +524,8 @@ fail_on:
   coverage: below_threshold | any | none
   duplication: above_threshold | any | none | percentage (e.g., "5%")
 
-ignore:
-  - string  # Glob patterns
+exclude:
+  - string  # Global glob patterns (applies to all domains)
 
 output:
   format: json | table | sarif | summary
@@ -526,9 +533,9 @@ output:
 
 > **Note**: AI tool integration is configured via `lucidshark init --claude-code` or `lucidshark init --cursor`, not through lucidshark.yml.
 
-#### 5.4.2 Ignore File
+#### 5.4.2 Exclude File
 
-`.lucidsharkignore` supports gitignore syntax:
+`.lucidsharkignore` supports gitignore syntax and contributes to the global exclude patterns:
 
 ```
 # Dependencies
@@ -1435,7 +1442,7 @@ pipeline:
 |------|-----------|----------------|--------------|
 | Duplo | Python, Rust, Java, JavaScript, TypeScript, C, C++, C#, Go, Ruby, Erlang, VB, HTML, CSS | binary | ❌ No |
 
-**Note:** Duplication detection always scans the entire project to find cross-file duplicates. Use the `pipeline.duplication.exclude` configuration to skip generated or vendor files (e.g., `htmlcov/**`, `generated/**`).
+**Note:** Duplication detection always scans the entire project to find cross-file duplicates. Use the `pipeline.duplication.exclude` configuration or the global `exclude` list to skip generated or vendor files (e.g., `htmlcov/**`, `generated/**`).
 
 ---
 
@@ -1516,7 +1523,7 @@ pipeline:
 
 **Goal**: Production readiness
 
-- [x] Comprehensive documentation (README, spec, LLM help, ignore patterns, roadmap)
+- [x] Comprehensive documentation (README, spec, LLM help, exclude patterns, roadmap)
 - [ ] Plugin SDK for third-party tools
 - [ ] Performance optimization (caching, incremental checks)
 - [ ] Telemetry (opt-in, anonymized)

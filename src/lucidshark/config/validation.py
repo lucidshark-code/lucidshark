@@ -58,6 +58,7 @@ VALID_TOP_LEVEL_KEYS: Set[str] = {
     "project",
     "fail_on",
     "ignore",
+    "exclude",  # Alias for ignore
     "output",
     "scanners",
     "enrichers",
@@ -86,6 +87,7 @@ VALID_PIPELINE_KEYS: Set[str] = {
 VALID_PIPELINE_DOMAIN_KEYS: Set[str] = {
     "enabled",
     "tools",
+    "exclude",
 }
 
 # Valid keys under pipeline.coverage section
@@ -94,12 +96,14 @@ VALID_PIPELINE_COVERAGE_KEYS: Set[str] = {
     "tools",
     "threshold",
     "extra_args",  # Extra arguments to pass to Maven/Gradle
+    "exclude",
 }
 
 # Valid keys under pipeline.security section
 VALID_PIPELINE_SECURITY_KEYS: Set[str] = {
     "enabled",
     "tools",
+    "exclude",
 }
 
 # Valid keys under pipeline.duplication section
@@ -298,6 +302,16 @@ def validate_config(
                 key="ignore",
             ))
 
+    # Validate exclude (alias for ignore)
+    exclude = data.get("exclude")
+    if exclude is not None:
+        if not isinstance(exclude, list):
+            warnings.append(ConfigValidationWarning(
+                message=f"'exclude' must be a list, got {type(exclude).__name__}",
+                source=source,
+                key="exclude",
+            ))
+
     # Validate output section
     output = data.get("output")
     if output is not None:
@@ -454,6 +468,15 @@ def validate_config(
                                 key="pipeline.coverage.threshold",
                             ))
 
+                    # Validate exclude is a list (if present in domain config)
+                    exclude = domain_config.get("exclude")
+                    if exclude is not None and not isinstance(exclude, list):
+                        warnings.append(ConfigValidationWarning(
+                            message=f"'pipeline.{domain}.exclude' must be a list",
+                            source=source,
+                            key=f"pipeline.{domain}.exclude",
+                        ))
+
             # Validate pipeline.security section
             security_config = pipeline.get("security")
             if security_config is not None and isinstance(security_config, dict):
@@ -487,6 +510,15 @@ def validate_config(
                                         source=source,
                                         key=f"pipeline.security.tools[{i}].name",
                                     ))
+
+                # Validate exclude is a list (if present in security config)
+                exclude = security_config.get("exclude")
+                if exclude is not None and not isinstance(exclude, list):
+                    warnings.append(ConfigValidationWarning(
+                        message="'pipeline.security.exclude' must be a list",
+                        source=source,
+                        key="pipeline.security.exclude",
+                    ))
 
             # Validate pipeline.duplication section
             duplication_config = pipeline.get("duplication")

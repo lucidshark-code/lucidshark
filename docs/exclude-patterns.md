@@ -1,8 +1,8 @@
-# Ignore Patterns in LucidShark
+# Exclude Patterns in LucidShark
 
 LucidShark supports multiple ways to exclude files and findings from your quality pipeline.
 
-## File-Level Ignores
+## File-Level Excludes
 
 ### .lucidsharkignore File
 
@@ -44,12 +44,12 @@ __pycache__/
 
 LucidShark uses the [pathspec](https://pypi.org/project/pathspec/) library for full gitignore compliance.
 
-### Config File Ignores
+### Config File Excludes
 
 Add patterns to your config file (`.lucidshark.yml`, `.lucidshark.yaml`, `lucidshark.yml`, or `lucidshark.yaml`):
 
 ```yaml
-ignore:
+exclude:
   - "**/node_modules/**"
   - "**/.venv/**"
   - "**/dist/**"
@@ -58,15 +58,15 @@ ignore:
 
 **Note:** Patterns from both `.lucidsharkignore` and your config file are merged, with `.lucidsharkignore` patterns applied first.
 
-## How Ignore Patterns Work
+## How Exclude Patterns Work
 
-LucidShark applies ignore patterns in two layers:
+LucidShark applies exclude patterns in two layers:
 
-1. **Pre-filtering** -- When explicit file paths are provided, LucidShark filters them through the ignore patterns before passing them to any tool.
-2. **Tool CLI flags** -- Ignore patterns are also passed to each tool using their native exclude mechanisms.
+1. **Pre-filtering** -- When explicit file paths are provided, LucidShark filters them through the exclude patterns before passing them to any tool.
+2. **Tool CLI flags** -- Exclude patterns are also passed to each tool using their native exclude mechanisms.
 
-| Domain | Tool | How Ignores Are Passed |
-|--------|------|------------------------|
+| Domain | Tool | How Excludes Are Passed |
+|--------|------|-------------------------|
 | Linting | Ruff | `--extend-exclude` (preserves Ruff's built-in defaults like `.git`, `.venv`) |
 | Linting | ESLint | `--ignore-pattern` |
 | Linting | Biome | Relies on `biome.json` config; LucidShark does not pass patterns to CLI |
@@ -81,6 +81,74 @@ LucidShark applies ignore patterns in two layers:
 | Testing | pytest | Full test suite runs by default; test discovery controlled by pytest config |
 | Testing | Jest | Test discovery controlled by Jest config |
 | Duplication | Duplo | Pre-filtered by LucidShark; always excludes `.git`, `node_modules`, `__pycache__`, `.venv`, `target`, `build`, `dist`, `.lucidshark` |
+
+## Per-Domain Exclude Patterns
+
+Every pipeline domain supports its own `exclude` list that works alongside the global exclude patterns. This lets you exclude files from specific domains without affecting others.
+
+```yaml
+exclude:
+  - "**/node_modules/**"     # Global: excluded from ALL domains
+  - "**/.venv/**"
+
+pipeline:
+  linting:
+    enabled: true
+    exclude:                  # Additional excludes for linting only
+      - "scripts/**"
+      - "migrations/**"
+
+  type_checking:
+    enabled: true
+    exclude:                  # Additional excludes for type checking only
+      - "tests/conftest.py"
+      - "**/*_pb2.py"         # Generated protobuf files
+
+  security:
+    enabled: true
+    exclude:                  # Additional excludes for security scanning only
+      - "tests/**"
+      - "examples/**"
+
+  testing:
+    enabled: true
+    exclude:                  # Additional excludes for test execution only
+      - "tests/integration/**"
+
+  coverage:
+    enabled: true
+    exclude:                  # Additional excludes for coverage analysis only
+      - "tests/**"
+      - "scripts/**"
+
+  duplication:
+    enabled: true
+    exclude:                  # Additional excludes for duplication detection only
+      - "htmlcov/**"
+      - "docs/**"
+      - "tests/**"
+```
+
+### How Domain Excludes Combine
+
+For any given domain, the effective exclude patterns are the union of:
+
+1. Patterns from `.lucidsharkignore` (if the file exists)
+2. Global `exclude` patterns from the config file
+3. Domain-specific `exclude` patterns from the pipeline section
+
+For example, if global `exclude` has `**/node_modules/**` and `pipeline.linting.exclude` has `scripts/**`, then linting will exclude both `node_modules` and `scripts`, while other domains only exclude `node_modules` (unless they have their own domain-specific patterns).
+
+### When to Use Domain-Specific Excludes
+
+| Domain | Good candidates for domain-specific excludes |
+|--------|----------------------------------------------|
+| **Linting** | Generated code, database migrations, vendored files |
+| **Type Checking** | Generated protobuf stubs, auto-generated API clients, legacy untyped code |
+| **Security** | Test fixtures with intentional "vulnerable" code, example configurations |
+| **Testing** | Slow integration tests (run separately), E2E tests |
+| **Coverage** | Test files themselves, CLI scripts, entry points |
+| **Duplication** | Test files, documentation, HTML coverage reports, generated code |
 
 ## Inline Ignores (Per-Finding)
 
@@ -403,12 +471,12 @@ pipeline:
     enabled: false  # Skip duplication detection
 ```
 
-### Tool-Specific Ignores
+### Tool-Specific Configuration Files
 
-Some tools have their own ignore/config files that LucidShark respects:
+Some tools have their own configuration files that LucidShark respects:
 
-| Tool | Ignore / Config File |
-|------|----------------------|
+| Tool | Config File |
+|------|-------------|
 | Ruff | `.ruff.toml`, `ruff.toml`, `pyproject.toml` (exclude section) |
 | ESLint | `.eslintignore`, `eslint.config.js`, `eslint.config.mjs` |
 | Biome | `biome.json`, `biome.jsonc` |
@@ -426,7 +494,7 @@ LucidShark does not override these -- they work alongside `.lucidsharkignore`.
 
 ## Best Practices
 
-### Do Ignore
+### Do Exclude
 
 - **Dependencies**: `node_modules/`, `.venv/`, `vendor/`
 - **Build output**: `dist/`, `build/`, `*.pyc`
@@ -434,9 +502,9 @@ LucidShark does not override these -- they work alongside `.lucidsharkignore`.
 - **Test fixtures**: `**/__fixtures__/`, `**/testdata/`
 - **IDE/editor files**: `.idea/`, `.vscode/` (usually in `.gitignore` already)
 
-### Don't Ignore
+### Don't Exclude
 
-- **Your application code** -- fix issues instead of ignoring
+- **Your application code** -- fix issues instead of excluding
 - **Configuration files** -- security issues here are real
 - **Test files** -- keep `tests/` scanned for security issues
 - **CI/CD files** -- `.github/`, `.gitlab-ci.yml` should be checked
@@ -550,7 +618,7 @@ node_modules/
 **/dist/
 **/build/
 
-# Per-package ignores can also be in each package's directory
+# Per-package excludes can also be in each package's directory
 ```
 
 ## Troubleshooting
@@ -560,10 +628,10 @@ node_modules/
 1. Check the pattern syntax -- use `**` for recursive matching
 2. Verify the path is relative to project root
 3. Run with `--debug` to see which files are being scanned
-4. Check if the tool has its own ignore file overriding
+4. Check if the tool has its own config file overriding
 5. Some tools convert patterns internally (mypy and Checkov convert globs to regex)
 
-### Too Many Files Ignored
+### Too Many Files Excluded
 
 1. Check for overly broad patterns like `*` or `**/*`
 2. Use `!` negation to re-include important files

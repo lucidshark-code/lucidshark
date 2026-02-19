@@ -48,7 +48,7 @@ fail_on:
   coverage: below_threshold
   duplication: above_threshold
 
-ignore:
+exclude:
   - "**/.venv/**"
   - "**/__pycache__/**"
   - "**/dist/**"

@@ -118,7 +118,7 @@ fail_on:
   coverage: below_threshold
   duplication: above_threshold
 
-ignore:
+exclude:
   - "**/__pycache__/**"
   - "**/.venv/**"
   - "**/.pytest_cache/**"
@@ -128,7 +128,7 @@ ignore:
 Key sections:
 - **pipeline** -- Which tools to run. Each domain (linting, type checking, etc.) can be toggled independently.
 - **fail_on** -- When LucidShark should return a non-zero exit code. `error` means any linting error fails the scan; `high` means only high/critical security findings cause failure.
-- **ignore** -- Glob patterns for files to skip (gitignore-style syntax).
+- **exclude** -- Glob patterns for files to exclude (gitignore-style syntax).
 
 You can also skip the config file and use a preset instead:
 
@@ -278,7 +278,7 @@ def test_buggy():
 password = os.getenv("DB_PASS")  # nosemgrep: hardcoded-password
 ```
 
-See [Ignore Patterns](ignore-patterns.md) for the full reference.
+See [Exclude Patterns](exclude-patterns.md) for the full reference.
 
 ## Adding to CI
 
@@ -306,5 +306,5 @@ LucidShark exits with code `1` when issues exceed thresholds, which fails the CI
 ## Next Steps
 
 - [LLM Reference](help.md) -- Full CLI and configuration reference
-- [Ignore Patterns](ignore-patterns.md) -- Detailed guide for excluding files and findings
+- [Exclude Patterns](exclude-patterns.md) -- Detailed guide for exclude patterns and per-domain exclusions
 - [Full Specification](main.md) -- Architecture and design documentation

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 
 from lucidshark.config.models import (
+    CoveragePipelineConfig,
     DEFAULT_PLUGINS,
+    DomainPipelineConfig,
     LucidSharkConfig,
     OutputConfig,
     ScannerDomainConfig,
@@ -167,6 +169,30 @@ class TestLucidSharkConfigGetPluginForDomain:
     def test_returns_empty_string_for_unknown_domain(self) -> None:
         config = LucidSharkConfig()
         assert config.get_plugin_for_domain("unknown") == ""
+
+
+class TestDomainPipelineConfigExclude:
+    """Tests for DomainPipelineConfig exclude field."""
+
+    def test_default_exclude_is_empty_list(self) -> None:
+        config = DomainPipelineConfig()
+        assert config.exclude == []
+
+    def test_custom_exclude_patterns(self) -> None:
+        config = DomainPipelineConfig(exclude=["tests/**", "*.generated.py"])
+        assert config.exclude == ["tests/**", "*.generated.py"]
+
+
+class TestCoveragePipelineConfigExclude:
+    """Tests for CoveragePipelineConfig exclude field."""
+
+    def test_default_exclude_is_empty_list(self) -> None:
+        config = CoveragePipelineConfig()
+        assert config.exclude == []
+
+    def test_custom_exclude_patterns(self) -> None:
+        config = CoveragePipelineConfig(exclude=["vendor/**"])
+        assert config.exclude == ["vendor/**"]
 
 
 class TestLucidSharkConfigGetScannerOptions:

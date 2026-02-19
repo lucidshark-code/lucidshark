@@ -203,7 +203,7 @@ fail_on:
   linting: error
   security: high
   testing: any
-ignore: ["**/node_modules/**", "**/.venv/**"]
+exclude: ["**/node_modules/**", "**/.venv/**"]
 ```
 
 See [docs/help.md](docs/help.md) for the full configuration reference.
@@ -235,7 +235,7 @@ pytest tests/
 - [Getting Started: Python](docs/guide-python.md) - Step-by-step guide for Python projects
 - [Getting Started: TypeScript](docs/guide-typescript.md) - Step-by-step guide for TypeScript projects
 - [LLM Reference Documentation](docs/help.md) - For AI agents and detailed reference
-- [Ignore Patterns](docs/ignore-patterns.md) - Guide for excluding files and findings
+- [Exclude Patterns](docs/exclude-patterns.md) - Guide for exclude patterns and per-domain exclusions
 - [Full Specification](docs/main.md)
 - [Roadmap](docs/roadmap.md)
 
