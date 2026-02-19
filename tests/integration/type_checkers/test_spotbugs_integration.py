@@ -8,11 +8,15 @@ Run with: pytest tests/integration/type_checkers/test_spotbugs_integration.py -v
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from lucidshark.core.models import ScanContext, ToolDomain
 from lucidshark.plugins.type_checkers.spotbugs import SpotBugsChecker
 from tests.integration.conftest import spotbugs_available, maven_available
+
+# Resolve mvn path for cross-platform subprocess calls (mvn.cmd on Windows)
+_MVN_CMD = shutil.which("mvn") or "mvn"
 
 
 class TestSpotBugsAvailability:
@@ -49,7 +53,7 @@ class TestSpotBugsTypeChecking:
 
         # First compile the project with Maven
         result = subprocess.run(
-            ["mvn", "compile", "-q"],
+            [_MVN_CMD, "compile", "-q"],
             cwd=java_webapp_project,
             capture_output=True,
             text=True,
@@ -86,7 +90,7 @@ class TestSpotBugsTypeChecking:
 
         # First compile the project with Maven
         result = subprocess.run(
-            ["mvn", "compile", "-q"],
+            [_MVN_CMD, "compile", "-q"],
             cwd=java_webapp_project,
             capture_output=True,
             text=True,
@@ -120,7 +124,7 @@ class TestSpotBugsIssueGeneration:
 
         # First compile the project with Maven
         result = subprocess.run(
-            ["mvn", "compile", "-q"],
+            [_MVN_CMD, "compile", "-q"],
             cwd=java_webapp_project,
             capture_output=True,
             text=True,
