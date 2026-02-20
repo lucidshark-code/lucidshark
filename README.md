@@ -136,12 +136,25 @@ lucidshark init --claude-code    # Configure Claude Code (.mcp.json + CLAUDE.md)
 
 Restart your AI tool after running `init` to activate.
 
+## Supported Languages
+
+LucidShark supports 15 programming languages with varying levels of tool coverage:
+
+| Tier | Languages | What's Included |
+|------|-----------|-----------------|
+| **Full** | Python, TypeScript, JavaScript, Java | Linting, type checking, testing, coverage, security, duplication |
+| **Partial** | Kotlin | Testing, coverage, security (via shared Java tooling) |
+| **Basic** | Go, Rust, Ruby, C, C++, C# | Security scanning, duplication detection |
+| **Minimal** | PHP, Swift, Scala | Security scanning |
+
+For detailed per-language tool coverage, configuration examples, and detection info, see the [Language Reference](docs/languages/README.md).
+
 ## What It Checks
 
 | Domain | Tools | What It Catches |
 |--------|-------|-----------------|
 | **Linting** | Ruff, ESLint, Biome, Checkstyle | Style issues, code smells |
-| **Type Checking** | mypy, pyright, TypeScript, SpotBugs | Type errors, static analysis bugs |
+| **Type Checking** | mypy, Pyright, TypeScript (tsc), SpotBugs | Type errors, static analysis bugs |
 | **Security (SAST)** | OpenGrep | Code vulnerabilities |
 | **Security (SCA)** | Trivy | Dependency vulnerabilities |
 | **Security (IaC)** | Checkov | Infrastructure misconfigurations |
@@ -230,8 +243,7 @@ pytest tests/
 
 ## Documentation
 
-- [Getting Started: Python](docs/guide-python.md) - Step-by-step guide for Python projects
-- [Getting Started: TypeScript](docs/guide-typescript.md) - Step-by-step guide for TypeScript projects
+- [Supported Languages](docs/languages/README.md) - Per-language tool coverage, detection, and configuration
 - [LLM Reference Documentation](docs/help.md) - For AI agents and detailed reference
 - [Exclude Patterns](docs/exclude-patterns.md) - Guide for exclude patterns and per-domain exclusions
 - [Full Specification](docs/main.md)

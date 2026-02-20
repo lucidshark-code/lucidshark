@@ -1129,6 +1129,8 @@ LucidShark scans only changed files (uncommitted changes) by default. This is th
 
 ## Supported Tools
 
+For detailed per-language tool coverage, detection, and configuration examples, see the [Language Reference](languages/README.md).
+
 ### Linting
 
 | Tool | Languages | Partial Scan |
