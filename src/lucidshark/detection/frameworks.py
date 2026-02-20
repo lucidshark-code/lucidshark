@@ -93,6 +93,26 @@ JAVA_TEST_FRAMEWORKS: Dict[str, list[str]] = {
 }
 
 
+# Rust frameworks and their crate names (from Cargo.toml dependencies)
+RUST_FRAMEWORKS: Dict[str, str] = {
+    "actix-web": "actix-web",
+    "rocket": "rocket",
+    "axum": "axum",
+    "warp": "warp",
+    "hyper": "hyper",
+    "tonic": "tonic",
+    "tokio": "tokio",
+    "tide": "tide",
+}
+
+# Rust test frameworks
+RUST_TEST_FRAMEWORKS: Dict[str, Optional[str]] = {
+    "built-in": None,  # Rust has built-in test support
+    "criterion": "criterion",
+    "proptest": "proptest",
+}
+
+
 def detect_frameworks(project_root: Path) -> tuple[list[str], list[str]]:
     """Detect frameworks and test frameworks in a project.
 
@@ -134,6 +154,21 @@ def detect_frameworks(project_root: Path) -> tuple[list[str], list[str]]:
     for framework, identifiers in JAVA_TEST_FRAMEWORKS.items():
         if any(identifier in java_deps for identifier in identifiers):
             test_frameworks.append(framework)
+
+    # Check Rust dependencies
+    rust_deps = _get_rust_dependencies(project_root)
+    for framework, crate_name in RUST_FRAMEWORKS.items():
+        if crate_name in rust_deps:
+            frameworks.append(framework)
+
+    for framework, crate_name in RUST_TEST_FRAMEWORKS.items():
+        if crate_name and crate_name in rust_deps:
+            test_frameworks.append(framework)
+
+    # Rust always has built-in test support
+    if (project_root / "Cargo.toml").exists():
+        if "built-in" not in test_frameworks:
+            test_frameworks.append("built-in")
 
     # Check for pytest.ini or conftest.py as indicators
     if (project_root / "pytest.ini").exists() or (project_root / "conftest.py").exists():
@@ -427,5 +462,57 @@ def _parse_gradle_build(content: str) -> Set[str]:
     # Check for Quarkus plugin
     if "io.quarkus" in content:
         deps.add("quarkus-bom")
+
+    return deps
+
+
+def _get_rust_dependencies(project_root: Path) -> set[str]:
+    """Extract Rust dependencies from Cargo.toml.
+
+    Args:
+        project_root: Project root directory.
+
+    Returns:
+        Set of crate names (lowercase).
+    """
+    deps: Set[str] = set()
+
+    cargo_toml = project_root / "Cargo.toml"
+    if cargo_toml.exists():
+        try:
+            content = cargo_toml.read_text()
+            deps.update(_parse_cargo_toml_deps(content))
+        except Exception:
+            pass
+
+    return deps
+
+
+def _parse_cargo_toml_deps(content: str) -> set[str]:
+    """Parse dependencies from Cargo.toml content.
+
+    Args:
+        content: Cargo.toml file content.
+
+    Returns:
+        Set of crate names.
+    """
+    deps: Set[str] = set()
+
+    # Match [dependencies] and [dev-dependencies] section entries
+    in_deps = False
+    for line in content.splitlines():
+        stripped = line.strip()
+
+        # Check for section headers
+        if stripped.startswith("["):
+            in_deps = "dependencies" in stripped.lower()
+            continue
+
+        if in_deps and "=" in stripped:
+            # Extract crate name (before the =)
+            crate_name = stripped.split("=")[0].strip().lower()
+            if crate_name and not crate_name.startswith("#"):
+                deps.add(crate_name)
 
     return deps

@@ -1,0 +1,5 @@
+[package]
+name = "rust-cli"
+version = "0.1.0"
+edition = "2021"
+description = "Sample Rust project for LucidShark integration tests"

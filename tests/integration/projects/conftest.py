@@ -35,6 +35,9 @@ from tests.integration.conftest import (
     nyc_available,
     spotbugs_available,
     maven_available,
+    cargo_available,
+    clippy_available,
+    tarpaulin_available,
 )
 
 __all__ = [
@@ -57,6 +60,9 @@ __all__ = [
     "nyc_available",
     "spotbugs_available",
     "maven_available",
+    "cargo_available",
+    "clippy_available",
+    "tarpaulin_available",
     # Fixtures
     "python_project",
     "python_project_with_deps",
@@ -64,6 +70,8 @@ __all__ = [
     "typescript_project_with_deps",
     "java_project",
     "java_project_with_deps",
+    "rust_project",
+    "rust_project_compiled",
     # Helpers
     "run_lucidshark",
     "ScanResult",
@@ -206,6 +214,7 @@ PROJECTS_DIR = Path(__file__).parent
 PYTHON_PROJECT = PROJECTS_DIR / "python-webapp"
 TYPESCRIPT_PROJECT = PROJECTS_DIR / "typescript-api"
 JAVA_PROJECT = PROJECTS_DIR / "java-webapp"
+RUST_PROJECT = PROJECTS_DIR / "rust-cli"
 
 
 # =============================================================================
@@ -427,3 +436,54 @@ def java_project_with_deps(java_project: Path) -> Path:
     """Return Java project path after ensuring it's compiled with Maven."""
     _setup_java_project(java_project)
     return java_project
+
+
+# =============================================================================
+# Rust project setup
+# =============================================================================
+
+
+def _setup_rust_project(project_path: Path) -> Path:
+    """Compile Rust project with cargo build.
+
+    Returns the path to target/debug.
+    """
+    target_debug = project_path / "target" / "debug"
+
+    if target_debug.exists():
+        return target_debug
+
+    # Check if cargo is available
+    cargo = shutil.which("cargo")
+    if not cargo:
+        pytest.skip("cargo not available - cannot compile Rust project")
+
+    print(f"\n[Setup] Running cargo build in {project_path}...")
+
+    result = subprocess.run(
+        [cargo, "build"],
+        cwd=project_path,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+
+    if result.returncode != 0:
+        print(f"[Setup] cargo build failed: {result.stderr}")
+        pytest.skip(f"cargo build failed: {result.stderr[:200]}")
+
+    print(f"[Setup] Rust project compiled at {target_debug}")
+    return target_debug
+
+
+@pytest.fixture(scope="session")
+def rust_project() -> Path:
+    """Return path to the Rust test project (not compiled)."""
+    return RUST_PROJECT
+
+
+@pytest.fixture(scope="session")
+def rust_project_compiled(rust_project: Path) -> Path:
+    """Return Rust project path after ensuring it's compiled with cargo."""
+    _setup_rust_project(rust_project)
+    return rust_project

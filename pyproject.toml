@@ -84,6 +84,7 @@ ruff = "lucidshark.plugins.linters.ruff:RuffLinter"
 eslint = "lucidshark.plugins.linters.eslint:ESLintLinter"
 biome = "lucidshark.plugins.linters.biome:BiomeLinter"
 checkstyle = "lucidshark.plugins.linters.checkstyle:CheckstyleLinter"
+clippy = "lucidshark.plugins.linters.clippy:ClippyLinter"
 
 [project.entry-points."lucidshark.scanners"]
 trivy = "lucidshark.plugins.scanners.trivy:TrivyScanner"
@@ -101,6 +102,7 @@ mypy = "lucidshark.plugins.type_checkers.mypy:MypyChecker"
 pyright = "lucidshark.plugins.type_checkers.pyright:PyrightChecker"
 typescript = "lucidshark.plugins.type_checkers.typescript:TypeScriptChecker"
 spotbugs = "lucidshark.plugins.type_checkers.spotbugs:SpotBugsChecker"
+cargo_check = "lucidshark.plugins.type_checkers.cargo_check:CargoCheckChecker"
 
 [project.entry-points."lucidshark.test_runners"]
 pytest = "lucidshark.plugins.test_runners.pytest:PytestRunner"
@@ -108,11 +110,13 @@ jest = "lucidshark.plugins.test_runners.jest:JestRunner"
 karma = "lucidshark.plugins.test_runners.karma:KarmaRunner"
 playwright = "lucidshark.plugins.test_runners.playwright:PlaywrightRunner"
 maven = "lucidshark.plugins.test_runners.maven:MavenTestRunner"
+cargo = "lucidshark.plugins.test_runners.cargo:CargoTestRunner"
 
 [project.entry-points."lucidshark.coverage"]
 coverage_py = "lucidshark.plugins.coverage.coverage_py:CoveragePyPlugin"
 istanbul = "lucidshark.plugins.coverage.istanbul:IstanbulPlugin"
 jacoco = "lucidshark.plugins.coverage.jacoco:JaCoCoPlugin"
+tarpaulin = "lucidshark.plugins.coverage.tarpaulin:TarpaulinPlugin"
 
 [project.entry-points."lucidshark.duplication"]
 duplo = "lucidshark.plugins.duplication.duplo:DuploPlugin"

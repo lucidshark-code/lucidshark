@@ -23,8 +23,12 @@ from lucidshark.plugins.test_runners.jest import JestRunner
 from lucidshark.plugins.coverage.coverage_py import CoveragePyPlugin
 from lucidshark.plugins.coverage.istanbul import IstanbulPlugin
 from lucidshark.plugins.type_checkers.spotbugs import SpotBugsChecker
+from lucidshark.plugins.type_checkers.cargo_check import CargoCheckChecker
 from lucidshark.plugins.test_runners.maven import MavenTestRunner
+from lucidshark.plugins.test_runners.cargo import CargoTestRunner
 from lucidshark.plugins.coverage.jacoco import JaCoCoPlugin
+from lucidshark.plugins.coverage.tarpaulin import TarpaulinPlugin
+from lucidshark.plugins.linters.clippy import ClippyLinter
 
 
 def _ensure_trivy_downloaded() -> bool:
@@ -293,6 +297,65 @@ _spotbugs_available = _java_available and _ensure_spotbugs_downloaded()
 _maven_available = _java_available and _is_maven_available()
 
 
+def _is_cargo_available() -> bool:
+    """Check if cargo is available."""
+    return shutil.which("cargo") is not None
+
+
+def _is_clippy_available() -> bool:
+    """Check if clippy is available."""
+    if not _is_cargo_available():
+        return False
+    try:
+        result = subprocess.run(
+            ["cargo", "clippy", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _is_tarpaulin_available() -> bool:
+    """Check if cargo-tarpaulin is available."""
+    if not _is_cargo_available():
+        return False
+    try:
+        result = subprocess.run(
+            ["cargo", "tarpaulin", "--version"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+_cargo_available_flag = _is_cargo_available()
+_clippy_available_flag = _is_clippy_available()
+_tarpaulin_available_flag = _is_tarpaulin_available()
+
+
+# Pytest markers for Rust tools
+cargo_available = pytest.mark.skipif(
+    not _cargo_available_flag,
+    reason="cargo not available"
+)
+
+clippy_available = pytest.mark.skipif(
+    not _clippy_available_flag,
+    reason="cargo clippy not available"
+)
+
+tarpaulin_available = pytest.mark.skipif(
+    not _tarpaulin_available_flag,
+    reason="cargo-tarpaulin not available"
+)
+
+
 # Pytest markers for linters
 ruff_available = pytest.mark.skipif(
     not _ruff_available,
@@ -550,5 +613,34 @@ def maven_runner(java_webapp_project: Path) -> MavenTestRunner:
 def jacoco_plugin(java_webapp_project: Path) -> JaCoCoPlugin:
     """Return a JaCoCoPlugin instance with Java webapp project root."""
     return JaCoCoPlugin(project_root=java_webapp_project)
+
+
+# =============================================================================
+# Rust plugin fixtures
+# =============================================================================
+
+
+@pytest.fixture
+def clippy_linter(project_root: Path) -> ClippyLinter:
+    """Return a ClippyLinter instance."""
+    return ClippyLinter(project_root=project_root)
+
+
+@pytest.fixture
+def cargo_check_checker(project_root: Path) -> CargoCheckChecker:
+    """Return a CargoCheckChecker instance."""
+    return CargoCheckChecker(project_root=project_root)
+
+
+@pytest.fixture
+def cargo_test_runner(project_root: Path) -> CargoTestRunner:
+    """Return a CargoTestRunner instance."""
+    return CargoTestRunner(project_root=project_root)
+
+
+@pytest.fixture
+def tarpaulin_plugin(project_root: Path) -> TarpaulinPlugin:
+    """Return a TarpaulinPlugin instance."""
+    return TarpaulinPlugin(project_root=project_root)
 
 

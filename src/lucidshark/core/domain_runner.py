@@ -22,21 +22,25 @@ PLUGIN_LANGUAGES: Dict[str, List[str]] = {
     "eslint": ["javascript", "typescript"],
     "biome": ["javascript", "typescript"],
     "checkstyle": ["java"],
+    "clippy": ["rust"],
     # Type checkers
     "mypy": ["python"],
     "pyright": ["python"],
     "typescript": ["typescript"],
     "spotbugs": ["java"],
+    "cargo_check": ["rust"],
     # Test runners
     "pytest": ["python"],
     "jest": ["javascript", "typescript"],
     "karma": ["javascript", "typescript"],
     "playwright": ["javascript", "typescript"],
     "maven": ["java", "kotlin"],
+    "cargo": ["rust"],
     # Coverage
     "coverage_py": ["python"],
     "istanbul": ["javascript", "typescript"],
     "jacoco": ["java", "kotlin"],
+    "tarpaulin": ["rust"],
     # Duplication detection
     "duplo": [
         "python",
@@ -196,6 +200,8 @@ def get_domains_for_language(language: str) -> List[str]:
     elif language in ("javascript", "typescript"):
         domains.extend(["type_checking", "testing", "coverage"])
     elif language in ("java", "kotlin"):
+        domains.extend(["type_checking", "testing", "coverage"])
+    elif language == "rust":
         domains.extend(["type_checking", "testing", "coverage"])
     elif language == "terraform":
         domains = ["iac"]
