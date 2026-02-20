@@ -53,9 +53,8 @@ class CLIRunner:
         self.scan_cmd = ScanCommand(version=self._version)
         self.help_cmd = HelpCommand(version=self._version)
         self.doctor_cmd = DoctorCommand(version=self._version)
-        # InitCommand and AutoconfigureCommand will be imported lazily when needed
+        # InitCommand will be imported lazily when needed
         self._init_cmd = None
-        self._autoconfigure_cmd = None
 
     @property
     def init_cmd(self):
@@ -67,17 +66,6 @@ class CLIRunner:
             except ImportError:
                 self._init_cmd = None
         return self._init_cmd
-
-    @property
-    def autoconfigure_cmd(self):
-        """Lazy-load AutoconfigureCommand to avoid import errors during development."""
-        if self._autoconfigure_cmd is None:
-            try:
-                from lucidshark.cli.commands.autoconfigure import AutoconfigureCommand
-                self._autoconfigure_cmd = AutoconfigureCommand()
-            except ImportError:
-                self._autoconfigure_cmd = None
-        return self._autoconfigure_cmd
 
     def run(self, argv: Optional[Iterable[str]] = None) -> int:
         """Run the CLI.
@@ -116,8 +104,6 @@ class CLIRunner:
 
         if command == "init":
             return self._handle_init(args)
-        elif command == "autoconfigure":
-            return self._handle_autoconfigure(args)
         elif command == "scan":
             return self._handle_scan(args)
         elif command == "status":
@@ -150,21 +136,6 @@ class CLIRunner:
 
         return self.init_cmd.execute(args)
 
-    def _handle_autoconfigure(self, args) -> int:
-        """Handle the autoconfigure command (generate lucidshark.yml).
-
-        Args:
-            args: Parsed command-line arguments.
-
-        Returns:
-            Exit code.
-        """
-        if self.autoconfigure_cmd is None:
-            LOGGER.error("Autoconfigure command not available. This feature is in development.")
-            return EXIT_INVALID_USAGE
-
-        return self.autoconfigure_cmd.execute(args)
-
     def _handle_scan(self, args) -> int:
         """Handle the scan command.
 
@@ -177,14 +148,11 @@ class CLIRunner:
         # Load configuration
         project_root = Path(args.path).resolve()
         cli_overrides = ConfigBridge.args_to_overrides(args)
-        preset = getattr(args, "preset", None)
-
         try:
             config = load_config(
                 project_root=project_root,
                 cli_config_path=getattr(args, "config", None),
                 cli_overrides=cli_overrides,
-                preset=preset,
             )
         except ConfigError as e:
             LOGGER.error(str(e))
@@ -226,9 +194,8 @@ class CLIRunner:
         else:
             print("No lucidshark.yml found and no scan domains specified.")
             print("\nQuick start:")
-            print("  lucidshark autoconfigure   Generate a config for this project")
-            print("  lucidshark scan --all      Run all available checks without a config")
-            print("  lucidshark scan --preset python-strict   Use a preset configuration")
+            print("  Ask Claude Code: \"Autoconfigure LucidShark for this project\"")
+            print("  lucidshark scan --all   Run all available checks without a config")
         return EXIT_SUCCESS
 
     def _handle_status(self, args) -> int:

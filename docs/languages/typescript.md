@@ -150,19 +150,9 @@ pipeline:
     threshold: 5.0
 ```
 
-## Presets
+## Example Configurations
 
-| Preset | Includes |
-|--------|----------|
-| `typescript-strict` | ESLint, TypeScript (tsc), Jest, 80% coverage, security |
-| `typescript-minimal` | ESLint, TypeScript (tsc), security |
-
-```yaml
-version: 1
-preset: typescript-strict
-```
-
-## Example Configuration
+### Production (all domains, strict checks)
 
 ```yaml
 version: 1
@@ -177,7 +167,11 @@ pipeline:
     tools: [{ name: typescript, strict: true }]
   security:
     enabled: true
-    tools: [{ name: trivy }, { name: opengrep }]
+    tools:
+      - name: trivy
+        domains: [sca]
+      - name: opengrep
+        domains: [sast]
   testing:
     enabled: true
     tools: [{ name: jest }]
@@ -187,6 +181,69 @@ pipeline:
   duplication:
     enabled: true
     threshold: 5.0
+fail_on:
+  linting: error
+  type_checking: error
+  security: high
+  testing: any
+  coverage: below_threshold
+  duplication: above_threshold
+exclude:
+  - "**/node_modules/**"
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/coverage/**"
+```
+
+### Minimal (linting + security only)
+
+```yaml
+version: 1
+project:
+  languages: [typescript]
+pipeline:
+  linting:
+    enabled: true
+    tools: [{ name: eslint }]
+  type_checking:
+    enabled: true
+    tools: [{ name: typescript }]
+  security:
+    enabled: true
+    tools:
+      - name: trivy
+        domains: [sca]
+      - name: opengrep
+        domains: [sast]
+exclude:
+  - "**/node_modules/**"
+  - "**/dist/**"
+```
+
+### With Biome instead of ESLint
+
+```yaml
+version: 1
+project:
+  languages: [typescript]
+pipeline:
+  linting:
+    enabled: true
+    tools: [{ name: biome }]
+```
+
+### With Playwright E2E tests
+
+```yaml
+version: 1
+project:
+  languages: [typescript]
+pipeline:
+  testing:
+    enabled: true
+    tools:
+      - name: jest
+      - name: playwright
 ```
 
 ## See Also

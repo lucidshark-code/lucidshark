@@ -52,22 +52,19 @@ def load_config(
     project_root: Path,
     cli_config_path: Optional[Path] = None,
     cli_overrides: Optional[Dict[str, Any]] = None,
-    preset: Optional[str] = None,
 ) -> LucidSharkConfig:
     """Load configuration with proper precedence.
 
     Precedence (highest to lowest):
     1. CLI flags (cli_overrides)
     2. Custom config file (cli_config_path) OR project config (.lucidshark.yml)
-    3. Preset (if specified in config file or via CLI)
-    4. Global config (~/.lucidshark/config/config.yml)
-    5. Built-in defaults
+    3. Global config (~/.lucidshark/config/config.yml)
+    4. Built-in defaults
 
     Args:
         project_root: Project root directory for finding .lucidshark.yml.
         cli_config_path: Optional path to custom config file (--config flag).
         cli_overrides: Dict of CLI flag overrides.
-        preset: Optional preset name to use as base configuration.
 
     Returns:
         Merged LucidSharkConfig instance.
@@ -90,16 +87,7 @@ def load_config(
         except Exception as e:
             LOGGER.warning(f"Failed to load global config: {e}")
 
-    # Layer 2: Preset (from CLI argument)
-    # Note: Preset from config file is applied after loading the file
-    if preset:
-        preset_dict = _load_preset(preset)
-        if preset_dict:
-            merged = merge_configs(merged, preset_dict)
-            sources.append(f"preset:{preset}")
-            LOGGER.debug(f"Applied preset: {preset}")
-
-    # Layer 3: Project or custom config
+    # Layer 2: Project or custom config
     project_dict: Dict[str, Any] = {}
     if cli_config_path:
         if not cli_config_path.exists():
@@ -122,23 +110,10 @@ def load_config(
             except yaml.YAMLError as e:
                 raise ConfigError(f"Invalid YAML in {project_path}: {e}") from e
 
-    # Check if project config specifies a preset (and CLI didn't already set one)
-    config_preset = project_dict.get("preset")
-    if config_preset and not preset:
-        preset_dict = _load_preset(config_preset)
-        if preset_dict:
-            # Insert preset BEFORE project config overrides
-            merged = merge_configs(merged, preset_dict)
-            sources.insert(-1 if sources else 0, f"preset:{config_preset}")
-            LOGGER.debug(f"Applied preset from config: {config_preset}")
-
-    # Now merge project config on top
     if project_dict:
-        # Remove 'preset' key before merging (it's metadata, not config)
-        project_dict_clean = {k: v for k, v in project_dict.items() if k != "preset"}
-        merged = merge_configs(merged, project_dict_clean)
+        merged = merge_configs(merged, project_dict)
 
-    # Layer 4: CLI overrides
+    # Layer 3: CLI overrides
     if cli_overrides:
         merged = merge_configs(merged, cli_overrides)
         sources.append("cli")
@@ -150,26 +125,6 @@ def load_config(
 
     LOGGER.debug(f"Config loaded from sources: {sources}")
     return config
-
-
-def _load_preset(preset_name: str) -> Optional[Dict[str, Any]]:
-    """Load a preset configuration by name.
-
-    Args:
-        preset_name: Name of the preset (e.g., "python-strict").
-
-    Returns:
-        Preset configuration dict or None if not found.
-    """
-    try:
-        from lucidshark.presets import get_preset
-        preset_dict = get_preset(preset_name)
-        if preset_dict is None:
-            LOGGER.warning(f"Unknown preset: {preset_name}")
-        return preset_dict
-    except ImportError:
-        LOGGER.warning("Presets module not available")
-        return None
 
 
 def find_project_config(project_root: Path) -> Optional[Path]:

@@ -464,4 +464,4 @@ class InitCommand(Command):
         print("    - get_fix_instructions: Get detailed fix guidance")
         print("    - apply_fix: Auto-fix linting issues")
         print("    - get_status: Show LucidShark configuration")
-        print("    - autoconfigure: Get instructions for generating lucidshark.yml")
+        print("    - autoconfigure: Get instructions for generating lucidshark.yml (MCP only)")

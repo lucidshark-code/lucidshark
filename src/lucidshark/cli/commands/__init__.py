@@ -48,7 +48,6 @@ from lucidshark.cli.commands.status import StatusCommand
 from lucidshark.cli.commands.list_scanners import ListScannersCommand
 from lucidshark.cli.commands.scan import ScanCommand
 from lucidshark.cli.commands.init import InitCommand
-from lucidshark.cli.commands.autoconfigure import AutoconfigureCommand
 from lucidshark.cli.commands.serve import ServeCommand
 from lucidshark.cli.commands.validate import ValidateCommand
 
@@ -58,7 +57,6 @@ __all__ = [
     "ListScannersCommand",
     "ScanCommand",
     "InitCommand",
-    "AutoconfigureCommand",
     "ServeCommand",
     "ValidateCommand",
 ]

@@ -2,7 +2,6 @@
 
 This module builds the argument parser with subcommands:
 - lucidshark init          - Configure AI tools (Claude Code)
-- lucidshark autoconfigure - Auto-configure project (generate lucidshark.yml)
 - lucidshark scan          - Run security/quality scans
 - lucidshark status        - Show configuration and tool status
 - lucidshark serve         - Run as MCP server or file watcher
@@ -82,37 +81,6 @@ def _build_init_parser(subparsers: argparse._SubParsersAction) -> None:
         "--remove",
         action="store_true",
         help="Remove LucidShark from the specified tool's configuration.",
-    )
-
-
-def _build_autoconfigure_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Build the 'autoconfigure' subcommand parser.
-
-    This command detects project characteristics and generates lucidshark.yml.
-    """
-    autoconfigure_parser = subparsers.add_parser(
-        "autoconfigure",
-        help="Auto-configure LucidShark for the current project.",
-        description=(
-            "Analyze your codebase, detect languages and frameworks, "
-            "and generate lucidshark.yml configuration."
-        ),
-    )
-    autoconfigure_parser.add_argument(
-        "--non-interactive", "-y",
-        action="store_true",
-        help="Use defaults without prompting (non-interactive mode).",
-    )
-    autoconfigure_parser.add_argument(
-        "--force", "-f",
-        action="store_true",
-        help="Overwrite existing configuration files.",
-    )
-    autoconfigure_parser.add_argument(
-        "path",
-        nargs="?",
-        default=".",
-        help="Project directory to autoconfigure (default: current directory).",
     )
 
 
@@ -219,11 +187,6 @@ def _build_scan_parser(subparsers: argparse._SubParsersAction) -> None:
 
     # Configuration options
     config_group = scan_parser.add_argument_group("configuration")
-    config_group.add_argument(
-        "--preset",
-        metavar="NAME",
-        help="Use a preset configuration (python-strict, python-minimal, typescript-strict, typescript-minimal, minimal).",
-    )
     config_group.add_argument(
         "--fail-on",
         choices=["critical", "high", "medium", "low"],
@@ -412,7 +375,6 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Examples:\n"
             "  lucidshark init --claude-code       # Configure Claude Code\n"
-            "  lucidshark autoconfigure            # Auto-configure project\n"
             "  lucidshark scan --sca               # Scan dependencies\n"
             "  lucidshark scan --all               # Run all scans\n"
             "  lucidshark scan --linting --fix     # Lint and auto-fix\n"
@@ -433,7 +395,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     _build_init_parser(subparsers)
-    _build_autoconfigure_parser(subparsers)
     _build_scan_parser(subparsers)
     _build_status_parser(subparsers)
     _build_serve_parser(subparsers)

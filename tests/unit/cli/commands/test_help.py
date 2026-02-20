@@ -65,7 +65,6 @@ class TestGetHelpContent:
         assert "lucidshark scan" in content
         assert "lucidshark status" in content
         assert "lucidshark serve" in content
-        assert "lucidshark autoconfigure" in content
         assert "lucidshark help" in content
 
     def test_contains_mcp_tools(self) -> None:

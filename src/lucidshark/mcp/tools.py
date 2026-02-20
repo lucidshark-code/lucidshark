@@ -440,8 +440,7 @@ class MCPToolExecutor:
         """
         return {
             "instructions": (
-                "IMPORTANT: Do NOT run the CLI 'lucidshark autoconfigure' command. "
-                "Follow these steps manually: Analyze the codebase, ask 1-2 quick questions if needed, "
+                "Follow these steps: Analyze the codebase, ask 1-2 quick questions if needed, "
                 "then generate lucidshark.yml with smart defaults using the Write tool, "
                 "and finally validate it with the validate_config MCP tool."
             ),

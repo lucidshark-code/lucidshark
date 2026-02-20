@@ -54,7 +54,6 @@ class ConfigValidationIssue:
 # Valid top-level keys (core config)
 VALID_TOP_LEVEL_KEYS: Set[str] = {
     "version",
-    "preset",
     "project",
     "fail_on",
     "ignore",

@@ -22,16 +22,6 @@ lucidshark init --claude-code
 
 Your AI assistant will analyze your codebase, ask a few questions, and generate `lucidshark.yml`.
 
-### Alternative: CLI Configuration
-
-```bash
-# Auto-detect languages and generate lucidshark.yml
-lucidshark autoconfigure
-
-# Non-interactive mode
-lucidshark autoconfigure -y
-```
-
 ### Run Scans
 
 ```bash
@@ -83,23 +73,6 @@ lucidshark init --claude-code
 lucidshark init --claude-code --remove
 ```
 
-### `lucidshark autoconfigure`
-
-Auto-configure LucidShark for a project. Detects languages, frameworks, and generates `lucidshark.yml`.
-
-| Option | Description |
-|--------|-------------|
-| `--non-interactive`, `-y` | Use defaults without prompting |
-| `--force`, `-f` | Overwrite existing configuration |
-| `path` | Project directory (default: `.`) |
-
-**Examples:**
-```bash
-lucidshark autoconfigure
-lucidshark autoconfigure -y
-lucidshark autoconfigure /path/to/project -f
-```
-
 ### `lucidshark scan`
 
 Run the quality/security pipeline. By default, scans only changed files (uncommitted changes).
@@ -138,7 +111,6 @@ Run the quality/security pipeline. By default, scans only changed files (uncommi
 
 | Option | Description |
 |--------|-------------|
-| `--preset NAME` | Use a preset configuration (python-strict, python-minimal, typescript-strict, typescript-minimal, minimal) |
 | `--fail-on {critical,high,medium,low}` | Failure threshold for security issues |
 | `--coverage-threshold PERCENT` | Coverage threshold (default: 80) |
 | `--duplication-threshold PERCENT` | Maximum allowed duplication percentage (default: 10) |
@@ -437,74 +409,71 @@ Get this documentation.
 
 ### `autoconfigure`
 
-Get instructions for auto-configuring LucidShark for the project. Returns guidance on what files to analyze and how to generate `lucidshark.yml`. The AI should then read the codebase, read the help docs via `get_help()`, and create the configuration file.
+**This is the primary way to set up LucidShark for a project.** Returns step-by-step instructions for analyzing the codebase and generating `lucidshark.yml`. The AI analyzes the project, asks the user 1-2 questions if needed, generates the configuration, and validates it.
 
 **Parameters:** None
-
-**Response format:**
-```json
-{
-  "instructions": "To configure LucidShark for this project, follow these steps...",
-  "analysis_steps": [
-    {
-      "step": 1,
-      "action": "Detect languages and package managers",
-      "files_to_check": ["package.json", "pyproject.toml", "setup.py", "requirements.txt", "Cargo.toml", "go.mod", "pom.xml", "build.gradle"],
-      "what_to_look_for": "Presence of these files indicates the primary language(s)"
-    },
-    {
-      "step": 2,
-      "action": "Detect existing tools",
-      "files_to_check": [".eslintrc*", "ruff.toml", "tsconfig.json", "mypy.ini"],
-      "what_to_look_for": "Existing tool configurations to preserve"
-    }
-  ],
-  "tool_recommendations": {
-    "python": {
-      "linter": "ruff (recommended)",
-      "type_checker": "mypy (recommended)",
-      "test_runner": "pytest",
-      "coverage": "coverage_py"
-    },
-    "javascript_typescript": {
-      "linter": "eslint or biome",
-      "type_checker": "typescript (tsc)",
-      "test_runner": "jest or playwright",
-      "coverage": "istanbul"
-    },
-    "java": {
-      "linter": "checkstyle",
-      "type_checker": "spotbugs",
-      "test_runner": "maven (JUnit/TestNG)",
-      "coverage": "jacoco"
-    }
-  },
-  "security_tools": {
-    "always_recommended": ["trivy (SCA)", "opengrep (SAST)"]
-  },
-  "example_config": {
-    "minimal_python": "version: 1\nproject:\n  name: my-project..."
-  },
-  "post_config_steps": [
-    "Run 'lucidshark init --claude-code' to set up AI tool integration",
-    "Run 'lucidshark scan --all' to test the configuration"
-  ]
-}
-```
 
 **Usage:**
 ```
 autoconfigure()
 ```
 
-After calling this tool, the AI should:
-1. Check for files mentioned in `analysis_steps` to detect the project type
-2. Call `get_help()` to read the full configuration documentation
-3. Generate an appropriate `lucidshark.yml` based on detected project characteristics
-4. Write the configuration file to the project root
-5. Call `validate_config()` to verify the configuration is valid
-6. Fix any validation errors before informing the user
-7. Inform the user about any tools that need to be installed
+**Workflow after calling this tool:**
+
+1. **Detect languages** -- Check for marker files (`package.json`, `pyproject.toml`, `go.mod`, `pom.xml`, `Cargo.toml`, etc.)
+2. **Detect existing tools** -- Check for configs like `.eslintrc*`, `ruff.toml`, `tsconfig.json`, `mypy.ini`, `biome.json`
+3. **Detect test frameworks** -- Check for `conftest.py`, `jest.config.*`, `karma.conf.*`, `playwright.config.*`
+4. **Ask 1-2 questions** -- Coverage threshold (if tests detected), strict vs gradual mode (for legacy codebases)
+5. **Call `get_help()`** -- Read the Configuration Reference section for the full `lucidshark.yml` format
+6. **Generate `lucidshark.yml`** -- Write the config file based on detected project characteristics
+7. **Call `validate_config()`** -- Verify the configuration is valid, fix any errors
+8. **Inform the user** -- Which tools need installation, suggest running `lucidshark scan --all` to verify
+
+**Tool recommendations by language:**
+
+| Language | Linter | Type Checker | Test Runner | Coverage |
+|----------|--------|-------------|-------------|----------|
+| Python | ruff | mypy or pyright | pytest | coverage_py |
+| JavaScript/TypeScript | eslint or biome | typescript (tsc) | jest, karma, or playwright | istanbul |
+| Java | checkstyle | spotbugs | maven (JUnit) | jacoco |
+| Kotlin | -- | -- | maven (JUnit) | jacoco |
+
+**Security tools** (always recommended for all languages): trivy (SCA) + opengrep (SAST)
+
+**Response format:**
+```json
+{
+  "instructions": "Follow these steps to configure LucidShark...",
+  "analysis_steps": [
+    {
+      "step": 1,
+      "action": "Detect languages and package managers",
+      "files_to_check": ["package.json", "pyproject.toml", "Cargo.toml", "go.mod", "pom.xml", "build.gradle"],
+      "what_to_look_for": "Presence of these files indicates the primary language(s)"
+    },
+    {
+      "step": 2,
+      "action": "Detect existing tools",
+      "files_to_check": [".eslintrc*", "ruff.toml", "tsconfig.json", "mypy.ini", "biome.json"],
+      "what_to_look_for": "Existing tool configurations to preserve"
+    }
+  ],
+  "questions_to_ask": {
+    "conditional_questions": [
+      {
+        "id": "coverage_threshold",
+        "ask_when": "Tests detected",
+        "default": 80
+      },
+      {
+        "id": "strictness",
+        "ask_when": "Large existing codebase",
+        "options": ["strict (fail on issues)", "gradual (report only)"]
+      }
+    ]
+  }
+}
+```
 
 ### `validate_config`
 

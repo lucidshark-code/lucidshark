@@ -131,19 +131,9 @@ pipeline:
     threshold: 5.0
 ```
 
-## Presets
+## Example Configurations
 
-| Preset | Includes |
-|--------|----------|
-| `python-strict` | Ruff, mypy (strict), pytest, 80% coverage, security, duplication (5%) |
-| `python-minimal` | Ruff, mypy, security |
-
-```yaml
-version: 1
-preset: python-strict
-```
-
-## Example Configuration
+### Production (all domains, strict checks)
 
 ```yaml
 version: 1
@@ -158,7 +148,11 @@ pipeline:
     tools: [{ name: mypy, strict: true }]
   security:
     enabled: true
-    tools: [{ name: trivy }, { name: opengrep }]
+    tools:
+      - name: trivy
+        domains: [sca]
+      - name: opengrep
+        domains: [sast]
   testing:
     enabled: true
     tools: [{ name: pytest }]
@@ -168,6 +162,54 @@ pipeline:
   duplication:
     enabled: true
     threshold: 5.0
+fail_on:
+  linting: error
+  type_checking: error
+  security: high
+  testing: any
+  coverage: below_threshold
+  duplication: above_threshold
+exclude:
+  - "**/__pycache__/**"
+  - "**/.venv/**"
+  - "**/.mypy_cache/**"
+```
+
+### Minimal (linting + security only)
+
+```yaml
+version: 1
+project:
+  languages: [python]
+pipeline:
+  linting:
+    enabled: true
+    tools: [{ name: ruff }]
+  type_checking:
+    enabled: true
+    tools: [{ name: mypy }]
+  security:
+    enabled: true
+    tools:
+      - name: trivy
+        domains: [sca]
+      - name: opengrep
+        domains: [sast]
+exclude:
+  - "**/__pycache__/**"
+  - "**/.venv/**"
+```
+
+### With Pyright instead of mypy
+
+```yaml
+version: 1
+project:
+  languages: [python]
+pipeline:
+  type_checking:
+    enabled: true
+    tools: [{ name: pyright, strict: true }]
 ```
 
 ## See Also

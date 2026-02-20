@@ -64,14 +64,6 @@ The install scripts will prompt you to choose:
 - **Global install** (`~/.local/bin` or `%LOCALAPPDATA%\Programs\lucidshark`) - available system-wide
 - **Project-local install** (current directory) - project-specific, keeps the binary in your project root
 
-### Alternative: CLI Configuration
-
-If you prefer to configure without AI:
-
-```bash
-lucidshark autoconfigure
-```
-
 ### Running Scans
 
 ```bash
@@ -167,38 +159,6 @@ All results are normalized to a common format.
 
 ## Configuration
 
-### Presets
-
-Start fast with built-in presets:
-
-```bash
-# Use a preset for quick setup
-lucidshark scan --preset python-strict
-lucidshark scan --preset typescript-minimal
-```
-
-| Preset | Best For | Includes |
-|--------|----------|----------|
-| `python-strict` | Production Python | Ruff, mypy (strict), pytest, 80% coverage, security, duplication (5%) |
-| `python-minimal` | Quick Python setup | Ruff, mypy, security |
-| `typescript-strict` | Production TS/React | ESLint, TypeScript, Jest, 80% coverage, security |
-| `typescript-minimal` | Quick TS setup | ESLint, TypeScript, security |
-| `minimal` | Any project | Security only (Trivy + OpenGrep) |
-
-Presets can also be set in `lucidshark.yml`:
-
-```yaml
-version: 1
-preset: python-strict
-
-# Override specific preset values
-pipeline:
-  coverage:
-    threshold: 90  # Override preset's 80%
-```
-
-### Custom Configuration
-
 LucidShark auto-detects your project. For custom settings, create `lucidshark.yml`:
 
 ```yaml
@@ -226,7 +186,6 @@ See [docs/help.md](docs/help.md) for the full configuration reference.
 | `lucidshark scan --all` | Run all quality checks |
 | `lucidshark scan --linting --fix` | Lint and auto-fix |
 | `lucidshark init --claude-code` | Configure Claude Code integration |
-| `lucidshark autoconfigure` | Auto-detect project and generate config |
 | `lucidshark doctor` | Check setup and environment health |
 | `lucidshark validate` | Validate `lucidshark.yml` |
 

@@ -112,7 +112,7 @@ class DoctorCommand(Command):
                 "config_file",
                 False,
                 "No lucidshark.yml found",
-                "Run 'lucidshark autoconfigure' to generate configuration",
+                "Ask Claude Code: \"Autoconfigure LucidShark for this project\"",
             ))
             return results
 

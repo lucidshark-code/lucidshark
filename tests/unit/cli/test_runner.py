@@ -154,7 +154,6 @@ class TestCLIRunner:
             assert result == EXIT_SUCCESS
             captured = capsys.readouterr()
             assert "No lucidshark.yml found" in captured.out
-            assert "autoconfigure" in captured.out
 
     def test_handle_scan_no_domains_with_config(self, capsys, tmp_path: Path) -> None:
         """Test scan command with config file but all domains disabled."""
