@@ -123,7 +123,7 @@ This checks:
 ### AI Tool Setup
 
 ```bash
-lucidshark init --claude-code    # Configure Claude Code (.mcp.json + CLAUDE.md)
+lucidshark init --claude-code    # Configure Claude Code (.mcp.json + .claude/CLAUDE.md)
 ```
 
 Restart your AI tool after running `init` to activate.

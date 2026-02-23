@@ -502,11 +502,11 @@ class InitCommand(Command):
         Returns:
             True if successful.
         """
-        claude_md_path = Path.cwd() / "CLAUDE.md"
+        claude_md_path = Path.cwd() / ".claude" / "CLAUDE.md"
         start_marker = "<!-- lucidshark:start"
         end_marker = "<!-- lucidshark:end -->"
 
-        print("Configuring CLAUDE.md...")
+        print("Configuring .claude/CLAUDE.md...")
 
         # Read existing content
         existing_content = ""
@@ -566,6 +566,7 @@ class InitCommand(Command):
             new_content = existing_content.rstrip() + "\n" + LUCIDSHARK_CLAUDE_MD_SECTION
 
         try:
+            claude_md_path.parent.mkdir(parents=True, exist_ok=True)
             claude_md_path.write_text(new_content, encoding="utf-8")
             action = "Updated" if has_section else "Added"
             print(f"  {action} LucidShark section in {claude_md_path}")
