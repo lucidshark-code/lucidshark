@@ -620,11 +620,18 @@ fail_on:
 
 # Global file/directory excludes (applies to all domains)
 exclude:
+  - "**/.git/**"
+  - "**/.lucidshark/**"
   - "**/node_modules/**"
   - "**/.venv/**"
+  - "**/venv/**"
   - "**/dist/**"
   - "**/build/**"
   - "**/__pycache__/**"
+  - "**/.mypy_cache/**"
+  - "**/.pytest_cache/**"
+  - "**/.ruff_cache/**"
+  - "**/htmlcov/**"
 
 # Output format
 output:
@@ -657,8 +664,17 @@ fail_on:
   linting: error
   type_checking: error
 exclude:
+  - "**/.git/**"
+  - "**/.lucidshark/**"
   - "**/__pycache__/**"
   - "**/.venv/**"
+  - "**/venv/**"
+  - "**/.mypy_cache/**"
+  - "**/.ruff_cache/**"
+  - "**/*.egg-info/**"
+  - "**/htmlcov/**"
+  - "**/dist/**"
+  - "**/build/**"
 ```
 
 #### TypeScript Only (Minimal)
@@ -683,8 +699,12 @@ fail_on:
   linting: error
   type_checking: error
 exclude:
+  - "**/.git/**"
+  - "**/.lucidshark/**"
   - "**/node_modules/**"
   - "**/dist/**"
+  - "**/build/**"
+  - "**/coverage/**"
 ```
 
 #### Python with Testing and Coverage
@@ -721,9 +741,20 @@ fail_on:
   testing: any
   coverage: below_threshold
 exclude:
+  - "**/.git/**"
+  - "**/.lucidshark/**"
   - "**/__pycache__/**"
   - "**/.venv/**"
+  - "**/venv/**"
+  - "**/.mypy_cache/**"
   - "**/.pytest_cache/**"
+  - "**/.ruff_cache/**"
+  - "**/*.egg-info/**"
+  - "**/.eggs/**"
+  - "**/htmlcov/**"
+  - "**/.tox/**"
+  - "**/dist/**"
+  - "**/build/**"
 ```
 
 #### TypeScript Full Stack
@@ -759,10 +790,14 @@ fail_on:
   testing: any
   coverage: below_threshold
 exclude:
+  - "**/.git/**"
+  - "**/.lucidshark/**"
   - "**/node_modules/**"
   - "**/dist/**"
   - "**/build/**"
   - "**/coverage/**"
+  - "**/.next/**"
+  - "**/.nuxt/**"
 ```
 
 #### Security Only (Any Language)
@@ -785,9 +820,13 @@ fail_on:
   security: high
 exclude:
   - "**/.git/**"
+  - "**/.lucidshark/**"
   - "**/node_modules/**"
   - "**/__pycache__/**"
   - "**/.venv/**"
+  - "**/venv/**"
+  - "**/dist/**"
+  - "**/build/**"
 ```
 
 #### Java Project
@@ -824,8 +863,11 @@ fail_on:
   testing: any
   coverage: below_threshold
 exclude:
+  - "**/.git/**"
+  - "**/.lucidshark/**"
   - "**/target/**"
   - "**/.gradle/**"
+  - "**/build/**"
 ```
 
 #### Rust Project
@@ -861,6 +903,8 @@ fail_on:
   testing: any
   coverage: below_threshold
 exclude:
+  - "**/.git/**"
+  - "**/.lucidshark/**"
   - "**/target/**"
 ```
 
@@ -1214,7 +1258,9 @@ pipeline:
 |------|-----------|--------------|
 | Duplo | Python, Rust, Java, JavaScript, TypeScript, C, C++, C#, Go, Ruby, Erlang, VB, HTML, CSS | ❌ No (project-wide) |
 
-**Note:** Duplication detection always scans the entire project to find cross-file duplicates. Use domain-specific `exclude` patterns to skip generated or vendor files. All domains support `exclude` -- the effective excludes are the union of global `exclude`, `.lucidsharkignore`, and the domain's own `exclude` patterns.
+**Note:** Duplication detection always scans the entire project to find cross-file duplicates. This means missing exclusions in either the global `exclude` list or the domain-specific `exclude` will cause it to scan build artifacts, caches, vendored code, and generated files — producing noisy false positives. Always ensure comprehensive exclusions are in place. Examine your project's directory structure and exclude any directories that contain non-source-code files.
+
+All domains support `exclude` — the effective excludes are the union of global `exclude`, `.lucidsharkignore`, and the domain's own `exclude` patterns.
 
 **Configuration example:**
 ```yaml
@@ -1228,4 +1274,22 @@ pipeline:
       - "htmlcov/**"
       - "generated/**"
       - "**/vendor/**"
+      - "**/migrations/**"
+      - "**/*.min.js"
+      - "**/*.min.css"
+      - "**/__snapshots__/**"
+      - "**/fixtures/**"
+      - "**/testdata/**"
+
+# IMPORTANT: Also ensure global excludes are comprehensive
+exclude:
+  - "**/.git/**"
+  - "**/.lucidshark/**"
+  - "**/node_modules/**"
+  - "**/.venv/**"
+  - "**/venv/**"
+  - "**/__pycache__/**"
+  - "**/dist/**"
+  - "**/build/**"
+  # Add language-specific and project-specific excludes here
 ```

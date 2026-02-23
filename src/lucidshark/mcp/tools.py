@@ -519,6 +519,32 @@ class MCPToolExecutor:
                 },
                 {
                     "step": 4,
+                    "action": "Identify project-specific exclusions",
+                    "guidance": (
+                        "Examine the project's directory structure (use ls or tree) and identify directories "
+                        "and file patterns that should NOT be scanned. Look for: generated code directories, "
+                        "vendored dependencies, data/fixture directories, compiled/transpiled output, "
+                        "documentation build output, IDE config directories, lock files, binary assets, "
+                        "migration files, snapshot files, and any other paths that don't represent "
+                        "hand-written source code. Add these to the global 'exclude' list alongside the "
+                        "common exclusions from 'common_exclusions'. This is especially important for "
+                        "duplication detection, which scans the entire project."
+                    ),
+                    "examples_to_look_for": [
+                        "generated/, codegen/, *_generated.*, *_pb2.py, *.generated.ts",
+                        "vendor/, third_party/, external/",
+                        "data/, fixtures/, testdata/, samples/",
+                        "docs/_build/, site/, .docusaurus/",
+                        ".idea/, .vscode/ (IDE dirs)",
+                        "*.min.js, *.min.css, *.bundle.js (minified/bundled files)",
+                        "*.lock, package-lock.json, poetry.lock, Cargo.lock (lock files — context-dependent)",
+                        "migrations/ (database migrations — repetitive structure)",
+                        "static/, public/assets/, media/ (static assets)",
+                        "*.snap, __snapshots__/ (test snapshots)",
+                    ],
+                },
+                {
+                    "step": 5,
                     "action": "Ask user 1-2 quick questions based on detection",
                     "guidance": (
                         "If tests detected: ask coverage threshold (suggest 80%). "
@@ -527,7 +553,7 @@ class MCPToolExecutor:
                     ),
                 },
                 {
-                    "step": 5,
+                    "step": 6,
                     "action": "Read LucidShark documentation",
                     "tool_to_call": "get_help()",
                     "what_to_extract": (
@@ -537,7 +563,7 @@ class MCPToolExecutor:
                     ),
                 },
                 {
-                    "step": 6,
+                    "step": 7,
                     "action": "Generate lucidshark.yml",
                     "output_file": "lucidshark.yml",
                     "template_guidance": (
@@ -548,7 +574,7 @@ class MCPToolExecutor:
                     ),
                 },
                 {
-                    "step": 7,
+                    "step": 8,
                     "action": "Validate the generated configuration",
                     "tool_to_call": "validate_config()",
                     "what_to_do": (
@@ -562,7 +588,7 @@ class MCPToolExecutor:
                     ),
                 },
                 {
-                    "step": 8,
+                    "step": 9,
                     "action": "Inform user about tool installation and next steps",
                     "guidance": (
                         "After generating the config, tell the user: "
@@ -623,12 +649,82 @@ class MCPToolExecutor:
                 },
             },
             "common_pitfalls": [
-                "Always add '**/.venv/**' and '**/node_modules/**' to ignore list",
-                "For Java projects: add '**/target/**' to ignore list",
+                (
+                    "CRITICAL: The global 'exclude' list applies to ALL domains (linting, type_checking, "
+                    "security, testing, coverage, AND duplication). Duplication detection scans the entire "
+                    "project, so missing exclusions will cause it to scan build artifacts, caches, and "
+                    "generated files — producing noisy false positives. Always include comprehensive "
+                    "exclusions from the 'common_exclusions' section AND project-specific exclusions "
+                    "discovered during directory analysis."
+                ),
+                "Merge 'always_include' + ALL relevant 'per_language' patterns + project-specific exclusions into the global 'exclude' list",
+                "Examine the project directory tree for generated, vendored, compiled, or non-source directories and exclude them",
                 "For legacy codebases: start with fail_on: none, fix issues gradually",
                 "Check current coverage with 'pytest --cov' before setting threshold",
                 "For Java with integration tests: use extra_args to skip tests requiring Docker",
             ],
+            "common_exclusions": {
+                "description": (
+                    "CRITICAL: Always include comprehensive exclusions in the global 'exclude' (or 'ignore') "
+                    "list. These apply to ALL domains including duplication, which scans the entire project. "
+                    "Missing exclusions cause false positives, slow scans, and noise — especially for duplication. "
+                    "In addition to these predefined patterns, you MUST also examine the project's directory "
+                    "structure and add any project-specific directories that contain generated, vendored, "
+                    "compiled, or non-source-code files."
+                ),
+                "always_include": [
+                    "**/.git/**",
+                    "**/node_modules/**",
+                    "**/.venv/**",
+                    "**/venv/**",
+                    "**/__pycache__/**",
+                    "**/dist/**",
+                    "**/build/**",
+                    "**/.lucidshark/**",
+                ],
+                "per_language": {
+                    "python": [
+                        "**/.venv/**",
+                        "**/venv/**",
+                        "**/__pycache__/**",
+                        "**/*.egg-info/**",
+                        "**/.eggs/**",
+                        "**/.mypy_cache/**",
+                        "**/.pytest_cache/**",
+                        "**/.ruff_cache/**",
+                        "**/htmlcov/**",
+                        "**/.tox/**",
+                        "**/.nox/**",
+                    ],
+                    "javascript_typescript": [
+                        "**/node_modules/**",
+                        "**/dist/**",
+                        "**/build/**",
+                        "**/coverage/**",
+                        "**/.next/**",
+                        "**/.nuxt/**",
+                    ],
+                    "java": [
+                        "**/target/**",
+                        "**/.gradle/**",
+                        "**/build/**",
+                    ],
+                    "rust": [
+                        "**/target/**",
+                    ],
+                    "go": [
+                        "**/vendor/**",
+                    ],
+                },
+                "project_specific_guidance": (
+                    "After applying the above patterns, also examine the project's actual directory "
+                    "structure and add exclusions for: generated code directories, vendored/third-party "
+                    "code, data/fixture directories, documentation build output, IDE configs, minified "
+                    "or bundled files, database migrations (if repetitive), static assets, and test "
+                    "snapshots. If in doubt about a directory, exclude it — it's better to exclude too "
+                    "much than to pollute duplication results with non-source-code."
+                ),
+            },
             "tool_recommendations": {
                 "python": {
                     "linter": "ruff (recommended, fast and comprehensive) or flake8",
@@ -706,11 +802,21 @@ fail_on:
   duplication: any
 
 ignore:
+  - "**/.git/**"
+  - "**/.lucidshark/**"
   - "**/.venv/**"
+  - "**/venv/**"
   - "**/__pycache__/**"
+  - "**/*.egg-info/**"
+  - "**/.eggs/**"
+  - "**/.mypy_cache/**"
+  - "**/.pytest_cache/**"
+  - "**/.ruff_cache/**"
+  - "**/htmlcov/**"
+  - "**/.tox/**"
+  - "**/.nox/**"
   - "**/dist/**"
   - "**/build/**"
-  - "**/.git/**"
 """,
                 "typescript_with_coverage": """version: 1
 
@@ -754,11 +860,14 @@ fail_on:
   duplication: any
 
 ignore:
+  - "**/.git/**"
+  - "**/.lucidshark/**"
   - "**/node_modules/**"
   - "**/dist/**"
   - "**/build/**"
   - "**/coverage/**"
-  - "**/.git/**"
+  - "**/.next/**"
+  - "**/.nuxt/**"
 """,
                 "java_with_coverage": """version: 1
 
@@ -800,8 +909,11 @@ fail_on:
   duplication: any
 
 ignore:
-  - "**/target/**"
   - "**/.git/**"
+  - "**/.lucidshark/**"
+  - "**/target/**"
+  - "**/.gradle/**"
+  - "**/build/**"
 """,
                 "gradual_adoption": """# Configuration for gradual adoption (legacy codebase)
 version: 1
@@ -838,8 +950,19 @@ fail_on:
   testing: any
 
 ignore:
+  - "**/.git/**"
+  - "**/.lucidshark/**"
   - "**/.venv/**"
+  - "**/venv/**"
   - "**/__pycache__/**"
+  - "**/*.egg-info/**"
+  - "**/.eggs/**"
+  - "**/.mypy_cache/**"
+  - "**/.pytest_cache/**"
+  - "**/.ruff_cache/**"
+  - "**/htmlcov/**"
+  - "**/dist/**"
+  - "**/build/**"
 """,
             },
             "post_config_steps": [
