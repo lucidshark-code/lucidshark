@@ -39,8 +39,8 @@ class InitChoices:
 
     # Duplication detection
     duplication_enabled: bool = True
-    duplication_threshold: float = 10.0  # Max allowed duplication percentage
-    duplication_min_lines: int = 4  # Minimum lines for a duplicate block
+    duplication_threshold: float = 5.0  # Max allowed duplication percentage
+    duplication_min_lines: int = 7  # Minimum lines for a duplicate block
 
     # Fail thresholds
     fail_on_linting: str = "error"  # "error", "warning", "none"

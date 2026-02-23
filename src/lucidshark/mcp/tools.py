@@ -619,7 +619,7 @@ class MCPToolExecutor:
                     "testing": "Enable if tests detected. Always fail on test failures.",
                     "linting": "Enable with detected tool. Use strictness setting for fail_on.",
                     "type_checking": "Enable if tool detected. Use strictness setting for fail_on.",
-                    "duplication": "Always enable duplication detection (duplo). Threshold 10%, min_lines 4.",
+                    "duplication": "Always enable duplication detection (duplo). Threshold 5%, min_lines 7.",
                 },
             },
             "common_pitfalls": [
@@ -693,8 +693,8 @@ pipeline:
     threshold: 80
   duplication:
     enabled: true
-    threshold: 10.0
-    min_lines: 4
+    threshold: 5.0
+    min_lines: 7
     tools: [duplo]
 
 fail_on:
@@ -741,8 +741,8 @@ pipeline:
     threshold: 80
   duplication:
     enabled: true
-    threshold: 10.0
-    min_lines: 4
+    threshold: 5.0
+    min_lines: 7
     tools: [duplo]
 
 fail_on:
@@ -788,8 +788,8 @@ pipeline:
     # extra_args: ["-DskipITs", "-Ddocker.skip=true"]
   duplication:
     enabled: true
-    threshold: 10.0
-    min_lines: 4
+    threshold: 5.0
+    min_lines: 7
     tools: [duplo]
 
 fail_on:
@@ -1060,8 +1060,8 @@ ignore:
         """
         loop = asyncio.get_event_loop()
         # Get threshold and options from config
-        threshold = 10.0
-        min_lines = 4
+        threshold = 5.0
+        min_lines = 7
         min_chars = 3
         exclude_patterns = None
         if self.config.pipeline.duplication:
