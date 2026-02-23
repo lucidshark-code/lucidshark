@@ -4,11 +4,11 @@
   <img src="docs/lucidshark.png" alt="LucidShark" width="400">
 </p>
 
-[![CI](https://github.com/lucidshark-code/lucidshark/actions/workflows/ci.yml/badge.svg)](https://github.com/lucidshark-code/lucidshark/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/lucidshark-code/lucidshark/graph/badge.svg)](https://codecov.io/gh/lucidshark-code/lucidshark)
+[![CI](https://github.com/toniantunovi/lucidshark/actions/workflows/ci.yml/badge.svg)](https://github.com/toniantunovi/lucidshark/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/toniantunovi/lucidshark/graph/badge.svg)](https://codecov.io/gh/toniantunovi/lucidshark)
 [![PyPI version](https://img.shields.io/pypi/v/lucidshark)](https://pypi.org/project/lucidshark/)
 [![Python](https://img.shields.io/pypi/pyversions/lucidshark)](https://pypi.org/project/lucidshark/)
-[![License](https://img.shields.io/github/license/lucidshark-code/lucidshark)](https://github.com/lucidshark-code/lucidshark/blob/main/LICENSE)
+[![License](https://img.shields.io/github/license/toniantunovi/lucidshark)](https://github.com/toniantunovi/lucidshark/blob/main/LICENSE)
 
 **Unified code quality pipeline for AI-assisted development.**
 
@@ -38,9 +38,9 @@ pip install lucidshark
 
 # Option B: Standalone binary (no Python required)
 # Linux/macOS:
-curl -fsSL https://raw.githubusercontent.com/lucidshark-code/lucidshark/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.sh | bash
 # Windows (PowerShell):
-irm https://raw.githubusercontent.com/lucidshark-code/lucidshark/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.ps1 | iex
 
 # 2. Set up Claude Code
 lucidshark init --claude-code
@@ -58,7 +58,7 @@ That's it! Your AI assistant will analyze your codebase, ask you a few questions
 | **pip** | `pip install lucidshark` | Requires Python 3.10+ |
 | **Binary (Linux/macOS)** | `curl -fsSL .../install.sh \| bash` | No Python required |
 | **Binary (Windows)** | `irm .../install.ps1 \| iex` | No Python required |
-| **Manual** | Download from [Releases](https://github.com/lucidshark-code/lucidshark/releases) | Pre-built binaries |
+| **Manual** | Download from [Releases](https://github.com/toniantunovi/lucidshark/releases) | Pre-built binaries |
 
 The install scripts will prompt you to choose:
 - **Global install** (`~/.local/bin` or `%LOCALAPPDATA%\Programs\lucidshark`) - available system-wide
@@ -194,7 +194,7 @@ For the full CLI reference, all scan flags, output formats, and exit codes, see 
 ## Development
 
 ```bash
-git clone https://github.com/lucidshark-code/lucidshark.git
+git clone https://github.com/toniantunovi/lucidshark.git
 cd lucidshark
 pip install -e ".[dev]"
 pytest tests/

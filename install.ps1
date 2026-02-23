@@ -16,7 +16,7 @@
     Specific version to install (e.g., v0.5.17)
 
 .EXAMPLE
-    irm https://raw.githubusercontent.com/lucidshark-code/lucidshark/main/install.ps1 | iex
+    irm https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.ps1 | iex
 
 .EXAMPLE
     .\install.ps1 -Global
@@ -34,7 +34,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Configuration
-$Repo = "lucidshark-code/lucidshark"
+$Repo = "toniantunovi/lucidshark"
 $BinaryName = "lucidshark"
 
 function Write-Info { param($Message) Write-Host $Message -ForegroundColor Cyan }
@@ -193,7 +193,7 @@ function lucidshark {
     } elseif (Test-Path "$globalPath") {
         & "$globalPath" @args
     } else {
-        Write-Host "lucidshark not found. Install with: irm https://raw.githubusercontent.com/lucidshark-code/lucidshark/main/install.ps1 | iex" -ForegroundColor Red
+        Write-Host "lucidshark not found. Install with: irm https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.ps1 | iex" -ForegroundColor Red
         return
     }
 }

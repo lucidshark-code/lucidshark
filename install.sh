@@ -3,17 +3,17 @@
 # LucidShark Installer for Linux and macOS
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/lucidshark-code/lucidshark/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.sh | bash
 #
 # Or with options:
-#   curl -fsSL https://raw.githubusercontent.com/lucidshark-code/lucidshark/main/install.sh | bash -s -- --global
-#   curl -fsSL https://raw.githubusercontent.com/lucidshark-code/lucidshark/main/install.sh | bash -s -- --local
-#   curl -fsSL https://raw.githubusercontent.com/lucidshark-code/lucidshark/main/install.sh | bash -s -- --version v0.5.17
+#   curl -fsSL https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.sh | bash -s -- --global
+#   curl -fsSL https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.sh | bash -s -- --local
+#   curl -fsSL https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.sh | bash -s -- --version v0.5.17
 
 set -euo pipefail
 
 # Configuration
-REPO="lucidshark-code/lucidshark"
+REPO="toniantunovi/lucidshark"
 BINARY_NAME="lucidshark"
 TMP_FILE=""
 
@@ -235,7 +235,7 @@ main() {
             echo '    else if test -x "$HOME/.local/bin/lucidshark"' >> "$rc_file"
             echo '        $HOME/.local/bin/lucidshark $argv' >> "$rc_file"
             echo '    else' >> "$rc_file"
-            echo '        echo "lucidshark not found. Install with: curl -fsSL https://raw.githubusercontent.com/lucidshark-code/lucidshark/main/install.sh | bash"' >> "$rc_file"
+            echo '        echo "lucidshark not found. Install with: curl -fsSL https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.sh | bash"' >> "$rc_file"
             echo '        return 1' >> "$rc_file"
             echo '    end' >> "$rc_file"
             echo 'end' >> "$rc_file"
@@ -246,7 +246,7 @@ main() {
             echo '    elif [[ -x "$HOME/.local/bin/lucidshark" ]]; then' >> "$rc_file"
             echo '        "$HOME/.local/bin/lucidshark" "$@"' >> "$rc_file"
             echo '    else' >> "$rc_file"
-            echo '        echo "lucidshark not found. Install with: curl -fsSL https://raw.githubusercontent.com/lucidshark-code/lucidshark/main/install.sh | bash"' >> "$rc_file"
+            echo '        echo "lucidshark not found. Install with: curl -fsSL https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.sh | bash"' >> "$rc_file"
             echo '        return 1' >> "$rc_file"
             echo '    fi' >> "$rc_file"
             echo '}' >> "$rc_file"

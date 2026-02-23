@@ -334,7 +334,7 @@ class DuploPlugin(DuplicationPlugin):
         # Construct download URL
         extension = ".zip" if is_windows else ".tar.gz"
         filename = f"lucidshark-duplo-{os_name}-{arch_name}{extension}"
-        url = f"https://github.com/lucidshark-code/lucidshark-duplo/releases/download/v{self._version}/{filename}"
+        url = f"https://github.com/toniantunovi/lucidshark-duplo/releases/download/v{self._version}/{filename}"
 
         LOGGER.debug(f"Downloading from {url}")
 
