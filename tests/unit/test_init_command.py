@@ -457,14 +457,14 @@ class TestConfigureClaudeMd:
     """Tests for CLAUDE.md configuration."""
 
     def test_creates_new_claude_md(self, tmp_path: Path, capsys) -> None:
-        """Test creating a new CLAUDE.md with LucidShark section."""
+        """Test creating a new .claude/CLAUDE.md with LucidShark section."""
         cmd = InitCommand(version="1.0.0")
 
         with patch.object(Path, "cwd", return_value=tmp_path):
             success = cmd._configure_claude_md(dry_run=False, force=False, remove=False)
 
         assert success
-        claude_md = tmp_path / "CLAUDE.md"
+        claude_md = tmp_path / ".claude" / "CLAUDE.md"
         assert claude_md.exists()
         content = claude_md.read_text(encoding="utf-8")
         assert "<!-- lucidshark:start" in content
@@ -473,9 +473,11 @@ class TestConfigureClaudeMd:
         assert "Smart Domain Selection" in content
 
     def test_appends_to_existing_claude_md(self, tmp_path: Path) -> None:
-        """Test appending to an existing CLAUDE.md without LucidShark section."""
+        """Test appending to an existing .claude/CLAUDE.md without LucidShark section."""
         cmd = InitCommand(version="1.0.0")
-        claude_md = tmp_path / "CLAUDE.md"
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        claude_md = claude_dir / "CLAUDE.md"
         claude_md.write_text("# My Project\n\nExisting instructions here.\n")
 
         with patch.object(Path, "cwd", return_value=tmp_path):
@@ -490,7 +492,9 @@ class TestConfigureClaudeMd:
     def test_skips_if_section_already_exists(self, tmp_path: Path, capsys) -> None:
         """Test that setup skips if LucidShark section already exists."""
         cmd = InitCommand(version="1.0.0")
-        claude_md = tmp_path / "CLAUDE.md"
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        claude_md = claude_dir / "CLAUDE.md"
         claude_md.write_text(
             "# Project\n" + LUCIDSHARK_CLAUDE_MD_SECTION, encoding="utf-8"
         )
@@ -505,7 +509,9 @@ class TestConfigureClaudeMd:
     def test_force_updates_existing_section(self, tmp_path: Path) -> None:
         """Test that --force replaces the existing LucidShark section."""
         cmd = InitCommand(version="1.0.0")
-        claude_md = tmp_path / "CLAUDE.md"
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        claude_md = claude_dir / "CLAUDE.md"
         old_content = (
             "# Project\n\n"
             "<!-- lucidshark:start - managed by lucidshark init, do not edit manually -->\n"
@@ -525,21 +531,23 @@ class TestConfigureClaudeMd:
         assert "## Other stuff" in content
 
     def test_dry_run_does_not_write(self, tmp_path: Path, capsys) -> None:
-        """Test that --dry-run does not create CLAUDE.md."""
+        """Test that --dry-run does not create .claude/CLAUDE.md."""
         cmd = InitCommand(version="1.0.0")
 
         with patch.object(Path, "cwd", return_value=tmp_path):
             success = cmd._configure_claude_md(dry_run=True, force=False, remove=False)
 
         assert success
-        assert not (tmp_path / "CLAUDE.md").exists()
+        assert not (tmp_path / ".claude" / "CLAUDE.md").exists()
         captured = capsys.readouterr()
         assert "Would create" in captured.out
 
     def test_remove_deletes_section(self, tmp_path: Path, capsys) -> None:
-        """Test that --remove removes the LucidShark section from CLAUDE.md."""
+        """Test that --remove removes the LucidShark section from .claude/CLAUDE.md."""
         cmd = InitCommand(version="1.0.0")
-        claude_md = tmp_path / "CLAUDE.md"
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        claude_md = claude_dir / "CLAUDE.md"
         claude_md.write_text(
             "# Project\n" + LUCIDSHARK_CLAUDE_MD_SECTION + "\n## Other\n",
             encoding="utf-8",
@@ -556,9 +564,11 @@ class TestConfigureClaudeMd:
         assert "## Other" in content
 
     def test_remove_deletes_file_if_empty(self, tmp_path: Path, capsys) -> None:
-        """Test that --remove deletes CLAUDE.md if only LucidShark content remains."""
+        """Test that --remove deletes .claude/CLAUDE.md if only LucidShark content remains."""
         cmd = InitCommand(version="1.0.0")
-        claude_md = tmp_path / "CLAUDE.md"
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        claude_md = claude_dir / "CLAUDE.md"
         claude_md.write_text(LUCIDSHARK_CLAUDE_MD_SECTION, encoding="utf-8")
 
         with patch.object(Path, "cwd", return_value=tmp_path):
