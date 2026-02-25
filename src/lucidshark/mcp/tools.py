@@ -1187,11 +1187,17 @@ ignore:
         min_lines = 7
         min_chars = 3
         exclude_patterns = None
+        use_baseline = True
+        use_cache = True
+        use_git = True
         if self.config.pipeline.duplication:
             threshold = self.config.pipeline.duplication.threshold
             min_lines = self.config.pipeline.duplication.min_lines
             min_chars = self.config.pipeline.duplication.min_chars
             exclude_patterns = self.config.pipeline.duplication.exclude or None
+            use_baseline = self.config.pipeline.duplication.baseline
+            use_cache = self.config.pipeline.duplication.cache
+            use_git = self.config.pipeline.duplication.use_git
 
         run_duplication_fn = functools.partial(
             self._runner.run_duplication,
@@ -1200,6 +1206,9 @@ ignore:
             min_lines=min_lines,
             min_chars=min_chars,
             exclude_patterns=exclude_patterns,
+            use_baseline=use_baseline,
+            use_cache=use_cache,
+            use_git=use_git,
         )
         issues = await loop.run_in_executor(None, run_duplication_fn)
         # Duplication result is stored in context.duplication_result by DomainRunner

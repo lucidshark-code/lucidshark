@@ -113,6 +113,9 @@ VALID_PIPELINE_DUPLICATION_KEYS: Set[str] = {
     "min_lines",
     "min_chars",
     "exclude",
+    "baseline",
+    "cache",
+    "use_git",
 }
 
 # Pipeline domains that require tools when enabled

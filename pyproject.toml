@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lucidshark"
-version = "0.5.33"
+version = "0.5.34"
 description = "LucidShark - The trust layer for AI-assisted development"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -152,4 +152,4 @@ checkstyle = "13.2.0"
 pyright = "1.1.408"
 spotbugs = "4.9.8"
 # Duplication detection
-duplo = "0.1.4"
+duplo = "0.1.5"

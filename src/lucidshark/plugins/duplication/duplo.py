@@ -21,6 +21,7 @@ from lucidshark.bootstrap.download import secure_urlopen
 from lucidshark.bootstrap.paths import LucidsharkPaths
 from lucidshark.bootstrap.platform import get_platform_info
 from lucidshark.bootstrap.versions import get_tool_version
+from lucidshark.core.git import is_git_repo
 from lucidshark.core.logging import get_logger
 from lucidshark.core.models import (
     ScanContext,
@@ -143,6 +144,22 @@ class DuploPlugin(DuplicationPlugin):
 
         return binary_path
 
+    def _get_baseline_path(self) -> Path:
+        """Get the path for the duplo baseline file.
+
+        Returns:
+            Path to the baseline JSON file.
+        """
+        return self._paths.plugin_cache_dir("duplo") / "baseline.json"
+
+    def _get_cache_dir(self) -> Path:
+        """Get the cache directory for duplo file processing.
+
+        Returns:
+            Path to the file cache directory.
+        """
+        return self._paths.plugin_cache_dir("duplo") / "file-cache"
+
     def detect_duplication(
         self,
         context: ScanContext,
@@ -150,6 +167,9 @@ class DuploPlugin(DuplicationPlugin):
         min_lines: int = 4,
         min_chars: int = 3,
         exclude_patterns: Optional[List[str]] = None,
+        use_baseline: bool = True,
+        use_cache: bool = True,
+        use_git: bool = True,
     ) -> DuplicationResult:
         """Run duplication detection on the entire project.
 
@@ -162,41 +182,104 @@ class DuploPlugin(DuplicationPlugin):
             min_lines: Minimum lines for a duplicate block.
             min_chars: Minimum characters per line.
             exclude_patterns: Additional patterns to exclude from duplication scan.
+            use_baseline: If True, track known duplicates and only report new ones.
+            use_cache: If True, cache processed files for faster re-runs.
+            use_git: If True, use git ls-files for file discovery when in a git repo.
 
         Returns:
             DuplicationResult with statistics and issues.
         """
         binary = self.ensure_binary()
 
-        # Collect all source files in project (always full scan)
-        source_files = self._collect_source_files(context, exclude_patterns)
+        # Determine if we can use git mode
+        in_git_repo = use_git and is_git_repo(context.project_root)
 
-        if not source_files:
-            LOGGER.debug("No source files found for duplication detection")
-            return DuplicationResult(threshold=threshold)
+        # Use --git only when there are no duplication-specific exclude
+        # patterns.  Global ignore patterns (context.get_exclude_patterns())
+        # overlap with .gitignore and don't need extra filtering, but
+        # duplication-specific patterns like "tests/**" are tracked by git
+        # yet should be excluded from the duplication scan.
+        has_duplication_excludes = bool(exclude_patterns)
+        use_git_flag = in_git_repo and not has_duplication_excludes
 
-        # Write file list to temp file
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False, encoding="utf-8"
-        ) as f:
-            for file_path in source_files:
-                f.write(f"{file_path}\n")
-            file_list_path = Path(f.name)
+        file_list_path: Optional[Path] = None
+
+        if use_git_flag:
+            LOGGER.debug("Using git mode for file discovery")
+        elif in_git_repo:
+            # In a git repo but we have duplication-specific exclude
+            # patterns — collect via git ls-files and filter so exclusions
+            # are honoured.
+            LOGGER.debug("Using git ls-files with exclude filtering")
+            all_exclude_patterns = list(context.get_exclude_patterns())
+            if exclude_patterns:
+                all_exclude_patterns.extend(exclude_patterns)
+            source_files = self._collect_git_files_filtered(
+                context, all_exclude_patterns,
+            )
+            if not source_files:
+                LOGGER.debug("No source files found for duplication detection")
+                return DuplicationResult(threshold=threshold)
+
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False, encoding="utf-8"
+            ) as f:
+                for file_path in source_files:
+                    f.write(f"{file_path}\n")
+                file_list_path = Path(f.name)
+        else:
+            # Collect all source files in project (always full scan)
+            source_files = self._collect_source_files(context, exclude_patterns)
+
+            if not source_files:
+                LOGGER.debug("No source files found for duplication detection")
+                return DuplicationResult(threshold=threshold)
+
+            # Write file list to temp file
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", delete=False, encoding="utf-8"
+            ) as f:
+                for file_path in source_files:
+                    f.write(f"{file_path}\n")
+                file_list_path = Path(f.name)
 
         try:
             # Build command
-            # lucidshark-duplo <files> <output> [options]
+            # lucidshark-duplo <files|--git> <output> [options]
             # Using "-" as output means stdout
-            cmd = [
-                str(binary),
-                str(file_list_path),
+            cmd = [str(binary)]
+
+            if use_git_flag:
+                cmd.append("--git")
+            else:
+                assert file_list_path is not None
+                cmd.append(str(file_list_path))
+
+            cmd.extend([
                 "-",  # Output to stdout
                 "--json",
                 "--min-lines",
                 str(min_lines),
                 "--min-chars",
                 str(min_chars),
-            ]
+            ])
+
+            # Append cache flags
+            if use_cache:
+                cache_dir = self._get_cache_dir()
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                cmd.extend(["--cache", "--cache-dir", str(cache_dir)])
+
+            # Append baseline flags
+            if use_baseline:
+                baseline_path = self._get_baseline_path()
+                baseline_path.parent.mkdir(parents=True, exist_ok=True)
+                if baseline_path.exists():
+                    LOGGER.info("Comparing against baseline for known duplicates")
+                    cmd.extend(["--baseline", str(baseline_path)])
+                else:
+                    LOGGER.info("No baseline found, establishing baseline on first run")
+                cmd.extend(["--save-baseline", str(baseline_path)])
 
             LOGGER.debug(f"Running: {' '.join(cmd)}")
 
@@ -224,7 +307,53 @@ class DuploPlugin(DuplicationPlugin):
 
         finally:
             # Clean up temp file
-            file_list_path.unlink(missing_ok=True)
+            if file_list_path is not None:
+                file_list_path.unlink(missing_ok=True)
+
+    def _collect_git_files_filtered(
+        self,
+        context: ScanContext,
+        exclude_patterns: List[str],
+    ) -> List[Path]:
+        """Collect source files via ``git ls-files``, applying exclude patterns.
+
+        This is used when we're in a git repo but need to honour exclude
+        patterns that the duplo ``--git`` flag cannot apply.
+
+        Args:
+            context: Scan context.
+            exclude_patterns: Combined list of exclude patterns to apply.
+
+        Returns:
+            List of source file paths.
+        """
+        try:
+            result = subprocess.run(
+                ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+                cwd=context.project_root,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+        except Exception:
+            LOGGER.warning("git ls-files failed, falling back to file walk")
+            return self._collect_source_files(context, exclude_patterns)
+
+        source_files = []
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            path = context.project_root / line
+            if not path.is_file():
+                continue
+            if self._should_exclude(line, exclude_patterns):
+                continue
+            if path.suffix.lower() in SUPPORTED_EXTENSIONS:
+                source_files.append(path)
+
+        LOGGER.debug(f"Found {len(source_files)} source files via git ls-files (filtered)")
+        return source_files
 
     def _collect_source_files(
         self,

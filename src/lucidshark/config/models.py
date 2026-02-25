@@ -106,6 +106,9 @@ class DuplicationPipelineConfig:
     min_chars: int = 3  # Minimum characters per line
     exclude: List[str] = field(default_factory=list)  # Patterns to exclude from duplication scan
     tools: List[ToolConfig] = field(default_factory=list)
+    baseline: bool = True  # Only report NEW duplicates after first run
+    cache: bool = True  # Cache processed files for faster re-runs
+    use_git: bool = True  # Use git ls-files for file discovery when available
 
 
 @dataclass

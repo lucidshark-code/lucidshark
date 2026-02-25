@@ -264,6 +264,15 @@ class ScanCommand(Command):
             duplication_threshold = duplication_threshold or 10.0
             min_lines = min_lines or 4
 
+            # Get baseline/cache/git flags from config
+            use_baseline = True
+            use_cache = True
+            use_git = True
+            if config.pipeline.duplication:
+                use_baseline = config.pipeline.duplication.baseline
+                use_cache = config.pipeline.duplication.cache
+                use_git = config.pipeline.duplication.use_git
+
             all_issues.extend(
                 runner.run_duplication(
                     context,
@@ -271,6 +280,9 @@ class ScanCommand(Command):
                     min_lines,
                     min_chars,
                     exclude_patterns,
+                    use_baseline=use_baseline,
+                    use_cache=use_cache,
+                    use_git=use_git,
                 )
             )
 

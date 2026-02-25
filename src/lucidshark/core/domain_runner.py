@@ -482,6 +482,9 @@ class DomainRunner:
         min_lines: int = 4,
         min_chars: int = 3,
         exclude_patterns: Optional[List[str]] = None,
+        use_baseline: bool = True,
+        use_cache: bool = True,
+        use_git: bool = True,
     ) -> List[UnifiedIssue]:
         """Run duplication detection.
 
@@ -494,6 +497,9 @@ class DomainRunner:
             min_lines: Minimum lines for a duplicate block.
             min_chars: Minimum characters per line.
             exclude_patterns: Additional patterns to exclude from duplication scan.
+            use_baseline: If True, track known duplicates and only report new ones.
+            use_cache: If True, cache processed files for faster re-runs.
+            use_git: If True, use git ls-files for file discovery when in a git repo.
 
         Returns:
             List of duplication issues.
@@ -519,6 +525,9 @@ class DomainRunner:
                     min_lines=min_lines,
                     min_chars=min_chars,
                     exclude_patterns=exclude_patterns,
+                    use_baseline=use_baseline,
+                    use_cache=use_cache,
+                    use_git=use_git,
                 )
 
                 status = "PASSED" if result.passed else "FAILED"

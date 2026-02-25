@@ -373,6 +373,9 @@ def _parse_duplication_pipeline_config(
         min_chars=duplication_data.get("min_chars", 3),
         exclude=duplication_data.get("exclude", []),
         tools=tools,
+        baseline=duplication_data.get("baseline", True),
+        cache=duplication_data.get("cache", True),
+        use_git=duplication_data.get("use_git", True),
     )
 
 
