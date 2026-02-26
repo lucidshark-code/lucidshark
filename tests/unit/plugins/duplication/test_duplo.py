@@ -857,6 +857,33 @@ class TestDuploGitMode:
                 # Should NOT use --git since exclude patterns need to be applied
                 assert "--git" not in _extract_cmd(mock_run)
 
+    def test_git_flag_not_used_when_global_exclude_patterns_present(self) -> None:
+        """Test that --git flag is NOT used when global ignore patterns exist."""
+        from lucidshark.config.ignore import IgnorePatterns
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            (project_root / "main.py").write_text("code")
+            plugin = DuploPlugin(project_root=project_root)
+
+            ignore = IgnorePatterns(["tests/integration/projects/**"], source="config")
+            context = ScanContext(
+                project_root=project_root,
+                paths=[project_root],
+                enabled_domains=[],
+                ignore_patterns=ignore,
+            )
+
+            # Mock git ls-files to return the file we created
+            git_result = subprocess.CompletedProcess(args=[], returncode=0, stdout="main.py\n", stderr="")
+            with patch("lucidshark.plugins.duplication.duplo.subprocess.run", return_value=git_result):
+                mock_run = _run_detect_with_mocks(
+                    plugin, context, is_git=True, use_git=True,
+                    duplo_output=_make_empty_duplo_output(files_analyzed=1, total_lines=1),
+                )
+                # Should NOT use --git since global exclude patterns need to be applied
+                assert "--git" not in _extract_cmd(mock_run)
+
 
 class TestDuploCacheMode:
     """Tests for cache flag handling."""

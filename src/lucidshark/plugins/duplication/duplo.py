@@ -194,22 +194,23 @@ class DuploPlugin(DuplicationPlugin):
         # Determine if we can use git mode
         in_git_repo = use_git and is_git_repo(context.project_root)
 
-        # Use --git only when there are no duplication-specific exclude
-        # patterns.  Global ignore patterns (context.get_exclude_patterns())
-        # overlap with .gitignore and don't need extra filtering, but
-        # duplication-specific patterns like "tests/**" are tracked by git
-        # yet should be excluded from the duplication scan.
-        has_duplication_excludes = bool(exclude_patterns)
-        use_git_flag = in_git_repo and not has_duplication_excludes
+        # Use the raw --git flag only when there are no exclude patterns
+        # to apply.  Both duplication-specific patterns (e.g. "tests/**")
+        # and global ignore patterns from lucidshark.yml may reference
+        # paths tracked by git, so when either is present we fall back to
+        # git ls-files + filtering — still using git for file discovery,
+        # but with pattern matching applied on top.
+        has_exclude_patterns = bool(exclude_patterns) or bool(context.get_exclude_patterns())
+        use_git_flag = in_git_repo and not has_exclude_patterns
 
         file_list_path: Optional[Path] = None
 
         if use_git_flag:
             LOGGER.debug("Using git mode for file discovery")
         elif in_git_repo:
-            # In a git repo but we have duplication-specific exclude
-            # patterns — collect via git ls-files and filter so exclusions
-            # are honoured.
+            # In a git repo but we have exclude patterns (global and/or
+            # duplication-specific) — collect via git ls-files and filter
+            # so exclusions are honoured.
             LOGGER.debug("Using git ls-files with exclude filtering")
             all_exclude_patterns = list(context.get_exclude_patterns())
             if exclude_patterns:
