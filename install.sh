@@ -6,8 +6,6 @@
 #   curl -fsSL https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.sh | bash
 #
 # Or with options:
-#   curl -fsSL https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.sh | bash -s -- --global
-#   curl -fsSL https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.sh | bash -s -- --local
 #   curl -fsSL https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.sh | bash -s -- --version v0.5.17
 
 set -euo pipefail
@@ -80,20 +78,11 @@ download() {
 
 # Main installation function
 main() {
-    local install_mode=""
     local version=""
 
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --global|-g)
-                install_mode="global"
-                shift
-                ;;
-            --local|-l)
-                install_mode="local"
-                shift
-                ;;
             --version|-v)
                 version="$2"
                 shift 2
@@ -104,8 +93,6 @@ main() {
                 echo "Usage: install.sh [OPTIONS]"
                 echo ""
                 echo "Options:"
-                echo "  --global, -g     Install globally to ~/.local/bin"
-                echo "  --local, -l      Install locally to current directory"
                 echo "  --version, -v    Install specific version (e.g., v0.5.17)"
                 echo "  --help, -h       Show this help message"
                 exit 0
@@ -142,36 +129,8 @@ main() {
     info "Version: ${version}"
     echo ""
 
-    # Determine install location
-    local install_dir
-    if [[ -z "$install_mode" ]]; then
-        echo "Where would you like to install LucidShark?"
-        echo ""
-        echo "  [1] Global (~/.local/bin)"
-        echo "      - Available system-wide"
-        echo "      - May require adding to PATH"
-        echo ""
-        echo "  [2] This project (current directory)"
-        echo "      - Project-specific installation"
-        echo "      - Binary placed in project root"
-        echo ""
-
-        local choice
-        read -rp "Choice [1/2]: " choice < /dev/tty
-        echo ""
-
-        case "$choice" in
-            1) install_mode="global" ;;
-            2) install_mode="local" ;;
-            *) error "Invalid choice: $choice" ;;
-        esac
-    fi
-
-    if [[ "$install_mode" == "global" ]]; then
-        install_dir="${HOME}/.local/bin"
-    else
-        install_dir="."
-    fi
+    # Install to current project root
+    local install_dir="."
 
     # Create install directory
     mkdir -p "$install_dir"
@@ -225,17 +184,15 @@ main() {
     if [[ -f "$rc_file" ]] && grep -qF "# LucidShark" "$rc_file" 2>/dev/null; then
         info "Shell already configured in ${rc_file}"
     else
-        # Add shell function that prefers local binary over global
+        # Add shell function that uses local binary in project root
         echo "" >> "$rc_file"
-        echo "# LucidShark - prefers local binary over global (like venv)" >> "$rc_file"
+        echo "# LucidShark - uses local binary in project root" >> "$rc_file"
         if [[ "$shell_name" == "fish" ]]; then
             echo 'function lucidshark' >> "$rc_file"
             echo '    if test -x "./lucidshark"' >> "$rc_file"
             echo '        ./lucidshark $argv' >> "$rc_file"
-            echo '    else if test -x "$HOME/.local/bin/lucidshark"' >> "$rc_file"
-            echo '        $HOME/.local/bin/lucidshark $argv' >> "$rc_file"
             echo '    else' >> "$rc_file"
-            echo '        echo "lucidshark not found. Install with: curl -fsSL https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.sh | bash"' >> "$rc_file"
+            echo '        echo "lucidshark not found in current directory. Run install.sh from your project root."' >> "$rc_file"
             echo '        return 1' >> "$rc_file"
             echo '    end' >> "$rc_file"
             echo 'end' >> "$rc_file"
@@ -243,10 +200,8 @@ main() {
             echo 'lucidshark() {' >> "$rc_file"
             echo '    if [[ -x "./lucidshark" ]]; then' >> "$rc_file"
             echo '        ./lucidshark "$@"' >> "$rc_file"
-            echo '    elif [[ -x "$HOME/.local/bin/lucidshark" ]]; then' >> "$rc_file"
-            echo '        "$HOME/.local/bin/lucidshark" "$@"' >> "$rc_file"
             echo '    else' >> "$rc_file"
-            echo '        echo "lucidshark not found. Install with: curl -fsSL https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.sh | bash"' >> "$rc_file"
+            echo '        echo "lucidshark not found in current directory. Run install.sh from your project root."' >> "$rc_file"
             echo '        return 1' >> "$rc_file"
             echo '    fi' >> "$rc_file"
             echo '}' >> "$rc_file"
@@ -270,10 +225,8 @@ main() {
     echo ""
     echo "=========================================="
     echo ""
-    if [[ "$install_mode" == "local" ]]; then
-        info "Local install: 'lucidshark' will use ./lucidshark in this directory"
-        info "Different projects can have different versions (like Python venv)"
-    fi
+    info "Installed to current directory: ./lucidshark"
+    info "Each project gets its own binary (like Python venv)"
     echo ""
     echo "Then configure your AI tool:"
     echo ""

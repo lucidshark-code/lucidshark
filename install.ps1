@@ -4,13 +4,7 @@
     LucidShark Installer for Windows
 
 .DESCRIPTION
-    Downloads and installs LucidShark binary for Windows.
-
-.PARAMETER Global
-    Install globally to %LOCALAPPDATA%\Programs\lucidshark
-
-.PARAMETER Local
-    Install locally to current directory
+    Downloads and installs LucidShark binary to the current project root.
 
 .PARAMETER Version
     Specific version to install (e.g., v0.5.17)
@@ -19,15 +13,10 @@
     irm https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.ps1 | iex
 
 .EXAMPLE
-    .\install.ps1 -Global
-
-.EXAMPLE
     .\install.ps1 -Version v0.5.17
 #>
 
 param(
-    [switch]$Global,
-    [switch]$Local,
     [string]$Version
 )
 
@@ -87,43 +76,8 @@ function Main {
     Write-Info "Version: $Version"
     Write-Host ""
 
-    # Determine install location
-    $installMode = ""
-    if ($Global) {
-        $installMode = "global"
-    }
-    elseif ($Local) {
-        $installMode = "local"
-    }
-    else {
-        Write-Host "Where would you like to install LucidShark?"
-        Write-Host ""
-        Write-Host "  [1] Global ($env:LOCALAPPDATA\Programs\lucidshark)"
-        Write-Host "      - Available system-wide"
-        Write-Host "      - Added to user PATH"
-        Write-Host ""
-        Write-Host "  [2] This project (current directory)"
-        Write-Host "      - Project-specific installation"
-        Write-Host "      - Binary placed in project root"
-        Write-Host ""
-
-        Write-Host -NoNewline "Choice [1/2]: "
-        $choice = [Console]::ReadLine()
-        Write-Host ""
-
-        switch ($choice) {
-            "1" { $installMode = "global" }
-            "2" { $installMode = "local" }
-            default { Write-Error "Invalid choice: $choice" }
-        }
-    }
-
-    if ($installMode -eq "global") {
-        $installDir = Join-Path $env:LOCALAPPDATA "Programs\lucidshark"
-    }
-    else {
-        $installDir = Get-Location
-    }
+    # Install to current project root
+    $installDir = Get-Location
 
     # Create install directory
     if (-not (Test-Path $installDir)) {
@@ -168,7 +122,6 @@ function Main {
     # Get PowerShell profile path
     $profilePath = $PROFILE.CurrentUserAllHosts
     $profileDir = Split-Path $profilePath -Parent
-    $globalPath = Join-Path $env:LOCALAPPDATA "Programs\lucidshark\lucidshark.exe"
 
     # Ensure profile directory exists
     if (-not (Test-Path $profileDir)) {
@@ -183,17 +136,15 @@ function Main {
         Write-Info "Shell already configured in $profilePath"
     }
     else {
-        # Add function that prefers local binary over global (like venv)
+        # Add function that uses local binary in project root
         $functionCode = @"
 
-# LucidShark - prefers local binary over global (like venv)
+# LucidShark - uses local binary in project root
 function lucidshark {
     if (Test-Path ".\lucidshark.exe") {
         & ".\lucidshark.exe" @args
-    } elseif (Test-Path "$globalPath") {
-        & "$globalPath" @args
     } else {
-        Write-Host "lucidshark not found. Install with: irm https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.ps1 | iex" -ForegroundColor Red
+        Write-Host "lucidshark not found in current directory. Run install.ps1 from your project root." -ForegroundColor Red
         return
     }
 }
@@ -218,12 +169,14 @@ function lucidshark {
     Write-Host ""
     Write-Host "==========================================" -ForegroundColor Yellow
     Write-Host ""
-    if ($installMode -eq "local") {
-        Write-Info "Local install: 'lucidshark' will use .\lucidshark.exe in this directory"
-        Write-Info "Different projects can have different versions (like Python venv)"
-    }
+    Write-Info "Installed to current directory: .\lucidshark.exe"
+    Write-Info "Each project gets its own binary (like Python venv)"
     Write-Host ""
-    Write-Host "Then run: lucidshark --help"
+    Write-Host "Then configure your AI tool:"
+    Write-Host ""
+    Write-Success "  lucidshark init --claude-code    # For Claude Code"
+    Write-Host ""
+    Write-Info "This sets up MCP integration so AI tools can scan automatically."
     Write-Host ""
 }
 
