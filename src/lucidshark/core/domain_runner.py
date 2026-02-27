@@ -303,15 +303,7 @@ class DomainRunner:
             # Custom command overrides plugin-based execution
             result = self._run_shell_command(command, "lint_command")
             issues = self._parse_command_output(result, ToolDomain.LINTING, command)
-
-            if post_command:
-                post_result = self._run_shell_command(post_command, "post_lint_command")
-                if post_result.returncode != 0:
-                    LOGGER.warning(
-                        f"post_lint_command failed (exit code {post_result.returncode}): "
-                        f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
-                    )
-
+            self._run_post_command(post_command, "post_lint_command")
             return issues
 
         # Fall through to existing plugin-based logic
@@ -345,15 +337,7 @@ class DomainRunner:
             except Exception as e:
                 LOGGER.error(f"Linter {name} failed: {e}")
 
-        # Run post_command after plugin-based linting if provided
-        if post_command:
-            post_result = self._run_shell_command(post_command, "post_lint_command")
-            if post_result.returncode != 0:
-                LOGGER.warning(
-                    f"post_lint_command failed (exit code {post_result.returncode}): "
-                    f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
-                )
-
+        self._run_post_command(post_command, "post_lint_command")
         return issues
 
     def run_type_checking(
@@ -383,15 +367,7 @@ class DomainRunner:
             # Custom command overrides plugin-based execution
             result = self._run_shell_command(command, "type_check_command")
             issues = self._parse_command_output(result, ToolDomain.TYPE_CHECKING, command)
-
-            if post_command:
-                post_result = self._run_shell_command(post_command, "post_type_check_command")
-                if post_result.returncode != 0:
-                    LOGGER.warning(
-                        f"post_type_check_command failed (exit code {post_result.returncode}): "
-                        f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
-                    )
-
+            self._run_post_command(post_command, "post_type_check_command")
             return issues
 
         # Fall through to existing plugin-based logic
@@ -414,15 +390,7 @@ class DomainRunner:
             except Exception as e:
                 LOGGER.error(f"Type checker {name} failed: {e}")
 
-        # Run post_command after plugin-based type checking if provided
-        if post_command:
-            post_result = self._run_shell_command(post_command, "post_type_check_command")
-            if post_result.returncode != 0:
-                LOGGER.warning(
-                    f"post_type_check_command failed (exit code {post_result.returncode}): "
-                    f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
-                )
-
+        self._run_post_command(post_command, "post_type_check_command")
         return issues
 
     def _run_shell_command(self, command: str, label: str) -> subprocess.CompletedProcess[str]:
@@ -443,6 +411,22 @@ class DomainRunner:
             capture_output=True,
             text=True,
         )
+
+    def _run_post_command(self, post_command: Optional[str], label: str) -> None:
+        """Run a post-command if provided and log any failures.
+
+        Args:
+            post_command: Optional shell command to execute after main operation.
+            label: Label for logging (e.g., "post_lint_command", "testing.post_command").
+        """
+        if not post_command:
+            return
+        post_result = self._run_shell_command(post_command, label)
+        if post_result.returncode != 0:
+            LOGGER.warning(
+                f"{label} failed (exit code {post_result.returncode}): "
+                f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
+            )
 
     def _parse_command_output(
         self,
@@ -762,15 +746,7 @@ class DomainRunner:
             else:
                 self._log("info", "testing.command: PASSED")
 
-            # Run post_command if provided
-            if post_command:
-                post_result = self._run_shell_command(post_command, "testing.post_command")
-                if post_result.returncode != 0:
-                    LOGGER.warning(
-                        f"testing.post_command failed (exit code {post_result.returncode}): "
-                        f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
-                    )
-
+            self._run_post_command(post_command, "testing.post_command")
             return issues
 
         # Fall through to existing plugin-based logic
@@ -803,15 +779,7 @@ class DomainRunner:
                 except Exception as e:
                     LOGGER.error(f"Test runner {name} failed: {e}")
 
-        # Run post_command after plugin-based tests if provided
-        if post_command:
-            post_result = self._run_shell_command(post_command, "testing.post_command")
-            if post_result.returncode != 0:
-                LOGGER.warning(
-                    f"testing.post_command failed (exit code {post_result.returncode}): "
-                    f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
-                )
-
+        self._run_post_command(post_command, "testing.post_command")
         return issues
 
     def run_coverage(
@@ -863,15 +831,7 @@ class DomainRunner:
             else:
                 self._log("info", "coverage_command: PASSED")
 
-            # Run post_command if provided
-            if post_command:
-                post_result = self._run_shell_command(post_command, "post_coverage_command")
-                if post_result.returncode != 0:
-                    LOGGER.warning(
-                        f"post_coverage_command failed (exit code {post_result.returncode}): "
-                        f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
-                    )
-
+            self._run_post_command(post_command, "post_coverage_command")
             return issues
 
         # Fall through to plugin-based logic
@@ -920,15 +880,7 @@ class DomainRunner:
                 except Exception as e:
                     LOGGER.error(f"Coverage plugin {name} failed: {e}")
 
-        # Run post_command after plugin-based coverage if provided
-        if post_command:
-            post_result = self._run_shell_command(post_command, "post_coverage_command")
-            if post_result.returncode != 0:
-                LOGGER.warning(
-                    f"post_coverage_command failed (exit code {post_result.returncode}): "
-                    f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
-                )
-
+        self._run_post_command(post_command, "post_coverage_command")
         return issues
 
     def run_duplication(
