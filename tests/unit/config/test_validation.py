@@ -439,64 +439,65 @@ class TestValidateConfigPipeline:
         )
 
 
-class TestValidateConfigTestCommand:
-    """Tests for pipeline.testing.test_command and post_test_command validation."""
+class TestValidateConfigCommand:
+    """Tests for pipeline command and post_command validation."""
 
-    def test_test_command_accepted_in_testing(self) -> None:
-        """Test that test_command is accepted in pipeline.testing."""
-        data = {"pipeline": {"testing": {"tools": [{"name": "pytest"}], "test_command": "make test"}}}
+    def test_command_accepted_in_testing(self) -> None:
+        """Test that command is accepted in pipeline.testing."""
+        data = {"pipeline": {"testing": {"tools": [{"name": "pytest"}], "command": "make test"}}}
         warnings = validate_config(data, source="test.yml")
         assert not any(
-            "test_command" in (w.key or "") and "Unknown" in w.message
+            "command" in (w.key or "") and "Unknown" in w.message
             for w in warnings
         )
 
-    def test_post_test_command_accepted_in_testing(self) -> None:
-        """Test that post_test_command is accepted in pipeline.testing."""
-        data = {"pipeline": {"testing": {"tools": [{"name": "pytest"}], "post_test_command": "make clean"}}}
+    def test_post_command_accepted_in_testing(self) -> None:
+        """Test that post_command is accepted in pipeline.testing."""
+        data = {"pipeline": {"testing": {"tools": [{"name": "pytest"}], "post_command": "make clean"}}}
         warnings = validate_config(data, source="test.yml")
         assert not any(
-            "post_test_command" in (w.key or "") and "Unknown" in w.message
+            "post_command" in (w.key or "") and "Unknown" in w.message
             for w in warnings
         )
 
     def test_both_commands_accepted(self) -> None:
-        """Test that both test_command and post_test_command are accepted together."""
+        """Test that both command and post_command are accepted together."""
         data = {
             "pipeline": {
                 "testing": {
                     "tools": [{"name": "pytest"}],
-                    "test_command": "npm test",
-                    "post_test_command": "npm run cleanup",
+                    "command": "npm test",
+                    "post_command": "npm run cleanup",
                 }
             }
         }
         warnings = validate_config(data, source="test.yml")
         assert not any("Unknown" in w.message for w in warnings)
 
-    def test_warns_on_non_string_test_command(self) -> None:
-        """Test warning for non-string test_command."""
-        data = {"pipeline": {"testing": {"tools": [{"name": "pytest"}], "test_command": 123}}}
+    def test_warns_on_non_string_command(self) -> None:
+        """Test warning for non-string command."""
+        data = {"pipeline": {"testing": {"tools": [{"name": "pytest"}], "command": 123}}}
         warnings = validate_config(data, source="test.yml")
         assert any(
-            "pipeline.testing.test_command" in (w.key or "") and "must be a string" in w.message
+            "pipeline.testing.command" in (w.key or "") and "must be a string" in w.message
             for w in warnings
         )
 
-    def test_warns_on_non_string_post_test_command(self) -> None:
-        """Test warning for non-string post_test_command."""
-        data = {"pipeline": {"testing": {"tools": [{"name": "pytest"}], "post_test_command": ["cmd1", "cmd2"]}}}
+    def test_warns_on_non_string_post_command(self) -> None:
+        """Test warning for non-string post_command."""
+        data = {"pipeline": {"testing": {"tools": [{"name": "pytest"}], "post_command": ["cmd1", "cmd2"]}}}
         warnings = validate_config(data, source="test.yml")
         assert any(
-            "pipeline.testing.post_test_command" in (w.key or "") and "must be a string" in w.message
+            "pipeline.testing.post_command" in (w.key or "") and "must be a string" in w.message
             for w in warnings
         )
 
-    def test_test_command_not_valid_in_linting(self) -> None:
-        """Test that test_command triggers warning in non-testing domains like linting."""
-        data = {"pipeline": {"linting": {"tools": [{"name": "ruff"}], "test_command": "make test"}}}
-        warnings = validate_config(data, source="test.yml")
-        assert any("Unknown" in w.message and "test_command" in w.message for w in warnings)
+    def test_command_valid_in_all_domains(self) -> None:
+        """Test that command is accepted in all pipeline domains."""
+        for domain in ["linting", "type_checking", "testing", "coverage"]:
+            data = {"pipeline": {domain: {"tools": [{"name": "some_tool"}], "command": "make check"}}}
+            warnings = validate_config(data, source="test.yml")
+            assert not any("Unknown" in w.message and "command" in w.message for w in warnings)
 
 
 class TestValidateConfigAI:

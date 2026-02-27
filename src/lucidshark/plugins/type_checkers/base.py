@@ -76,13 +76,14 @@ class TypeCheckerPlugin(ABC):
         """
         return False
 
-    @abstractmethod
     def get_version(self) -> str:
         """Get the version of the underlying type checking tool.
 
         Returns:
-            Version string.
+            Version string. Default returns "installed" since version
+            management is handled by package managers.
         """
+        return "installed"
 
     @abstractmethod
     def ensure_binary(self) -> Path:

@@ -8,16 +8,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-import platform
 import subprocess
-import tarfile
-import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from lucidshark.bootstrap.download import download_file
-from lucidshark.bootstrap.paths import LucidsharkPaths
-from lucidshark.bootstrap.versions import get_tool_version
 from lucidshark.core.logging import get_logger
 from lucidshark.core.models import (
     ScanContext,
@@ -27,11 +21,9 @@ from lucidshark.core.models import (
 )
 from lucidshark.core.subprocess_runner import run_with_streaming
 from lucidshark.plugins.linters.base import LinterPlugin, FixResult
+from lucidshark.plugins.utils import ensure_python_binary, get_cli_version
 
 LOGGER = get_logger(__name__)
-
-# Default version from pyproject.toml [tool.lucidshark.tools]
-DEFAULT_VERSION = get_tool_version("ruff")
 
 # Python file extensions that Ruff supports
 PYTHON_EXTENSIONS = {".py", ".pyi", ".pyw"}
@@ -101,22 +93,13 @@ SEVERITY_MAP = {
 class RuffLinter(LinterPlugin):
     """Ruff linter plugin for Python code analysis."""
 
-    def __init__(
-        self,
-        version: str = DEFAULT_VERSION,
-        project_root: Optional[Path] = None,
-    ):
+    def __init__(self, project_root: Optional[Path] = None):
         """Initialize RuffLinter.
 
         Args:
-            version: Ruff version to use.
-            project_root: Optional project root for tool installation.
+            project_root: Optional project root for finding Ruff installation.
         """
-        self._version = version
-        if project_root:
-            self._paths = LucidsharkPaths.for_project(project_root)
-        else:
-            self._paths = LucidsharkPaths.default()
+        self._project_root = project_root
 
     @property
     def name(self) -> str:
@@ -135,39 +118,31 @@ class RuffLinter(LinterPlugin):
 
     def get_version(self) -> str:
         """Get Ruff version."""
-        return self._version
+        try:
+            binary = self.ensure_binary()
+            return get_cli_version(binary)
+        except FileNotFoundError:
+            return "unknown"
 
     def ensure_binary(self) -> Path:
         """Ensure Ruff binary is available.
 
-        Downloads from GitHub releases if not present.
+        Checks for Ruff in project venv or system PATH.
 
         Returns:
             Path to Ruff binary.
+
+        Raises:
+            FileNotFoundError: If Ruff is not installed.
         """
-        binary_dir = self._paths.plugin_bin_dir(self.name, self._version)
-        binary_name = "ruff.exe" if platform.system() == "Windows" else "ruff"
-        binary_path = binary_dir / binary_name
-
-        if binary_path.exists():
-            return binary_path
-
-        # Download binary
-        LOGGER.info(f"Downloading Ruff {self._version}...")
-        binary_dir.mkdir(parents=True, exist_ok=True)
-
-        archive_path = self._download_release(binary_dir)
-        self._extract_binary(archive_path, binary_dir, binary_name)
-
-        # Make executable on Unix
-        if platform.system() != "Windows":
-            binary_path.chmod(0o755)
-
-        # Clean up archive
-        archive_path.unlink(missing_ok=True)
-
-        LOGGER.info(f"Ruff {self._version} installed to {binary_dir}")
-        return binary_path
+        return ensure_python_binary(
+            self._project_root,
+            "ruff",
+            "Ruff is not installed. Install it with:\n"
+            "  pip install ruff\n"
+            "  OR\n"
+            "  uv add --dev ruff",
+        )
 
     def lint(self, context: ScanContext) -> List[UnifiedIssue]:
         """Run Ruff linting.
@@ -178,7 +153,11 @@ class RuffLinter(LinterPlugin):
         Returns:
             List of linting issues.
         """
-        binary = self.ensure_binary()
+        try:
+            binary = self.ensure_binary()
+        except FileNotFoundError as e:
+            LOGGER.warning(str(e))
+            return []
 
         # Build command
         cmd = [
@@ -246,7 +225,11 @@ class RuffLinter(LinterPlugin):
         Returns:
             FixResult with statistics.
         """
-        binary = self.ensure_binary()
+        try:
+            binary = self.ensure_binary()
+        except FileNotFoundError as e:
+            LOGGER.warning(str(e))
+            return FixResult()
 
         # Run without fix to count issues first
         pre_issues = self.lint(context)
@@ -399,81 +382,6 @@ class RuffLinter(LinterPlugin):
             else:
                 LOGGER.debug(f"Skipping non-Python file: {path}")
         return filtered
-
-    def _download_release(self, target_dir: Path) -> Path:
-        """Download Ruff release archive.
-
-        Args:
-            target_dir: Directory to download to.
-
-        Returns:
-            Path to downloaded archive.
-        """
-        system = platform.system().lower()
-        machine = platform.machine().lower()
-
-        # Map platform names
-        if system == "darwin":
-            system = "apple-darwin"
-        elif system == "linux":
-            system = "unknown-linux-gnu"
-        elif system == "windows":
-            system = "pc-windows-msvc"
-
-        # Map architecture
-        if machine in ("x86_64", "amd64"):
-            arch = "x86_64"
-        elif machine in ("arm64", "aarch64"):
-            arch = "aarch64"
-        else:
-            arch = machine
-
-        # Build download URL
-        ext = "zip" if platform.system() == "Windows" else "tar.gz"
-        filename = f"ruff-{arch}-{system}.{ext}"
-        url = f"https://github.com/astral-sh/ruff/releases/download/{self._version}/{filename}"
-
-        archive_path = target_dir / filename
-
-        LOGGER.debug(f"Downloading from {url}")
-
-        # Validate URL scheme and domain for security
-        if not url.startswith("https://github.com/"):
-            raise ValueError(f"Invalid download URL: {url}")
-
-        try:
-            download_file(url, archive_path)  # nosec B310 nosemgrep
-        except Exception as e:
-            raise RuntimeError(f"Failed to download Ruff: {e}") from e
-
-        return archive_path
-
-    def _extract_binary(self, archive_path: Path, target_dir: Path, binary_name: str) -> None:
-        """Extract binary from archive.
-
-        Args:
-            archive_path: Path to archive file.
-            target_dir: Directory to extract to.
-            binary_name: Name of the binary file.
-        """
-        if str(archive_path).endswith(".zip"):
-            with zipfile.ZipFile(archive_path, "r") as zf:
-                for member in zf.namelist():
-                    if member.endswith(binary_name):
-                        # Extract to target dir
-                        zf.extract(member, target_dir)
-                        # Move from subdirectory if needed
-                        extracted = target_dir / member
-                        if extracted.parent != target_dir:
-                            extracted.rename(target_dir / binary_name)
-                        break
-        else:
-            with tarfile.open(archive_path, "r:gz") as tf:
-                for tarinfo in tf.getmembers():
-                    if tarinfo.name.endswith(binary_name):
-                        tarinfo.name = binary_name
-                        tf.extract(tarinfo, target_dir)
-                        break
 
     def _parse_output(self, output: str, project_root: Path) -> List[UnifiedIssue]:
         """Parse Ruff JSON output.

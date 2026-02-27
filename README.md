@@ -169,8 +169,8 @@ pipeline:
   security: { enabled: true, tools: [{ name: trivy }, { name: opengrep }] }
   testing:
     enabled: true
-    test_command: "make test"            # Optional: custom command overrides plugin-based runner
-    post_test_command: "make clean"      # Optional: runs after tests complete
+    command: "make test"            # Optional: custom command overrides plugin-based runner
+    post_command: "make clean"      # Optional: runs after tests complete
     tools: [{ name: pytest }]
   coverage: { enabled: true, threshold: 80 }
   duplication: { enabled: true, threshold: 10.0 }

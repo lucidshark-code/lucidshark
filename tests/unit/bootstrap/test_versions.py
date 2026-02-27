@@ -186,8 +186,8 @@ class TestLoadPyprojectVersions:
 
                     # Should have trivy from pyproject
                     assert result.get("trivy") == "1.0.0"
-                    # Should have ruff from fallbacks
-                    assert "ruff" in result
+                    # Should have duplo from fallbacks (security tools only)
+                    assert "duplo" in result
 
 
 class TestGetToolVersion:
@@ -244,8 +244,8 @@ class TestGetAllVersions:
         """Test that result contains expected tools."""
         result = get_all_versions()
 
-        # Should contain at least the fallback tools
-        for tool in ["trivy", "ruff", "biome"]:
+        # Should contain at least the fallback tools (security tools + duplo)
+        for tool in ["trivy", "opengrep", "checkov", "duplo"]:
             assert tool in result
 
 
@@ -269,7 +269,11 @@ class TestFallbackVersions:
             assert "." in version, f"{tool} version '{version}' doesn't look like a version"
 
     def test_expected_tools_in_fallback(self) -> None:
-        """Test that expected tools are in fallback versions."""
-        expected_tools = ["trivy", "opengrep", "checkov", "ruff", "biome", "checkstyle", "pyright"]
+        """Test that expected tools are in fallback versions.
+
+        Only security tools and duplo are included in fallbacks.
+        Language tools (ruff, biome, etc.) are installed via package managers.
+        """
+        expected_tools = ["trivy", "opengrep", "checkov", "duplo"]
         for tool in expected_tools:
             assert tool in _FALLBACK_VERSIONS, f"Expected {tool} in fallback versions"

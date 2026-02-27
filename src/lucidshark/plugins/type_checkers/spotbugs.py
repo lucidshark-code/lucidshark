@@ -2,13 +2,14 @@
 
 SpotBugs is a static analysis tool for finding bugs in Java programs.
 https://spotbugs.github.io/
+
+Note: SpotBugs must be installed separately. LucidShark does not download it.
 """
 
 from __future__ import annotations
 
 import hashlib
 import os
-import platform
 import shutil
 import subprocess
 from pathlib import Path
@@ -17,9 +18,6 @@ from typing import List, Optional
 import defusedxml.ElementTree as ET  # type: ignore[import-untyped]
 from xml.etree.ElementTree import Element
 
-from lucidshark.bootstrap.download import download_file
-from lucidshark.bootstrap.paths import LucidsharkPaths
-from lucidshark.bootstrap.versions import get_tool_version
 from lucidshark.core.logging import get_logger
 from lucidshark.core.models import (
     ScanContext,
@@ -31,9 +29,6 @@ from lucidshark.core.subprocess_runner import run_with_streaming
 from lucidshark.plugins.type_checkers.base import TypeCheckerPlugin
 
 LOGGER = get_logger(__name__)
-
-# Default version from pyproject.toml [tool.lucidshark.tools]
-DEFAULT_VERSION = get_tool_version("spotbugs")
 
 # SpotBugs priority to severity mapping
 # 1 = High, 2 = Medium, 3 = Low, 4+ = Info
@@ -62,22 +57,14 @@ class SpotBugsChecker(TypeCheckerPlugin):
 
     def __init__(
         self,
-        version: str = DEFAULT_VERSION,
         project_root: Optional[Path] = None,
     ):
         """Initialize SpotBugsChecker.
 
         Args:
-            version: SpotBugs version to use.
             project_root: Optional project root for tool installation.
         """
-        self._version = version
-        if project_root:
-            self._paths = LucidsharkPaths.for_project(project_root)
-            self._project_root = project_root
-        else:
-            self._paths = LucidsharkPaths.default()
-            self._project_root = None
+        self._project_root = project_root
 
     @property
     def name(self) -> str:
@@ -94,10 +81,6 @@ class SpotBugsChecker(TypeCheckerPlugin):
         """SpotBugs supports effort levels (similar to strict mode)."""
         return True
 
-    def get_version(self) -> str:
-        """Get SpotBugs version."""
-        return self._version
-
     def _check_java_available(self) -> Optional[Path]:
         """Check if Java is available.
 
@@ -110,13 +93,15 @@ class SpotBugsChecker(TypeCheckerPlugin):
     def ensure_binary(self) -> Path:
         """Ensure SpotBugs is available.
 
-        Downloads from GitHub releases if not present.
+        Checks for spotbugs in:
+        1. System PATH
+        2. SPOTBUGS_HOME environment variable
 
         Returns:
             Path to SpotBugs directory containing the lib folder.
 
         Raises:
-            FileNotFoundError: If Java is not installed.
+            FileNotFoundError: If Java or SpotBugs is not installed.
         """
         # First check if Java is available
         if not self._check_java_available():
@@ -125,67 +110,30 @@ class SpotBugsChecker(TypeCheckerPlugin):
                 "Install Java JDK/JRE to use SpotBugs."
             )
 
-        install_dir = self._paths.plugin_bin_dir(self.name, self._version)
-        spotbugs_dir = install_dir / f"spotbugs-{self._version}"
-        lib_dir = spotbugs_dir / "lib"
-        spotbugs_jar = lib_dir / "spotbugs.jar"
+        # Check for spotbugs in PATH
+        spotbugs_path = shutil.which("spotbugs")
+        if spotbugs_path:
+            # spotbugs script is usually in bin/, lib/ is a sibling
+            spotbugs_bin = Path(spotbugs_path).resolve()
+            spotbugs_dir = spotbugs_bin.parent.parent
+            spotbugs_jar = spotbugs_dir / "lib" / "spotbugs.jar"
+            if spotbugs_jar.exists():
+                return spotbugs_dir
 
-        if spotbugs_jar.exists():
-            return spotbugs_dir
+        # Check SPOTBUGS_HOME environment variable
+        spotbugs_home = os.environ.get("SPOTBUGS_HOME")
+        if spotbugs_home:
+            spotbugs_dir = Path(spotbugs_home)
+            spotbugs_jar = spotbugs_dir / "lib" / "spotbugs.jar"
+            if spotbugs_jar.exists():
+                return spotbugs_dir
 
-        LOGGER.info(f"Downloading SpotBugs {self._version}...")
-        install_dir.mkdir(parents=True, exist_ok=True)
-
-        self._download_and_extract(install_dir)
-
-        LOGGER.info(f"SpotBugs {self._version} installed to {spotbugs_dir}")
-        return spotbugs_dir
-
-    def _download_and_extract(self, install_dir: Path) -> None:
-        """Download and extract SpotBugs.
-
-        Args:
-            install_dir: Directory to extract to.
-        """
-        import tarfile
-        import tempfile
-
-        url = (
-            f"https://github.com/spotbugs/spotbugs/releases/download/"
-            f"{self._version}/spotbugs-{self._version}.tgz"
+        raise FileNotFoundError(
+            "SpotBugs is not installed. Install it with:\n"
+            "  brew install spotbugs  (macOS)\n"
+            "  apt install spotbugs   (Debian/Ubuntu)\n"
+            "  OR download from https://spotbugs.github.io/ and set SPOTBUGS_HOME"
         )
-
-        LOGGER.debug(f"Downloading from {url}")
-
-        # Validate URL scheme and domain for security
-        if not url.startswith("https://github.com/"):
-            raise ValueError(f"Invalid download URL: {url}")
-
-        try:
-            with tempfile.NamedTemporaryFile(suffix=".tgz", delete=False) as tmp:
-                tmp_path = Path(tmp.name)
-            download_file(url, tmp_path)  # nosec B310 nosemgrep
-
-            # Extract tarball safely
-            with tarfile.open(tmp_path, "r:gz") as tar:
-                # Security: validate and extract members individually
-                for member in tar.getmembers():
-                    # Prevent path traversal attacks
-                    if member.name.startswith("/") or ".." in member.name:
-                        raise ValueError(f"Invalid path in tarball: {member.name}")
-                    # Ensure extraction stays within install_dir
-                    member_path = (install_dir / member.name).resolve()
-                    if not str(member_path).startswith(str(install_dir.resolve())):
-                        raise ValueError(f"Path traversal attempt: {member.name}")
-                    # Skip symlinks on Windows (unsupported in most environments)
-                    if platform.system() == "Windows" and (member.issym() or member.islnk()):
-                        continue
-                    # Extract individual member safely
-                    tar.extract(member, path=install_dir)
-
-            tmp_path.unlink()
-        except Exception as e:
-            raise RuntimeError(f"Failed to download SpotBugs: {e}") from e
 
     def _find_class_directories(self, project_root: Path) -> List[Path]:
         """Find compiled class directories in a Java project.

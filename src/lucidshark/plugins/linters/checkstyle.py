@@ -12,11 +12,8 @@ import shutil
 import subprocess
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
-from lucidshark.bootstrap.download import download_file
-from lucidshark.bootstrap.paths import LucidsharkPaths
-from lucidshark.bootstrap.versions import get_tool_version
 from lucidshark.core.logging import get_logger
 from lucidshark.core.models import (
     ScanContext,
@@ -28,9 +25,6 @@ from lucidshark.core.subprocess_runner import run_with_streaming
 from lucidshark.plugins.linters.base import LinterPlugin
 
 LOGGER = get_logger(__name__)
-
-# Default version from pyproject.toml [tool.lucidshark.tools]
-DEFAULT_VERSION = get_tool_version("checkstyle")
 
 # Checkstyle severity mapping
 SEVERITY_MAP = {
@@ -44,24 +38,13 @@ SEVERITY_MAP = {
 class CheckstyleLinter(LinterPlugin):
     """Checkstyle linter plugin for Java code analysis."""
 
-    def __init__(
-        self,
-        version: str = DEFAULT_VERSION,
-        project_root: Optional[Path] = None,
-    ):
+    def __init__(self, project_root: Optional[Path] = None):
         """Initialize CheckstyleLinter.
 
         Args:
-            version: Checkstyle version to use.
-            project_root: Optional project root for tool installation.
+            project_root: Optional project root for finding Checkstyle installation.
         """
-        self._version = version
-        if project_root:
-            self._paths = LucidsharkPaths.for_project(project_root)
-            self._project_root = project_root
-        else:
-            self._paths = LucidsharkPaths.default()
-            self._project_root = None
+        self._project_root = project_root
 
     @property
     def name(self) -> str:
@@ -80,7 +63,20 @@ class CheckstyleLinter(LinterPlugin):
 
     def get_version(self) -> str:
         """Get Checkstyle version."""
-        return self._version
+        try:
+            binary, _ = self.ensure_binary()
+            result = subprocess.run(
+                [str(binary), "--version"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                # Output: "Checkstyle version: X.Y.Z"
+                return result.stdout.strip().split()[-1]
+        except Exception:
+            pass
+        return "unknown"
 
     def _check_java_available(self) -> Optional[Path]:
         """Check if Java is available.
@@ -91,60 +87,29 @@ class CheckstyleLinter(LinterPlugin):
         java_path = shutil.which("java")
         return Path(java_path) if java_path else None
 
-    def ensure_binary(self) -> Path:
-        """Ensure Checkstyle JAR is available.
+    def ensure_binary(self) -> Tuple[Path, str]:
+        """Ensure Checkstyle is available.
 
-        Downloads from GitHub releases if not present.
+        Checks for:
+        1. checkstyle command in PATH (standalone installation)
 
         Returns:
-            Path to Checkstyle JAR file.
+            Tuple of (path to checkstyle, mode: 'standalone' or 'jar').
 
         Raises:
-            FileNotFoundError: If Java is not installed.
+            FileNotFoundError: If Checkstyle is not installed.
         """
-        # First check if Java is available
-        if not self._check_java_available():
-            raise FileNotFoundError(
-                "Java is not installed. Checkstyle requires Java.\n"
-                "Install Java JDK/JRE to use Checkstyle."
-            )
+        # Check for standalone checkstyle command
+        checkstyle_path = shutil.which("checkstyle")
+        if checkstyle_path:
+            return Path(checkstyle_path), "standalone"
 
-        jar_dir = self._paths.plugin_bin_dir(self.name, self._version)
-        jar_name = f"checkstyle-{self._version}-all.jar"
-        jar_path = jar_dir / jar_name
-
-        if jar_path.exists():
-            return jar_path
-
-        LOGGER.info(f"Downloading Checkstyle {self._version}...")
-        jar_dir.mkdir(parents=True, exist_ok=True)
-
-        self._download_jar(jar_path)
-
-        LOGGER.info(f"Checkstyle {self._version} installed to {jar_dir}")
-        return jar_path
-
-    def _download_jar(self, target_path: Path) -> None:
-        """Download Checkstyle JAR file.
-
-        Args:
-            target_path: Path to save the JAR file.
-        """
-        url = (
-            f"https://github.com/checkstyle/checkstyle/releases/download/"
-            f"checkstyle-{self._version}/checkstyle-{self._version}-all.jar"
+        raise FileNotFoundError(
+            "Checkstyle is not installed. Install it with:\n"
+            "  brew install checkstyle  (macOS)\n"
+            "  apt install checkstyle   (Debian/Ubuntu)\n"
+            "  OR use the Gradle/Maven Checkstyle plugin"
         )
-
-        LOGGER.debug(f"Downloading from {url}")
-
-        # Validate URL scheme and domain for security
-        if not url.startswith("https://github.com/"):
-            raise ValueError(f"Invalid download URL: {url}")
-
-        try:
-            download_file(url, target_path)  # nosec B310 nosemgrep
-        except Exception as e:
-            raise RuntimeError(f"Failed to download Checkstyle: {e}") from e
 
     def lint(self, context: ScanContext) -> List[UnifiedIssue]:
         """Run Checkstyle linting.
@@ -156,23 +121,17 @@ class CheckstyleLinter(LinterPlugin):
             List of linting issues.
         """
         try:
-            jar_path = self.ensure_binary()
+            binary, mode = self.ensure_binary()
         except FileNotFoundError as e:
             LOGGER.warning(str(e))
-            return []
-
-        java_path = self._check_java_available()
-        if not java_path:
-            LOGGER.warning("Java not found, skipping Checkstyle")
             return []
 
         # Determine config file
         config_file = self._find_config_file(context.project_root)
 
-        # Build command
+        # Build command for standalone checkstyle
         cmd = [
-            str(java_path),
-            "-jar", str(jar_path),
+            str(binary),
             "-c", config_file,
             "-f", "xml",
         ]

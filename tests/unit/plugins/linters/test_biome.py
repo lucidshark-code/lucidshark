@@ -55,9 +55,10 @@ class TestBiomeLinterProperties:
         assert linter.supports_fix is True
 
     def test_get_version(self) -> None:
-        """Test get_version returns configured version."""
-        linter = BiomeLinter(version="1.5.0")
-        assert linter.get_version() == "1.5.0"
+        """Test get_version returns unknown when biome not installed."""
+        linter = BiomeLinter()
+        # Returns "unknown" when biome is not installed in test env
+        assert linter.get_version() == "unknown"
 
     def test_init_with_project_root(self) -> None:
         """Test initialization with project root."""
@@ -152,7 +153,7 @@ class TestBiomeEnsureBinary:
             linter = BiomeLinter(project_root=Path(tmpdir))
             node_biome = Path(tmpdir) / "node_modules" / ".bin" / "biome"
 
-            with patch("lucidshark.plugins.linters.biome.resolve_node_bin", return_value=node_biome):
+            with patch("lucidshark.plugins.utils.resolve_node_bin", return_value=node_biome):
                 binary = linter.ensure_binary()
                 assert binary == node_biome
 
@@ -161,25 +162,20 @@ class TestBiomeEnsureBinary:
         linter = BiomeLinter()
 
         with patch("shutil.which", return_value="/usr/local/bin/biome"):
-            binary = linter.ensure_binary()
-            assert binary == Path("/usr/local/bin/biome")
+            with patch("lucidshark.plugins.utils.resolve_node_bin", return_value=None):
+                binary = linter.ensure_binary()
+                assert binary == Path("/usr/local/bin/biome")
 
-    def test_downloads_when_not_found(self) -> None:
-        """Test downloading biome when not found."""
+    def test_raises_when_not_found(self) -> None:
+        """Test raises FileNotFoundError when biome not found."""
+        import pytest
+
         linter = BiomeLinter()
 
         with patch("shutil.which", return_value=None):
-            with patch("lucidshark.plugins.linters.biome.resolve_node_bin", return_value=None):
-                with patch.object(linter, "_paths") as mock_paths:
-                    with tempfile.TemporaryDirectory() as tmpdir:
-                        bin_dir = Path(tmpdir) / "bin"
-                        bin_dir.mkdir()
-                        binary = bin_dir / _BIOME_BINARY
-                        binary.touch()
-                        mock_paths.plugin_bin_dir.return_value = bin_dir
-
-                        result = linter.ensure_binary()
-                        assert result == binary
+            with patch("lucidshark.plugins.utils.resolve_node_bin", return_value=None):
+                with pytest.raises(FileNotFoundError, match="Biome is not installed"):
+                    linter.ensure_binary()
 
 
 class TestBiomeLint:
@@ -541,59 +537,3 @@ class TestBiomeIssueIdGeneration:
         assert "biome--" not in issue_id
 
 
-class TestBiomeDownloadRelease:
-    """Tests for _download_release method."""
-
-    @patch("platform.system", return_value="Darwin")
-    @patch("platform.machine", return_value="arm64")
-    def test_download_url_v2(self, mock_machine, mock_system) -> None:
-        """Test download URL generation for Biome 2.x."""
-        linter = BiomeLinter(version="2.0.0")
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("lucidshark.plugins.linters.biome.download_file") as mock_download:
-                linter._download_release(Path(tmpdir))
-                call_url = mock_download.call_args[0][0]
-                assert "@biomejs/biome@2.0.0" in call_url
-                assert "biome-darwin-arm64" in call_url
-
-    @patch("platform.system", return_value="Darwin")
-    @patch("platform.machine", return_value="x86_64")
-    def test_download_url_v1(self, mock_machine, mock_system) -> None:
-        """Test download URL generation for Biome 1.x."""
-        linter = BiomeLinter(version="1.5.0")
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("lucidshark.plugins.linters.biome.download_file") as mock_download:
-                linter._download_release(Path(tmpdir))
-                call_url = mock_download.call_args[0][0]
-                assert "cli/v1.5.0" in call_url
-                assert "biome-darwin-x64" in call_url
-
-
-class TestBiomeExtractBinary:
-    """Tests for _extract_binary method."""
-
-    def test_rename_when_different_names(self) -> None:
-        """Test binary is renamed when archive_path differs from target."""
-        linter = BiomeLinter()
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            archive_path = Path(tmpdir) / "biome-darwin-arm64"
-            archive_path.touch()
-            target_name = "biome"
-
-            linter._extract_binary(archive_path, Path(tmpdir), target_name)
-            assert (Path(tmpdir) / target_name).exists()
-
-    def test_no_rename_when_same_name(self) -> None:
-        """Test no action when archive_path equals target."""
-        linter = BiomeLinter()
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            binary_path = Path(tmpdir) / "biome"
-            binary_path.touch()
-
-            # Should not raise
-            linter._extract_binary(binary_path, Path(tmpdir), "biome")
-            assert binary_path.exists()

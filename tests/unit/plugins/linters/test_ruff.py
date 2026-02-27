@@ -51,9 +51,12 @@ class TestRuffLinterProperties:
         assert linter.supports_fix is True
 
     def test_get_version(self) -> None:
-        """Test get_version returns configured version."""
-        linter = RuffLinter(version="0.5.0")
-        assert linter.get_version() == "0.5.0"
+        """Test get_version returns a string."""
+        linter = RuffLinter()
+        version = linter.get_version()
+        # Returns a version string if ruff is installed, "unknown" otherwise
+        assert isinstance(version, str)
+        assert version == "unknown" or version.startswith("ruff ")
 
     def test_init_with_project_root(self) -> None:
         """Test initialization with project root."""

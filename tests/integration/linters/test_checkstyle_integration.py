@@ -1,6 +1,6 @@
 """Integration tests for Checkstyle linter.
 
-These tests require Java to be installed.
+These tests require Java and Checkstyle to be installed.
 
 Run with: pytest tests/integration/linters -v
 """
@@ -16,16 +16,27 @@ from lucidshark.plugins.linters.checkstyle import CheckstyleLinter
 from tests.integration.conftest import java_available
 
 
-class TestCheckstyleDownload:
-    """Tests for Checkstyle JAR download and management."""
+class TestCheckstyleResolution:
+    """Tests for Checkstyle binary resolution."""
 
-    @java_available
-    def test_ensure_binary_downloads_jar(self, checkstyle_linter: CheckstyleLinter) -> None:
-        """Test that ensure_binary downloads Checkstyle JAR if not present."""
-        jar_path = checkstyle_linter.ensure_binary()
+    def test_ensure_binary_raises_when_not_installed(self) -> None:
+        """Test that ensure_binary raises FileNotFoundError when checkstyle is not installed."""
+        # Create a linter pointing to a non-existent project
+        linter = CheckstyleLinter(project_root=Path("/nonexistent"))
 
-        assert jar_path.exists()
-        assert jar_path.suffix == ".jar"
+        # This will raise FileNotFoundError since checkstyle won't be found
+        # unless it's installed globally
+        try:
+            binary_info = linter.ensure_binary()
+            # If checkstyle is installed globally, verify it exists
+            if isinstance(binary_info, tuple):
+                binary_path, _ = binary_info
+                assert binary_path.exists()
+            else:
+                assert binary_info.exists()
+        except FileNotFoundError as e:
+            # Expected behavior when checkstyle is not installed
+            assert "Checkstyle is not installed" in str(e)
 
 
 @java_available

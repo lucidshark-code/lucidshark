@@ -82,21 +82,18 @@ VALID_PIPELINE_KEYS: Set[str] = {
     "duplication",
 }
 
-# Valid keys under pipeline domain sections (linting, type_checking, etc.)
+# Valid keys under pipeline domain sections (linting, type_checking, testing, etc.)
+# All domains support custom commands via 'command' and 'post_command'
 VALID_PIPELINE_DOMAIN_KEYS: Set[str] = {
     "enabled",
     "tools",
     "exclude",
+    "command",       # Custom shell command to run instead of plugins
+    "post_command",  # Shell command to run after main command
 }
 
-# Valid keys under pipeline.testing section (extends domain keys)
-VALID_PIPELINE_TESTING_KEYS: Set[str] = {
-    "enabled",
-    "tools",
-    "exclude",
-    "test_command",
-    "post_test_command",
-}
+# Valid keys under pipeline.testing section (same as domain keys)
+VALID_PIPELINE_TESTING_KEYS: Set[str] = VALID_PIPELINE_DOMAIN_KEYS
 
 # Valid keys under pipeline.coverage section
 VALID_PIPELINE_COVERAGE_KEYS: Set[str] = {
@@ -105,6 +102,8 @@ VALID_PIPELINE_COVERAGE_KEYS: Set[str] = {
     "threshold",
     "extra_args",  # Extra arguments to pass to Maven/Gradle
     "exclude",
+    "command",       # Custom shell command to run coverage
+    "post_command",  # Shell command to run after coverage
 }
 
 # Valid keys under pipeline.security section
@@ -490,22 +489,21 @@ def validate_config(
                             key=f"pipeline.{domain}.exclude",
                         ))
 
-                    # Validate test_command and post_test_command (testing domain only)
-                    if domain == "testing":
-                        test_cmd = domain_config.get("test_command")
-                        if test_cmd is not None and not isinstance(test_cmd, str):
-                            warnings.append(ConfigValidationWarning(
-                                message="'pipeline.testing.test_command' must be a string",
-                                source=source,
-                                key="pipeline.testing.test_command",
-                            ))
-                        post_test_cmd = domain_config.get("post_test_command")
-                        if post_test_cmd is not None and not isinstance(post_test_cmd, str):
-                            warnings.append(ConfigValidationWarning(
-                                message="'pipeline.testing.post_test_command' must be a string",
-                                source=source,
-                                key="pipeline.testing.post_test_command",
-                            ))
+                    # Validate command and post_command (all domains)
+                    cmd = domain_config.get("command")
+                    if cmd is not None and not isinstance(cmd, str):
+                        warnings.append(ConfigValidationWarning(
+                            message=f"'pipeline.{domain}.command' must be a string",
+                            source=source,
+                            key=f"pipeline.{domain}.command",
+                        ))
+                    post_cmd = domain_config.get("post_command")
+                    if post_cmd is not None and not isinstance(post_cmd, str):
+                        warnings.append(ConfigValidationWarning(
+                            message=f"'pipeline.{domain}.post_command' must be a string",
+                            source=source,
+                            key=f"pipeline.{domain}.post_command",
+                        ))
 
             # Validate pipeline.security section
             security_config = pipeline.get("security")

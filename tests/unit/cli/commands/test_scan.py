@@ -416,7 +416,7 @@ class TestScanCommandRunScan:
         assert result.issues == []
         mock_runner.run_tests.assert_called_once_with(
             mock_ctx, with_coverage=False, exclude_patterns=None,
-            test_command=None, post_test_command=None,
+            command=None, post_command=None,
         )
 
     @patch("lucidshark.cli.commands.scan.PipelineExecutor")
@@ -459,7 +459,7 @@ class TestScanCommandRunScan:
 
         mock_runner.run_tests.assert_called_once_with(
             mock_ctx, with_coverage=True, exclude_patterns=None,
-            test_command=None, post_test_command=None,
+            command=None, post_command=None,
         )
         mock_runner.run_coverage.assert_called_once()
         assert result.coverage_summary is not None

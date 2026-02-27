@@ -1072,10 +1072,18 @@ ignore:
         """
         loop = asyncio.get_event_loop()
         linting_exclude = None
-        if self.config.pipeline.linting and self.config.pipeline.linting.exclude:
-            linting_exclude = self.config.pipeline.linting.exclude
+        linting_command = None
+        linting_post_command = None
+        if self.config.pipeline.linting:
+            if self.config.pipeline.linting.exclude:
+                linting_exclude = self.config.pipeline.linting.exclude
+            linting_command = self.config.pipeline.linting.command
+            linting_post_command = self.config.pipeline.linting.post_command
         run_fn = functools.partial(
-            self._runner.run_linting, context, fix, exclude_patterns=linting_exclude
+            self._runner.run_linting, context, fix,
+            exclude_patterns=linting_exclude,
+            command=linting_command,
+            post_command=linting_post_command,
         )
         return await loop.run_in_executor(None, run_fn)
 
@@ -1090,10 +1098,18 @@ ignore:
         """
         loop = asyncio.get_event_loop()
         tc_exclude = None
-        if self.config.pipeline.type_checking and self.config.pipeline.type_checking.exclude:
-            tc_exclude = self.config.pipeline.type_checking.exclude
+        tc_command = None
+        tc_post_command = None
+        if self.config.pipeline.type_checking:
+            if self.config.pipeline.type_checking.exclude:
+                tc_exclude = self.config.pipeline.type_checking.exclude
+            tc_command = self.config.pipeline.type_checking.command
+            tc_post_command = self.config.pipeline.type_checking.post_command
         run_fn = functools.partial(
-            self._runner.run_type_checking, context, exclude_patterns=tc_exclude
+            self._runner.run_type_checking, context,
+            exclude_patterns=tc_exclude,
+            command=tc_command,
+            post_command=tc_post_command,
         )
         return await loop.run_in_executor(None, run_fn)
 
@@ -1111,18 +1127,18 @@ ignore:
         """
         loop = asyncio.get_event_loop()
         testing_exclude = None
-        test_command = None
-        post_test_command = None
+        testing_command = None
+        testing_post_command = None
         if self.config.pipeline.testing:
             if self.config.pipeline.testing.exclude:
                 testing_exclude = self.config.pipeline.testing.exclude
-            test_command = self.config.pipeline.testing.test_command
-            post_test_command = self.config.pipeline.testing.post_test_command
+            testing_command = self.config.pipeline.testing.command
+            testing_post_command = self.config.pipeline.testing.post_command
         run_fn = functools.partial(
             self._runner.run_tests, context, with_coverage,
             exclude_patterns=testing_exclude,
-            test_command=test_command,
-            post_test_command=post_test_command,
+            command=testing_command,
+            post_command=testing_post_command,
         )
         return await loop.run_in_executor(None, run_fn)
 
@@ -1142,17 +1158,20 @@ ignore:
         """
         loop = asyncio.get_event_loop()
         coverage_exclude = None
-        post_test_command = None
-        if self.config.pipeline.coverage and self.config.pipeline.coverage.exclude:
-            coverage_exclude = self.config.pipeline.coverage.exclude
-        if self.config.pipeline.testing:
-            post_test_command = self.config.pipeline.testing.post_test_command
+        coverage_command = None
+        coverage_post_command = None
+        if self.config.pipeline.coverage:
+            if self.config.pipeline.coverage.exclude:
+                coverage_exclude = self.config.pipeline.coverage.exclude
+            coverage_command = self.config.pipeline.coverage.command
+            coverage_post_command = self.config.pipeline.coverage.post_command
         run_coverage_fn = functools.partial(
             self._runner.run_coverage,
             context,
             run_tests=run_tests,
             exclude_patterns=coverage_exclude,
-            post_test_command=post_test_command,
+            command=coverage_command,
+            post_command=coverage_post_command,
         )
         issues = await loop.run_in_executor(None, run_coverage_fn)
         # Coverage result is stored in context.coverage_result by DomainRunner

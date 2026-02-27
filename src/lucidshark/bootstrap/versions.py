@@ -27,17 +27,13 @@ except ImportError:
 
 # Hardcoded fallback versions (kept in sync with pyproject.toml)
 # These are used if pyproject.toml cannot be read at runtime
+# Only includes tools that LucidShark downloads itself (security tools + duplo)
+# Language-specific tools (ruff, biome, etc.) should be installed via package managers
 _FALLBACK_VERSIONS: Dict[str, str] = {
     # Security scanners
     "trivy": "0.69.1",
     "opengrep": "1.16.0",
     "checkov": "3.2.500",
-    # Linters
-    "ruff": "0.15.0",
-    "biome": "2.3.14",
-    "checkstyle": "13.2.0",
-    # Type checkers
-    "pyright": "1.1.408",
     # Duplication detection
     "duplo": "0.1.5",
 }

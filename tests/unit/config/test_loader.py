@@ -447,71 +447,71 @@ class TestParseDomainPipelineConfigExclude:
         assert result.exclude == ["z/**", "a/**", "m/**"]
 
 
-class TestParseDomainPipelineConfigTestCommand:
-    """Tests for _parse_domain_pipeline_config handling of test_command and post_test_command."""
+class TestParseDomainPipelineConfigCommand:
+    """Tests for _parse_domain_pipeline_config handling of command and post_command."""
 
-    def test_parses_test_command(self) -> None:
-        """Test that test_command is parsed from domain config dict."""
+    def test_parses_command(self) -> None:
+        """Test that command is parsed from domain config dict."""
         data = {
             "enabled": True,
             "tools": [{"name": "pytest"}],
-            "test_command": "make test",
+            "command": "make test",
         }
         result = _parse_domain_pipeline_config(data)
         assert result is not None
-        assert result.test_command == "make test"
+        assert result.command == "make test"
 
-    def test_parses_post_test_command(self) -> None:
-        """Test that post_test_command is parsed from domain config dict."""
+    def test_parses_post_command(self) -> None:
+        """Test that post_command is parsed from domain config dict."""
         data = {
             "enabled": True,
             "tools": [{"name": "pytest"}],
-            "post_test_command": "make clean",
+            "post_command": "make clean",
         }
         result = _parse_domain_pipeline_config(data)
         assert result is not None
-        assert result.post_test_command == "make clean"
+        assert result.post_command == "make clean"
 
     def test_parses_both_commands(self) -> None:
-        """Test that both test_command and post_test_command are parsed."""
+        """Test that both command and post_command are parsed."""
         data = {
             "enabled": True,
             "tools": [{"name": "pytest"}],
-            "test_command": "npm test",
-            "post_test_command": "npm run cleanup",
+            "command": "npm test",
+            "post_command": "npm run cleanup",
         }
         result = _parse_domain_pipeline_config(data)
         assert result is not None
-        assert result.test_command == "npm test"
-        assert result.post_test_command == "npm run cleanup"
+        assert result.command == "npm test"
+        assert result.post_command == "npm run cleanup"
 
     def test_commands_default_to_none(self) -> None:
-        """Test that test_command and post_test_command default to None."""
+        """Test that command and post_command default to None."""
         data = {
             "enabled": True,
             "tools": [{"name": "pytest"}],
         }
         result = _parse_domain_pipeline_config(data)
         assert result is not None
-        assert result.test_command is None
-        assert result.post_test_command is None
+        assert result.command is None
+        assert result.post_command is None
 
-    def test_dict_to_config_parses_test_commands(self) -> None:
-        """Test that dict_to_config correctly parses test_command and post_test_command."""
+    def test_dict_to_config_parses_commands(self) -> None:
+        """Test that dict_to_config correctly parses command and post_command."""
         data = {
             "pipeline": {
                 "testing": {
                     "enabled": True,
                     "tools": [{"name": "pytest"}],
-                    "test_command": "python -m pytest -x",
-                    "post_test_command": "rm -rf .pytest_cache",
+                    "command": "python -m pytest -x",
+                    "post_command": "rm -rf .pytest_cache",
                 },
             },
         }
         config = dict_to_config(data)
         assert config.pipeline.testing is not None
-        assert config.pipeline.testing.test_command == "python -m pytest -x"
-        assert config.pipeline.testing.post_test_command == "rm -rf .pytest_cache"
+        assert config.pipeline.testing.command == "python -m pytest -x"
+        assert config.pipeline.testing.post_command == "rm -rf .pytest_cache"
 
 
 class TestParseCoveragePipelineConfigExclude:

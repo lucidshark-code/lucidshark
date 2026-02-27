@@ -8,7 +8,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 from lucidshark.core.models import ScanContext, UnifiedIssue, ToolDomain
 
@@ -79,22 +79,24 @@ class LinterPlugin(ABC):
         """
         return False
 
-    @abstractmethod
     def get_version(self) -> str:
         """Get the version of the underlying linting tool.
 
         Returns:
-            Version string.
+            Version string. Default returns "installed" since version
+            management is handled by package managers.
         """
+        return "installed"
 
     @abstractmethod
-    def ensure_binary(self) -> Path:
+    def ensure_binary(self) -> Union[Path, Tuple[Path, str]]:
         """Ensure the linting tool is installed.
 
         Downloads or installs the tool if not present.
 
         Returns:
-            Path to the tool binary.
+            Path to the tool binary, or tuple of (path, mode) for tools
+            that need additional context (e.g., checkstyle standalone vs jar).
         """
 
     @abstractmethod

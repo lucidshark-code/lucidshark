@@ -50,9 +50,10 @@ class TestCheckstyleLinterProperties:
         assert linter.supports_fix is False
 
     def test_get_version(self) -> None:
-        """Test get_version returns configured version."""
-        linter = CheckstyleLinter(version="10.12.0")
-        assert linter.get_version() == "10.12.0"
+        """Test get_version returns unknown when checkstyle not installed."""
+        linter = CheckstyleLinter()
+        # Returns "unknown" when checkstyle is not installed in test env
+        assert linter.get_version() == "unknown"
 
     def test_init_with_project_root(self) -> None:
         """Test initialization with project root."""
@@ -100,55 +101,40 @@ class TestCheckstyleJavaDetection:
         java_path = linter._check_java_available()
         assert java_path is None
 
-    @patch("shutil.which")
-    def test_ensure_binary_no_java_raises(self, mock_which) -> None:
-        """Test ensure_binary raises when Java not available."""
-        mock_which.return_value = None
+    def test_ensure_binary_no_checkstyle_raises(self) -> None:
+        """Test ensure_binary raises when checkstyle not available."""
         linter = CheckstyleLinter()
 
-        with pytest.raises(FileNotFoundError, match="Java is not installed"):
-            linter.ensure_binary()
+        with patch("shutil.which", return_value=None):
+            with pytest.raises(FileNotFoundError, match="Checkstyle is not installed"):
+                linter.ensure_binary()
 
 
 class TestCheckstyleEnsureBinary:
     """Tests for ensure_binary method."""
 
-    def test_returns_existing_jar(self) -> None:
-        """Test returns existing JAR when present."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            linter = CheckstyleLinter(version="10.12.0", project_root=Path(tmpdir))
+    def test_finds_checkstyle_in_path(self) -> None:
+        """Test finds checkstyle in PATH."""
+        linter = CheckstyleLinter()
 
-            with patch.object(linter, "_check_java_available", return_value=Path("/usr/bin/java")):
-                with patch.object(linter, "_paths") as mock_paths:
-                    jar_dir = Path(tmpdir) / "jars"
-                    jar_dir.mkdir()
-                    jar_file = jar_dir / "checkstyle-10.12.0-all.jar"
-                    jar_file.touch()
-                    mock_paths.plugin_bin_dir.return_value = jar_dir
-
+        with patch.object(linter, "_check_java_available", return_value=Path("/usr/bin/java")):
+            with patch("shutil.which", return_value="/usr/bin/checkstyle"):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    # Create a fake lib/spotbugs.jar structure
+                    lib_dir = Path(tmpdir) / "lib"
+                    lib_dir.mkdir()
                     result = linter.ensure_binary()
-                    assert result == jar_file
+                    assert result[0] == Path("/usr/bin/checkstyle")
+                    assert result[1] == "standalone"
 
-    def test_downloads_jar_when_missing(self) -> None:
-        """Test downloads JAR when not present."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            linter = CheckstyleLinter(version="10.12.0", project_root=Path(tmpdir))
+    def test_raises_when_not_found(self) -> None:
+        """Test raises FileNotFoundError when checkstyle not found."""
+        linter = CheckstyleLinter()
 
-            with patch.object(linter, "_check_java_available", return_value=Path("/usr/bin/java")):
-                with patch.object(linter, "_paths") as mock_paths:
-                    jar_dir = Path(tmpdir) / "jars"
-                    jar_dir.mkdir()
-                    mock_paths.plugin_bin_dir.return_value = jar_dir
-
-                    with patch.object(linter, "_download_jar") as mock_download:
-                        # Simulate download creating the file
-                        def create_jar(path):
-                            path.touch()
-
-                        mock_download.side_effect = create_jar
-
-                        linter.ensure_binary()
-                        mock_download.assert_called_once()
+        with patch.object(linter, "_check_java_available", return_value=Path("/usr/bin/java")):
+            with patch("shutil.which", return_value=None):
+                with pytest.raises(FileNotFoundError, match="Checkstyle is not installed"):
+                    linter.ensure_binary()
 
 
 class TestCheckstyleFindConfigFile:
@@ -293,7 +279,7 @@ class TestCheckstyleLint:
                 enabled_domains=[],
             )
 
-            with patch.object(linter, "ensure_binary", return_value=Path("/path/to/jar")):
+            with patch.object(linter, "ensure_binary", return_value=(Path("/usr/bin/checkstyle"), "standalone")):
                 with patch.object(linter, "_check_java_available", return_value=None):
                     issues = linter.lint(context)
                     assert issues == []
@@ -309,7 +295,7 @@ class TestCheckstyleLint:
                 enabled_domains=[],
             )
 
-            with patch.object(linter, "ensure_binary", return_value=Path("/path/to/jar")):
+            with patch.object(linter, "ensure_binary", return_value=(Path("/usr/bin/checkstyle"), "standalone")):
                 with patch.object(linter, "_check_java_available", return_value=Path("/usr/bin/java")):
                     issues = linter.lint(context)
                     assert issues == []
@@ -342,7 +328,7 @@ class TestCheckstyleLint:
 
             mock_result = make_completed_process(0, xml_output)
 
-            with patch.object(linter, "ensure_binary", return_value=Path("/path/to/jar")):
+            with patch.object(linter, "ensure_binary", return_value=(Path("/usr/bin/checkstyle"), "standalone")):
                 with patch.object(linter, "_check_java_available", return_value=Path("/usr/bin/java")):
                     with patch("lucidshark.plugins.linters.checkstyle.run_with_streaming", return_value=mock_result):
                         issues = linter.lint(context)
@@ -369,7 +355,7 @@ class TestCheckstyleLint:
                 enabled_domains=[],
             )
 
-            with patch.object(linter, "ensure_binary", return_value=Path("/path/to/jar")):
+            with patch.object(linter, "ensure_binary", return_value=(Path("/usr/bin/checkstyle"), "standalone")):
                 with patch.object(linter, "_check_java_available", return_value=Path("/usr/bin/java")):
                     with patch(
                         "lucidshark.plugins.linters.checkstyle.run_with_streaming",
@@ -394,7 +380,7 @@ class TestCheckstyleLint:
                 enabled_domains=[],
             )
 
-            with patch.object(linter, "ensure_binary", return_value=Path("/path/to/jar")):
+            with patch.object(linter, "ensure_binary", return_value=(Path("/usr/bin/checkstyle"), "standalone")):
                 with patch.object(linter, "_check_java_available", return_value=Path("/usr/bin/java")):
                     with patch(
                         "lucidshark.plugins.linters.checkstyle.run_with_streaming",
@@ -582,29 +568,3 @@ class TestCheckstyleIssueIdGeneration:
         assert issue_id.startswith("checkstyle-Rule-")
 
 
-class TestCheckstyleDownloadJar:
-    """Tests for _download_jar method."""
-
-    def test_download_url_format(self) -> None:
-        """Test the download URL is correctly formed."""
-        linter = CheckstyleLinter(version="10.12.0")
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            target_path = Path(tmpdir) / "checkstyle.jar"
-
-            with patch("lucidshark.plugins.linters.checkstyle.download_file") as mock_download:
-                linter._download_jar(target_path)
-                call_url = mock_download.call_args[0][0]
-                assert "checkstyle-10.12.0" in call_url
-                assert call_url.startswith("https://github.com/")
-
-    def test_download_failure_raises(self) -> None:
-        """Test download failure raises RuntimeError."""
-        linter = CheckstyleLinter(version="10.12.0")
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            target_path = Path(tmpdir) / "checkstyle.jar"
-
-            with patch("lucidshark.plugins.linters.checkstyle.download_file", side_effect=Exception("network error")):
-                with pytest.raises(RuntimeError, match="Failed to download Checkstyle"):
-                    linter._download_jar(target_path)

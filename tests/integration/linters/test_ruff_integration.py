@@ -1,7 +1,7 @@
 """Integration tests for Ruff linter.
 
 These tests actually run the Ruff binary against real targets.
-They require Ruff binary (downloaded automatically on first run).
+They require Ruff to be installed (pip install ruff).
 
 Run with: pytest tests/integration/linters -v
 """
@@ -18,18 +18,27 @@ from lucidshark.plugins.linters.ruff import RuffLinter
 from tests.integration.conftest import ruff_available
 
 
-class TestRuffBinaryDownload:
-    """Tests for Ruff binary download and management."""
+class TestRuffBinaryResolution:
+    """Tests for Ruff binary resolution."""
 
-    def test_ensure_binary_downloads_ruff(self, ruff_linter: RuffLinter) -> None:
-        """Test that ensure_binary downloads Ruff if not present."""
-        binary_path = ruff_linter.ensure_binary()
+    def test_ensure_binary_raises_when_not_installed(self) -> None:
+        """Test that ensure_binary raises FileNotFoundError when ruff is not installed."""
+        # Create a linter pointing to a non-existent project
+        linter = RuffLinter(project_root=Path("/nonexistent"))
 
-        assert binary_path.exists()
-        assert "ruff" in binary_path.name
+        # This will raise FileNotFoundError since ruff won't be found
+        # unless it's installed globally
+        try:
+            binary_path = linter.ensure_binary()
+            # If ruff is installed globally, verify it exists
+            assert binary_path.exists()
+        except FileNotFoundError as e:
+            # Expected behavior when ruff is not installed
+            assert "Ruff is not installed" in str(e)
 
+    @ruff_available
     def test_ruff_binary_is_executable(self, ensure_ruff_binary: Path) -> None:
-        """Test that the downloaded Ruff binary is executable."""
+        """Test that the Ruff binary is executable."""
         result = subprocess.run(
             [str(ensure_ruff_binary), "version"],
             capture_output=True,

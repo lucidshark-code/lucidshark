@@ -50,11 +50,6 @@ class TestPyrightCheckerProperties:
         checker = PyrightChecker()
         assert checker.supports_strict_mode is True
 
-    def test_get_version(self) -> None:
-        """Test get_version returns configured version."""
-        checker = PyrightChecker(version="1.2.3")
-        assert checker.get_version() == "1.2.3"
-
     def test_init_with_project_root(self) -> None:
         """Test initialization with project root."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -117,47 +112,14 @@ class TestPyrightEnsureBinary:
             binary = checker.ensure_binary()
             assert binary == Path("/usr/local/bin/pyright")
 
-    def test_download_when_not_found(self) -> None:
-        """Test _download_binary is called when pyright not found."""
+    def test_raises_when_not_found(self) -> None:
+        """Test raises FileNotFoundError when pyright not found anywhere."""
         checker = PyrightChecker()
 
         with patch("shutil.which", return_value=None):
             with patch("lucidshark.plugins.type_checkers.pyright.resolve_node_bin", return_value=None):
-                with patch.object(checker, "_download_binary", return_value=Path("/downloaded/pyright")) as mock_dl:
-                    binary = checker.ensure_binary()
-                    mock_dl.assert_called_once()
-                    assert binary == Path("/downloaded/pyright")
-
-
-class TestPyrightDownloadBinary:
-    """Tests for _download_binary method."""
-
-    def test_raises_when_pyright_not_available(self) -> None:
-        """Test raises FileNotFoundError when pyright cannot be downloaded."""
-        checker = PyrightChecker()
-
-        with patch("shutil.which", return_value=None):
-            with patch.object(checker, "_paths") as mock_paths:
-                bin_dir = Path("/tmp/test_bin")
-                mock_paths.plugin_bin_dir.return_value = bin_dir
-                with patch("pathlib.Path.exists", return_value=False):
-                    with patch("pathlib.Path.mkdir"):
-                        with pytest.raises(FileNotFoundError, match="pyright is not installed"):
-                            checker._download_binary()
-
-    def test_returns_pip_pyright_if_available(self) -> None:
-        """Test returns pip-installed pyright if available during download."""
-        checker = PyrightChecker()
-
-        with patch.object(checker, "_paths") as mock_paths:
-            bin_dir = Path("/tmp/test_bin")
-            mock_paths.plugin_bin_dir.return_value = bin_dir
-
-            with patch("pathlib.Path.exists", return_value=False):
-                with patch("pathlib.Path.mkdir"):
-                    with patch("shutil.which", return_value="/usr/bin/pyright"):
-                        result = checker._download_binary()
-                        assert result == Path("/usr/bin/pyright")
+                with pytest.raises(FileNotFoundError, match="pyright is not installed"):
+                    checker.ensure_binary()
 
 
 class TestPyrightCheck:

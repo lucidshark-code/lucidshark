@@ -1,7 +1,7 @@
 """Integration tests for Biome linter.
 
 These tests actually run the Biome binary against real targets.
-They require Biome binary (downloaded automatically on first run).
+They require Biome to be installed (npm install @biomejs/biome).
 
 Run with: pytest tests/integration/linters -v
 """
@@ -12,24 +12,32 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-
 from lucidshark.core.models import ScanContext
 from lucidshark.plugins.linters.biome import BiomeLinter
 from tests.integration.conftest import biome_available
 
 
-class TestBiomeBinaryDownload:
-    """Tests for Biome binary download and management."""
+class TestBiomeBinaryResolution:
+    """Tests for Biome binary resolution."""
 
-    def test_ensure_binary_downloads_biome(self, biome_linter: BiomeLinter) -> None:
-        """Test that ensure_binary downloads Biome if not present."""
-        binary_path = biome_linter.ensure_binary()
+    def test_ensure_binary_raises_when_not_installed(self) -> None:
+        """Test that ensure_binary raises FileNotFoundError when biome is not installed."""
+        # Create a linter pointing to a non-existent project
+        linter = BiomeLinter(project_root=Path("/nonexistent"))
 
-        assert binary_path.exists()
-        assert "biome" in binary_path.name
+        # This will raise FileNotFoundError since biome won't be found
+        # unless it's installed globally
+        try:
+            binary_path = linter.ensure_binary()
+            # If biome is installed globally, verify it exists
+            assert binary_path.exists()
+        except FileNotFoundError as e:
+            # Expected behavior when biome is not installed
+            assert "Biome is not installed" in str(e)
 
+    @biome_available
     def test_biome_binary_is_executable(self, ensure_biome_binary: Path) -> None:
-        """Test that the downloaded Biome binary is executable."""
+        """Test that the Biome binary is executable."""
         result = subprocess.run(
             [str(ensure_biome_binary), "--version"],
             capture_output=True,

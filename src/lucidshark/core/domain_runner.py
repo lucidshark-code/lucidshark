@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
+
+if TYPE_CHECKING:
+    from lucidshark.core.models import ToolDomain
 
 from lucidshark.config import LucidSharkConfig
 from lucidshark.core.logging import get_logger
@@ -276,6 +279,8 @@ class DomainRunner:
         context: ScanContext,
         fix: bool = False,
         exclude_patterns: Optional[List[str]] = None,
+        command: Optional[str] = None,
+        post_command: Optional[str] = None,
     ) -> List[UnifiedIssue]:
         """Run linting checks.
 
@@ -283,14 +288,35 @@ class DomainRunner:
             context: Scan context.
             fix: Whether to apply automatic fixes.
             exclude_patterns: Domain-specific exclude patterns to merge.
+            command: Custom shell command to run instead of plugins.
+            post_command: Shell command to run after linting completes.
 
         Returns:
             List of linting issues.
         """
         context = self._context_with_domain_excludes(context, exclude_patterns)
-        from lucidshark.plugins.linters import discover_linter_plugins
+        from lucidshark.core.models import ToolDomain
 
         issues: List[UnifiedIssue] = []
+
+        if command:
+            # Custom command overrides plugin-based execution
+            result = self._run_shell_command(command, "lint_command")
+            issues = self._parse_command_output(result, ToolDomain.LINTING, command)
+
+            if post_command:
+                post_result = self._run_shell_command(post_command, "post_lint_command")
+                if post_result.returncode != 0:
+                    LOGGER.warning(
+                        f"post_lint_command failed (exit code {post_result.returncode}): "
+                        f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
+                    )
+
+            return issues
+
+        # Fall through to existing plugin-based logic
+        from lucidshark.plugins.linters import discover_linter_plugins
+
         linters = discover_linter_plugins()
 
         if not linters:
@@ -319,26 +345,58 @@ class DomainRunner:
             except Exception as e:
                 LOGGER.error(f"Linter {name} failed: {e}")
 
+        # Run post_command after plugin-based linting if provided
+        if post_command:
+            post_result = self._run_shell_command(post_command, "post_lint_command")
+            if post_result.returncode != 0:
+                LOGGER.warning(
+                    f"post_lint_command failed (exit code {post_result.returncode}): "
+                    f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
+                )
+
         return issues
 
     def run_type_checking(
         self,
         context: ScanContext,
         exclude_patterns: Optional[List[str]] = None,
+        command: Optional[str] = None,
+        post_command: Optional[str] = None,
     ) -> List[UnifiedIssue]:
         """Run type checking.
 
         Args:
             context: Scan context.
             exclude_patterns: Domain-specific exclude patterns to merge.
+            command: Custom shell command to run instead of plugins.
+            post_command: Shell command to run after type checking completes.
 
         Returns:
             List of type checking issues.
         """
         context = self._context_with_domain_excludes(context, exclude_patterns)
-        from lucidshark.plugins.type_checkers import discover_type_checker_plugins
+        from lucidshark.core.models import ToolDomain
 
         issues: List[UnifiedIssue] = []
+
+        if command:
+            # Custom command overrides plugin-based execution
+            result = self._run_shell_command(command, "type_check_command")
+            issues = self._parse_command_output(result, ToolDomain.TYPE_CHECKING, command)
+
+            if post_command:
+                post_result = self._run_shell_command(post_command, "post_type_check_command")
+                if post_result.returncode != 0:
+                    LOGGER.warning(
+                        f"post_type_check_command failed (exit code {post_result.returncode}): "
+                        f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
+                    )
+
+            return issues
+
+        # Fall through to existing plugin-based logic
+        from lucidshark.plugins.type_checkers import discover_type_checker_plugins
+
         checkers = discover_type_checker_plugins()
 
         if not checkers:
@@ -356,6 +414,15 @@ class DomainRunner:
             except Exception as e:
                 LOGGER.error(f"Type checker {name} failed: {e}")
 
+        # Run post_command after plugin-based type checking if provided
+        if post_command:
+            post_result = self._run_shell_command(post_command, "post_type_check_command")
+            if post_result.returncode != 0:
+                LOGGER.warning(
+                    f"post_type_check_command failed (exit code {post_result.returncode}): "
+                    f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
+                )
+
         return issues
 
     def _run_shell_command(self, command: str, label: str) -> subprocess.CompletedProcess[str]:
@@ -363,7 +430,7 @@ class DomainRunner:
 
         Args:
             command: Shell command to execute.
-            label: Label for logging (e.g., "test_command", "post_test_command").
+            label: Label for logging (e.g., "testing.command", "linting.command").
 
         Returns:
             CompletedProcess result.
@@ -377,13 +444,284 @@ class DomainRunner:
             text=True,
         )
 
+    def _parse_command_output(
+        self,
+        result: subprocess.CompletedProcess[str],
+        domain: "ToolDomain",
+        command: str,
+    ) -> List[UnifiedIssue]:
+        """Auto-detect and parse command output into UnifiedIssues.
+
+        Tries formats in order: SARIF → JSON → plain text.
+
+        Args:
+            result: Completed process result from shell command.
+            domain: The tool domain (linting, type_checking, etc.).
+            command: The command that was run (for error messages).
+
+        Returns:
+            List of UnifiedIssue parsed from output.
+        """
+        from lucidshark.core.models import Severity
+
+        stdout = result.stdout.strip() if result.stdout else ""
+        issues: List[UnifiedIssue] = []
+
+        # Try SARIF first (check for schema marker)
+        if '"$schema"' in stdout and "sarif" in stdout.lower():
+            try:
+                sarif_issues = self._parse_sarif_output(stdout, domain)
+                if sarif_issues:
+                    LOGGER.debug(f"Parsed {len(sarif_issues)} issues from SARIF output")
+                    return sarif_issues
+            except Exception as e:
+                LOGGER.debug(f"SARIF parsing failed: {e}")
+
+        # Try JSON (array or object)
+        if stdout.startswith("[") or stdout.startswith("{"):
+            try:
+                json_issues = self._parse_json_output(stdout, domain)
+                if json_issues:
+                    LOGGER.debug(f"Parsed {len(json_issues)} issues from JSON output")
+                    return json_issues
+            except Exception as e:
+                LOGGER.debug(f"JSON parsing failed: {e}")
+
+        # Fall back to plain text (create issue from non-zero exit)
+        if result.returncode != 0:
+            stderr_snippet = result.stderr.strip()[:500] if result.stderr else ""
+            stdout_snippet = stdout[:500] if stdout else ""
+            output = stderr_snippet or stdout_snippet or "Command failed"
+            issues.append(
+                UnifiedIssue(
+                    id=f"custom-{domain.value}-failure",
+                    domain=domain,
+                    source_tool="custom",
+                    severity=Severity.MEDIUM,
+                    rule_id=f"{domain.value}-failure",
+                    title=f"Custom {domain.value} command failed",
+                    description=f"Command `{command}` exited with code {result.returncode}.\n\n{output}",
+                )
+            )
+
+        return issues
+
+    def _parse_sarif_output(
+        self,
+        sarif_str: str,
+        domain: "ToolDomain",
+    ) -> List[UnifiedIssue]:
+        """Parse SARIF 2.1.0 output into UnifiedIssues.
+
+        Args:
+            sarif_str: SARIF JSON string.
+            domain: The tool domain for issues.
+
+        Returns:
+            List of UnifiedIssue parsed from SARIF.
+        """
+        import json
+
+        from lucidshark.core.models import Severity
+
+        data = json.loads(sarif_str)
+        issues: List[UnifiedIssue] = []
+
+        # SARIF level to Severity mapping
+        level_to_severity = {
+            "error": Severity.HIGH,
+            "warning": Severity.MEDIUM,
+            "note": Severity.LOW,
+            "none": Severity.INFO,
+        }
+
+        for run in data.get("runs", []):
+            tool_name = run.get("tool", {}).get("driver", {}).get("name", "unknown")
+            rules = {
+                r["id"]: r for r in run.get("tool", {}).get("driver", {}).get("rules", [])
+            }
+
+            for result in run.get("results", []):
+                rule_id = result.get("ruleId", "unknown")
+                level = result.get("level", "warning")
+                message = result.get("message", {}).get("text", "")
+
+                # Get location info
+                locations = result.get("locations", [])
+                file_path = None
+                line = None
+                if locations:
+                    physical_loc = locations[0].get("physicalLocation", {})
+                    artifact_loc = physical_loc.get("artifactLocation", {})
+                    file_path = artifact_loc.get("uri")
+                    region = physical_loc.get("region", {})
+                    line = region.get("startLine")
+
+                # Get rule info for title/description
+                rule_info = rules.get(rule_id, {})
+                title = rule_info.get("shortDescription", {}).get("text") or rule_id
+                description = message or rule_info.get("fullDescription", {}).get("text", "")
+
+                issues.append(
+                    UnifiedIssue(
+                        id=f"{tool_name}-{rule_id}-{len(issues)}",
+                        domain=domain,
+                        source_tool=tool_name,
+                        severity=level_to_severity.get(level, Severity.MEDIUM),
+                        rule_id=rule_id,
+                        title=title,
+                        description=description,
+                        file_path=file_path,
+                        line_start=line,
+                    )
+                )
+
+        return issues
+
+    def _parse_json_output(
+        self,
+        json_str: str,
+        domain: "ToolDomain",
+    ) -> List[UnifiedIssue]:
+        """Parse generic JSON output into UnifiedIssues.
+
+        Supports common JSON formats from linters/type checkers.
+        Tries to extract: file, line, column, message, severity, rule.
+
+        Args:
+            json_str: JSON string (array or object).
+            domain: The tool domain for issues.
+
+        Returns:
+            List of UnifiedIssue parsed from JSON.
+        """
+        import json
+
+        from lucidshark.core.models import Severity
+
+        data = json.loads(json_str)
+        issues: List[UnifiedIssue] = []
+
+        # Common severity mappings
+        severity_map = {
+            "error": Severity.HIGH,
+            "err": Severity.HIGH,
+            "e": Severity.HIGH,
+            "warning": Severity.MEDIUM,
+            "warn": Severity.MEDIUM,
+            "w": Severity.MEDIUM,
+            "info": Severity.LOW,
+            "information": Severity.LOW,
+            "i": Severity.LOW,
+            "hint": Severity.INFO,
+            "note": Severity.INFO,
+        }
+
+        def parse_severity(val: Any) -> Severity:
+            if isinstance(val, str):
+                return severity_map.get(val.lower(), Severity.MEDIUM)
+            if isinstance(val, int):
+                # 1=error, 2=warning pattern (ESLint style)
+                if val == 1:
+                    return Severity.MEDIUM
+                if val == 2:
+                    return Severity.HIGH
+            return Severity.MEDIUM
+
+        def parse_item(item: Dict[str, Any], idx: int) -> Optional[UnifiedIssue]:
+            """Parse a single item from the JSON output."""
+            # Common field names for file path
+            file_path = (
+                item.get("file")
+                or item.get("path")
+                or item.get("filename")
+                or item.get("filePath")
+            )
+
+            # Common field names for line number
+            line = (
+                item.get("line")
+                or item.get("startLine")
+                or item.get("lineNumber")
+                or item.get("row")
+            )
+
+            # Common field names for message
+            message = (
+                item.get("message")
+                or item.get("description")
+                or item.get("text")
+                or item.get("msg")
+            )
+
+            if not message:
+                return None
+
+            # Common field names for rule ID
+            rule_id = (
+                item.get("rule")
+                or item.get("ruleId")
+                or item.get("code")
+                or item.get("check")
+                or "unknown"
+            )
+
+            # Common field names for severity
+            sev_val = (
+                item.get("severity")
+                or item.get("level")
+                or item.get("type")
+                or "warning"
+            )
+
+            return UnifiedIssue(
+                id=f"custom-{domain.value}-{idx}",
+                domain=domain,
+                source_tool="custom",
+                severity=parse_severity(sev_val),
+                rule_id=str(rule_id),
+                title=str(message)[:100],
+                description=str(message),
+                file_path=Path(file_path) if file_path else None,
+                line_start=int(line) if line else None,
+            )
+
+        # Handle array of issues
+        if isinstance(data, list):
+            for idx, item in enumerate(data):
+                if isinstance(item, dict):
+                    issue = parse_item(item, idx)
+                    if issue:
+                        issues.append(issue)
+
+        # Handle object with issues array (common pattern)
+        elif isinstance(data, dict):
+            # Look for common array field names
+            items = (
+                data.get("issues")
+                or data.get("errors")
+                or data.get("warnings")
+                or data.get("diagnostics")
+                or data.get("results")
+                or data.get("messages")
+                or []
+            )
+            if isinstance(items, list):
+                for idx, item in enumerate(items):
+                    if isinstance(item, dict):
+                        issue = parse_item(item, idx)
+                        if issue:
+                            issues.append(issue)
+
+        return issues
+
     def run_tests(
         self,
         context: ScanContext,
         with_coverage: bool = False,
         exclude_patterns: Optional[List[str]] = None,
-        test_command: Optional[str] = None,
-        post_test_command: Optional[str] = None,
+        command: Optional[str] = None,
+        post_command: Optional[str] = None,
     ) -> List[UnifiedIssue]:
         """Run test suite.
 
@@ -391,8 +729,8 @@ class DomainRunner:
             context: Scan context.
             with_coverage: If True, run tests with coverage instrumentation.
             exclude_patterns: Domain-specific exclude patterns to merge.
-            test_command: Custom shell command to run tests. Overrides plugin-based runner.
-            post_test_command: Shell command to run after tests complete.
+            command: Custom shell command to run tests. Overrides plugin-based runner.
+            post_command: Shell command to run after tests complete.
 
         Returns:
             List of test failure issues.
@@ -402,9 +740,9 @@ class DomainRunner:
 
         issues: List[UnifiedIssue] = []
 
-        if test_command:
-            # Custom test command overrides plugin-based execution
-            result = self._run_shell_command(test_command, "test_command")
+        if command:
+            # Custom command overrides plugin-based execution
+            result = self._run_shell_command(command, "testing.command")
 
             if result.returncode != 0:
                 # Non-zero exit code means test failures
@@ -418,18 +756,18 @@ class DomainRunner:
                     severity=Severity.HIGH,
                     rule_id="test-failure",
                     title="Custom test command failed",
-                    description=f"Command `{test_command}` exited with code {result.returncode}.\n\n{output}",
+                    description=f"Command `{command}` exited with code {result.returncode}.\n\n{output}",
                 ))
-                self._log("info", f"test_command: FAILED (exit code {result.returncode})")
+                self._log("info", f"testing.command: FAILED (exit code {result.returncode})")
             else:
-                self._log("info", "test_command: PASSED")
+                self._log("info", "testing.command: PASSED")
 
-            # Run post_test_command if provided
-            if post_test_command:
-                post_result = self._run_shell_command(post_test_command, "post_test_command")
+            # Run post_command if provided
+            if post_command:
+                post_result = self._run_shell_command(post_command, "testing.post_command")
                 if post_result.returncode != 0:
                     LOGGER.warning(
-                        f"post_test_command failed (exit code {post_result.returncode}): "
+                        f"testing.post_command failed (exit code {post_result.returncode}): "
                         f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
                     )
 
@@ -465,12 +803,12 @@ class DomainRunner:
                 except Exception as e:
                     LOGGER.error(f"Test runner {name} failed: {e}")
 
-        # Run post_test_command after plugin-based tests if provided
-        if post_test_command:
-            post_result = self._run_shell_command(post_test_command, "post_test_command")
+        # Run post_command after plugin-based tests if provided
+        if post_command:
+            post_result = self._run_shell_command(post_command, "testing.post_command")
             if post_result.returncode != 0:
                 LOGGER.warning(
-                    f"post_test_command failed (exit code {post_result.returncode}): "
+                    f"testing.post_command failed (exit code {post_result.returncode}): "
                     f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
                 )
 
@@ -482,7 +820,8 @@ class DomainRunner:
         threshold: float = 80.0,
         run_tests: bool = True,
         exclude_patterns: Optional[List[str]] = None,
-        post_test_command: Optional[str] = None,
+        command: Optional[str] = None,
+        post_command: Optional[str] = None,
     ) -> List[UnifiedIssue]:
         """Run coverage analysis.
 
@@ -491,15 +830,53 @@ class DomainRunner:
             threshold: Coverage percentage threshold.
             run_tests: Whether to run tests for coverage.
             exclude_patterns: Domain-specific exclude patterns to merge.
-            post_test_command: Shell command to run after coverage completes.
+            command: Custom shell command to run coverage. Overrides plugin-based runner.
+            post_command: Shell command to run after coverage completes.
 
         Returns:
             List of coverage issues.
         """
         context = self._context_with_domain_excludes(context, exclude_patterns)
-        from lucidshark.plugins.coverage import discover_coverage_plugins
+        from lucidshark.core.models import Severity, ToolDomain
 
         issues: List[UnifiedIssue] = []
+
+        if command:
+            # Custom command overrides plugin-based execution
+            result = self._run_shell_command(command, "coverage_command")
+
+            if result.returncode != 0:
+                # Non-zero exit code means coverage failure (below threshold or error)
+                stderr_snippet = result.stderr.strip()[:500] if result.stderr else ""
+                stdout_snippet = result.stdout.strip()[:500] if result.stdout else ""
+                output = stderr_snippet or stdout_snippet or "Coverage command failed"
+                issues.append(UnifiedIssue(
+                    id="custom-coverage-failure",
+                    domain=ToolDomain.COVERAGE,
+                    source_tool="custom",
+                    severity=Severity.MEDIUM,
+                    rule_id="coverage-failure",
+                    title="Custom coverage command failed",
+                    description=f"Command `{command}` exited with code {result.returncode}.\n\n{output}",
+                ))
+                self._log("info", f"coverage_command: FAILED (exit code {result.returncode})")
+            else:
+                self._log("info", "coverage_command: PASSED")
+
+            # Run post_command if provided
+            if post_command:
+                post_result = self._run_shell_command(post_command, "post_coverage_command")
+                if post_result.returncode != 0:
+                    LOGGER.warning(
+                        f"post_coverage_command failed (exit code {post_result.returncode}): "
+                        f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
+                    )
+
+            return issues
+
+        # Fall through to plugin-based logic
+        from lucidshark.plugins.coverage import discover_coverage_plugins
+
         plugins = discover_coverage_plugins()
 
         if not plugins:
@@ -543,12 +920,12 @@ class DomainRunner:
                 except Exception as e:
                     LOGGER.error(f"Coverage plugin {name} failed: {e}")
 
-        # Run post_test_command after coverage completes if provided
-        if post_test_command:
-            post_result = self._run_shell_command(post_test_command, "post_test_command")
+        # Run post_command after plugin-based coverage if provided
+        if post_command:
+            post_result = self._run_shell_command(post_command, "post_coverage_command")
             if post_result.returncode != 0:
                 LOGGER.warning(
-                    f"post_test_command failed (exit code {post_result.returncode}): "
+                    f"post_coverage_command failed (exit code {post_result.returncode}): "
                     f"{post_result.stderr.strip()[:200] if post_result.stderr else ''}"
                 )
 
