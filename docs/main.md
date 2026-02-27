@@ -249,28 +249,35 @@ pipeline:
 
   testing:
     enabled: true
-    test_command: "make test"       # Optional: custom shell command overrides plugin-based runner
-    post_test_command: "make clean" # Optional: runs after tests complete
+    command: "make test"       # Optional: custom shell command overrides plugin-based runner
+    post_command: "make clean" # Optional: runs after command completes
     tools:
       - name: pytest
         args: ["-v"]
 
-#### Custom Test Commands
+#### Custom Commands
 
-`test_command` replaces the plugin-based test runner with a custom shell command. When set,
+All pipeline domains support `command` and `post_command` fields for custom shell commands:
+
+```yaml
+pipeline:
+  linting:
+    command: "npm run lint -- --format json"  # Custom linting command
+  type_checking:
+    command: "npm run typecheck"              # Custom type checking
+  testing:
+    command: "docker compose run --rm app pytest"
+    post_command: "rm -rf tmp/test-artifacts"
+  coverage:
+    command: "npm run test:coverage"
+```
+
+**`command`** replaces the plugin-based runner with a custom shell command. When set,
 LucidShark runs the command from the project root and skips plugin discovery entirely. A
 non-zero exit code is reported as a HIGH-severity issue.
 
-`post_test_command` runs after tests complete — whether from a custom command or the
-plugin-based runner — and also after coverage analysis. Failures are logged as warnings
-and do not fail the pipeline.
-
-```yaml
-testing:
-  enabled: true
-  test_command: "docker compose run --rm app pytest"
-  post_test_command: "rm -rf tmp/test-artifacts"
-```
+**`post_command`** runs after the main command (or plugin-based runner) completes.
+Failures are logged as warnings and do not fail the pipeline.
 
   coverage:
     enabled: true
@@ -506,9 +513,9 @@ pipeline:
 
   testing:
     enabled: boolean
-    test_command: string      # Optional: custom shell command overrides plugin-based runner
-    post_test_command: string # Optional: runs after tests complete
-    exclude: [string]  # Patterns to exclude from testing
+    command: string       # Optional: custom shell command overrides plugin-based runner
+    post_command: string  # Optional: runs after command completes
+    exclude: [string]     # Patterns to exclude from testing
     tools:
       - name: string
         args: [string]

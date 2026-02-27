@@ -47,6 +47,10 @@ docs/instructions/
 # LucidShark tool cache
 .lucidshark/
 
+# Integration test build artifacts
+tests/integration/projects/rust-cli/target/
+tests/integration/projects/rust-cli/Cargo.lock
+
 .env
 
 # Logs

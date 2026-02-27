@@ -15,6 +15,33 @@ from lucidshark.core.logging import get_logger
 LOGGER = get_logger(__name__)
 
 
+def _collect_files_from_git_command(
+    cmd: List[str],
+    project_root: Path,
+    changed_files: set[Path],
+) -> None:
+    """Run a git command and collect file paths from its output.
+
+    Args:
+        cmd: Git command to run.
+        project_root: Root directory of the project.
+        changed_files: Set to add discovered file paths to.
+    """
+    result = subprocess.run(
+        cmd,
+        cwd=project_root,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode == 0:
+        for line in result.stdout.strip().split("\n"):
+            if line:
+                file_path = project_root / line
+                if file_path.exists():
+                    changed_files.add(file_path)
+
+
 def is_git_repo(path: Path) -> bool:
     """Check if the given path is inside a git repository.
 
@@ -90,51 +117,27 @@ def get_changed_files(
     try:
         # Get staged files (files added to index)
         if include_staged:
-            result = subprocess.run(
+            _collect_files_from_git_command(
                 ["git", "diff", "--cached", "--name-only"],
-                cwd=project_root,
-                capture_output=True,
-                text=True,
-                timeout=30,
+                project_root,
+                changed_files,
             )
-            if result.returncode == 0:
-                for line in result.stdout.strip().split("\n"):
-                    if line:
-                        file_path = project_root / line
-                        if file_path.exists():
-                            changed_files.add(file_path)
 
         # Get unstaged modifications (modified but not staged)
         if include_unstaged:
-            result = subprocess.run(
+            _collect_files_from_git_command(
                 ["git", "diff", "--name-only"],
-                cwd=project_root,
-                capture_output=True,
-                text=True,
-                timeout=30,
+                project_root,
+                changed_files,
             )
-            if result.returncode == 0:
-                for line in result.stdout.strip().split("\n"):
-                    if line:
-                        file_path = project_root / line
-                        if file_path.exists():
-                            changed_files.add(file_path)
 
         # Get untracked files
         if include_untracked:
-            result = subprocess.run(
+            _collect_files_from_git_command(
                 ["git", "ls-files", "--others", "--exclude-standard"],
-                cwd=project_root,
-                capture_output=True,
-                text=True,
-                timeout=30,
+                project_root,
+                changed_files,
             )
-            if result.returncode == 0:
-                for line in result.stdout.strip().split("\n"):
-                    if line:
-                        file_path = project_root / line
-                        if file_path.exists():
-                            changed_files.add(file_path)
 
         LOGGER.debug(f"Found {len(changed_files)} changed files in {project_root}")
         return sorted(changed_files)

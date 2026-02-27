@@ -76,13 +76,13 @@ class ToolConfig:
 
 @dataclass
 class DomainPipelineConfig:
-    """Configuration for a pipeline domain (linting, type_checking, etc.)."""
+    """Configuration for a pipeline domain (linting, type_checking, testing, etc.)."""
 
     enabled: bool = True
     tools: List[ToolConfig] = field(default_factory=list)
     exclude: List[str] = field(default_factory=list)  # Patterns to exclude from this domain
-    test_command: Optional[str] = None  # Custom shell command to run tests (testing domain only)
-    post_test_command: Optional[str] = None  # Shell command to run after tests (testing domain only)
+    command: Optional[str] = None  # Custom shell command to run instead of plugins
+    post_command: Optional[str] = None  # Shell command to run after main command
 
 
 @dataclass
@@ -96,6 +96,8 @@ class CoveragePipelineConfig:
     # e.g., ["-DskipITs", "-Ddocker.skip=true"]
     extra_args: List[str] = field(default_factory=list)
     exclude: List[str] = field(default_factory=list)  # Patterns to exclude from coverage
+    command: Optional[str] = None  # Custom shell command to run coverage
+    post_command: Optional[str] = None  # Shell command to run after coverage
 
 
 @dataclass

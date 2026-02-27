@@ -2,20 +2,19 @@
 
 pyright is a fast static type checker for Python.
 https://github.com/microsoft/pyright
+
+Note: pyright must be installed via npm or pip. LucidShark does not download it.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-import platform
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from lucidshark.bootstrap.paths import LucidsharkPaths
-from lucidshark.bootstrap.versions import get_tool_version
 from lucidshark.core.logging import get_logger
 from lucidshark.core.paths import resolve_node_bin
 from lucidshark.core.models import (
@@ -27,9 +26,6 @@ from lucidshark.core.models import (
 from lucidshark.plugins.type_checkers.base import TypeCheckerPlugin
 
 LOGGER = get_logger(__name__)
-
-# Default version from pyproject.toml [tool.lucidshark.tools]
-DEFAULT_VERSION = get_tool_version("pyright")
 
 # pyright severity mapping
 SEVERITY_MAP = {
@@ -44,22 +40,14 @@ class PyrightChecker(TypeCheckerPlugin):
 
     def __init__(
         self,
-        version: str = DEFAULT_VERSION,
         project_root: Optional[Path] = None,
     ):
         """Initialize PyrightChecker.
 
         Args:
-            version: pyright version to use.
             project_root: Optional project root for tool installation.
         """
-        self._version = version
-        if project_root:
-            self._paths = LucidsharkPaths.for_project(project_root)
-            self._project_root = project_root
-        else:
-            self._paths = LucidsharkPaths.default()
-            self._project_root = None
+        self._project_root = project_root
 
     @property
     def name(self) -> str:
@@ -76,10 +64,6 @@ class PyrightChecker(TypeCheckerPlugin):
         """pyright supports strict mode."""
         return True
 
-    def get_version(self) -> str:
-        """Get pyright version."""
-        return self._version
-
     def ensure_binary(self) -> Path:
         """Ensure pyright is available.
 
@@ -87,10 +71,12 @@ class PyrightChecker(TypeCheckerPlugin):
         1. Project's .venv/bin/pyright (pip installed pyright)
         2. Project's node_modules/.bin/pyright
         3. System PATH (npm or pip installed)
-        4. Downloads standalone binary if not found
 
         Returns:
             Path to pyright binary.
+
+        Raises:
+            FileNotFoundError: If pyright is not installed.
         """
         # Check project venv first (pip install pyright)
         if self._project_root:
@@ -109,40 +95,11 @@ class PyrightChecker(TypeCheckerPlugin):
         if pyright_path:
             return Path(pyright_path)
 
-        # Download standalone binary
-        return self._download_binary()
-
-    def _download_binary(self) -> Path:
-        """Download pyright standalone binary.
-
-        Returns:
-            Path to downloaded binary.
-        """
-
-        binary_dir = self._paths.plugin_bin_dir(self.name, self._version)
-        binary_name = "pyright.exe" if platform.system() == "Windows" else "pyright"
-        binary_path = binary_dir / binary_name
-
-        if binary_path.exists():
-            return binary_path
-
-        LOGGER.info(f"Downloading pyright {self._version}...")
-        binary_dir.mkdir(parents=True, exist_ok=True)
-
-        # pyright is distributed as npm package, but we can use pyright-python
-        # which provides a standalone binary
-        # For now, we'll check if pyright is available via pip
-        pip_pyright = shutil.which("pyright")
-        if pip_pyright:
-            return Path(pip_pyright)
-
-        # If not available, try to use npm to install it locally
-        # or raise an error with installation instructions
         raise FileNotFoundError(
             "pyright is not installed. Install it with:\n"
-            "  npm install -g pyright\n"
+            "  pip install pyright\n"
             "  OR\n"
-            "  pip install pyright"
+            "  npm install -g pyright"
         )
 
     def check(self, context: ScanContext) -> List[UnifiedIssue]:

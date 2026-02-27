@@ -579,8 +579,8 @@ pipeline:
 
   testing:
     enabled: true
-    test_command: "npm test"            # Optional: custom shell command overrides plugin-based runner
-    post_test_command: "npm run cleanup" # Optional: runs after tests complete
+    command: "npm test"             # Optional: custom shell command overrides plugin-based runner
+    post_command: "npm run cleanup" # Optional: runs after command completes
     exclude:          # Patterns to exclude from test execution
       - "tests/integration/**"
     tools:
@@ -591,38 +591,40 @@ pipeline:
       - name: maven       # Java tests (JUnit/TestNG via Maven/Gradle)
       - name: cargo       # Rust tests (cargo test)
 
-#### Custom Test Commands
+#### Custom Commands
 
-**`test_command`** lets you replace the plugin-based test runner with a custom shell command.
-When set, LucidShark executes the command via the shell from the project root directory and
-skips plugin discovery entirely (the `tools` list is ignored). A non-zero exit code is reported
-as a HIGH-severity test failure issue.
+All pipeline domains support `command` and `post_command` fields for custom shell commands.
+This provides a unified way to override plugin-based runners across linting, type checking,
+testing, and coverage domains.
 
-```yaml
-testing:
-  enabled: true
-  test_command: "docker compose run --rm app pytest -x"
-```
+**`command`** replaces the plugin-based runner with a custom shell command. When set,
+LucidShark executes the command via the shell from the project root directory and skips
+plugin discovery entirely (the `tools` list is ignored). A non-zero exit code is reported
+as a HIGH-severity issue.
 
-**`post_test_command`** runs a shell command after tests complete. It executes after both
-custom test commands and plugin-based runners, and also after coverage analysis. If the
-post-test command fails (non-zero exit code), it is logged as a warning but does **not**
-fail the pipeline.
+**`post_command`** runs a shell command after the main command (or plugin-based runner)
+completes. If the post-command fails (non-zero exit code), it is logged as a warning but
+does **not** fail the pipeline.
 
 ```yaml
-testing:
-  enabled: true
-  post_test_command: "npm run cleanup"
-  tools:
-    - name: jest
+pipeline:
+  linting:
+    command: "npm run lint -- --format json"  # Custom linting
+  type_checking:
+    command: "npm run typecheck"              # Custom type checking
+  testing:
+    command: "docker compose run --rm app pytest -x"
+    post_command: "npm run cleanup"
+  coverage:
+    command: "npm run test:coverage"
 ```
 
 Common use cases:
 
-- **Custom build steps**: `test_command: "make test"` when your test workflow requires a build system
-- **Docker-based environments**: `test_command: "docker compose run --rm app pytest"` to run tests inside a container
-- **Cleanup**: `post_test_command: "rm -rf tmp/test-artifacts"` to remove temporary files after tests
-- **Report generation**: `post_test_command: "node scripts/merge-reports.js"` to post-process test output
+- **Custom build steps**: `command: "make test"` when your workflow requires a build system
+- **Docker-based environments**: `command: "docker compose run --rm app pytest"` to run inside a container
+- **Cleanup**: `post_command: "rm -rf tmp/test-artifacts"` to remove temporary files
+- **Report generation**: `post_command: "node scripts/merge-reports.js"` to post-process output
 
   coverage:
     enabled: true
@@ -966,12 +968,18 @@ exclude:
 | `security.enabled` | bool | true | Enable security scanning |
 | `security.exclude` | array | [] | Patterns to exclude from security scanning (combined with global `exclude`) |
 | `security.tools` | array | (auto) | Security tools with domains |
+| `linting.command` | string | (none) | Custom shell command (overrides plugin-based runner) |
+| `linting.post_command` | string | (none) | Shell command to run after linting completes |
+| `type_checking.command` | string | (none) | Custom shell command (overrides plugin-based runner) |
+| `type_checking.post_command` | string | (none) | Shell command to run after type checking completes |
 | `testing.enabled` | bool | false | Enable test execution |
-| `testing.test_command` | string | (none) | Custom shell command to run tests (overrides plugin-based runner) |
-| `testing.post_test_command` | string | (none) | Shell command to run after tests complete (cleanup, reports, etc.) |
+| `testing.command` | string | (none) | Custom shell command to run tests (overrides plugin-based runner) |
+| `testing.post_command` | string | (none) | Shell command to run after tests complete (cleanup, reports, etc.) |
 | `testing.exclude` | array | [] | Patterns to exclude from test execution (combined with global `exclude`) |
 | `testing.tools` | array | (auto) | Test frameworks |
 | `coverage.enabled` | bool | false | Enable coverage analysis |
+| `coverage.command` | string | (none) | Custom shell command (overrides plugin-based runner) |
+| `coverage.post_command` | string | (none) | Shell command to run after coverage completes |
 | `coverage.exclude` | array | [] | Patterns to exclude from coverage analysis (combined with global `exclude`) |
 | `coverage.tools` | array | **required** | Coverage tools (coverage_py, istanbul, jacoco, tarpaulin) |
 | `coverage.threshold` | int | 80 | Coverage percentage threshold |
