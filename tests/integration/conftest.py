@@ -302,9 +302,55 @@ def _is_cargo_available() -> bool:
     return shutil.which("cargo") is not None
 
 
-def _is_clippy_available() -> bool:
-    """Check if clippy is available."""
+def _can_cargo_compile() -> bool:
+    """Check if cargo can actually compile and link code.
+
+    This verifies the Rust toolchain is properly configured,
+    including any system dependencies like Xcode on macOS.
+    Uses `cargo test --no-run` to verify linking works (required for tests).
+    """
     if not _is_cargo_available():
+        return False
+
+    import tempfile
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+
+            # Create minimal Cargo.toml
+            (tmpdir_path / "Cargo.toml").write_text(
+                '[package]\nname = "test"\nversion = "0.1.0"\nedition = "2021"\n'
+            )
+
+            # Create minimal lib.rs with a test
+            src_dir = tmpdir_path / "src"
+            src_dir.mkdir()
+            (src_dir / "lib.rs").write_text(
+                "pub fn test() {}\n\n#[test]\nfn it_works() {}\n"
+            )
+
+            # Try to compile tests (--no-run compiles but doesn't run)
+            # This triggers linking, which catches Xcode license issues on macOS
+            result = subprocess.run(
+                ["cargo", "test", "--no-run"],
+                cwd=tmpdir,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _is_clippy_available(cargo_can_compile: bool) -> bool:
+    """Check if clippy is available.
+
+    Args:
+        cargo_can_compile: Pre-computed flag indicating if cargo can compile.
+    """
+    if not cargo_can_compile:
         return False
     try:
         result = subprocess.run(
@@ -318,9 +364,13 @@ def _is_clippy_available() -> bool:
         return False
 
 
-def _is_tarpaulin_available() -> bool:
-    """Check if cargo-tarpaulin is available."""
-    if not _is_cargo_available():
+def _is_tarpaulin_available(cargo_can_compile: bool) -> bool:
+    """Check if cargo-tarpaulin is available.
+
+    Args:
+        cargo_can_compile: Pre-computed flag indicating if cargo can compile.
+    """
+    if not cargo_can_compile:
         return False
     try:
         result = subprocess.run(
@@ -335,14 +385,15 @@ def _is_tarpaulin_available() -> bool:
 
 
 _cargo_available_flag = _is_cargo_available()
-_clippy_available_flag = _is_clippy_available()
-_tarpaulin_available_flag = _is_tarpaulin_available()
+_cargo_can_compile_flag = _can_cargo_compile()
+_clippy_available_flag = _is_clippy_available(_cargo_can_compile_flag)
+_tarpaulin_available_flag = _is_tarpaulin_available(_cargo_can_compile_flag)
 
 
 # Pytest markers for Rust tools
 cargo_available = pytest.mark.skipif(
-    not _cargo_available_flag,
-    reason="cargo not available"
+    not _cargo_can_compile_flag,
+    reason="cargo not available or cannot compile (check Rust toolchain setup)"
 )
 
 clippy_available = pytest.mark.skipif(

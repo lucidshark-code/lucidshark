@@ -43,7 +43,7 @@ curl -fsSL https://raw.githubusercontent.com/toniantunovi/lucidshark/main/instal
 irm https://raw.githubusercontent.com/toniantunovi/lucidshark/main/install.ps1 | iex
 
 # 2. Set up Claude Code
-lucidshark init --claude-code
+lucidshark init
 
 # 3. Restart your AI tool, then ask it:
 #    "Autoconfigure LucidShark for this project"
@@ -123,7 +123,7 @@ This checks:
 ### AI Tool Setup
 
 ```bash
-lucidshark init --claude-code    # Configure Claude Code (.mcp.json + .claude/CLAUDE.md)
+lucidshark init    # Configure Claude Code (.mcp.json + .claude/CLAUDE.md)
 ```
 
 Restart your AI tool after running `init` to activate.
@@ -189,7 +189,7 @@ See [docs/help.md](docs/help.md) for the full configuration reference.
 |---------|-------------|
 | `lucidshark scan --all` | Run all quality checks |
 | `lucidshark scan --linting --fix` | Lint and auto-fix |
-| `lucidshark init --claude-code` | Configure Claude Code integration |
+| `lucidshark init` | Configure Claude Code integration |
 | `lucidshark doctor` | Check setup and environment health |
 | `lucidshark validate` | Validate `lucidshark.yml` |
 

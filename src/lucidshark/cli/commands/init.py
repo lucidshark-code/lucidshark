@@ -208,17 +208,8 @@ class InitCommand(Command):
         Returns:
             Exit code.
         """
-        # Determine which tools to configure
-        configure_claude = getattr(args, "claude_code", False)
-        configure_all = getattr(args, "init_all", False)
-
-        if configure_all:
-            configure_claude = True
-
-        if not configure_claude:
-            print("No AI tool specified. Use --claude-code or --all.")
-            print("\nRun 'lucidshark init --help' for more options.")
-            return EXIT_INVALID_USAGE
+        # Claude Code is the default (and currently only) target
+        configure_claude = True
 
         dry_run = getattr(args, "dry_run", False)
         force = getattr(args, "force", False)

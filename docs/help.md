@@ -14,7 +14,7 @@ pip install lucidshark
 
 ```bash
 # 1. Set up Claude Code
-lucidshark init --claude-code
+lucidshark init
 
 # 2. Restart Claude Code, then ask:
 #    "Autoconfigure LucidShark for this project"
@@ -62,15 +62,14 @@ Configure Claude Code to use LucidShark via MCP.
 
 | Option | Description |
 |--------|-------------|
-| `--claude-code` | Configure Claude Code MCP settings |
 | `--dry-run` | Show changes without applying |
 | `--force` | Overwrite existing configuration |
 | `--remove` | Remove LucidShark from tool configuration |
 
 **Examples:**
 ```bash
-lucidshark init --claude-code
-lucidshark init --claude-code --remove
+lucidshark init
+lucidshark init --remove
 ```
 
 ### `lucidshark scan`
@@ -409,7 +408,7 @@ Get this documentation.
 
 ### `autoconfigure`
 
-**This is the primary way to set up LucidShark for a project.** Returns step-by-step instructions for analyzing the codebase and generating `lucidshark.yml`. The AI analyzes the project, asks the user 1-2 questions if needed, generates the configuration, and validates it.
+**This is the primary way to set up LucidShark for a project.** Returns step-by-step instructions for analyzing the codebase, installing required tools, and generating `lucidshark.yml`. The AI analyzes the project, installs missing tools, asks 1-2 questions if needed, generates the configuration, validates it, and runs a verification scan.
 
 **Parameters:** None
 
@@ -423,11 +422,13 @@ autoconfigure()
 1. **Detect languages** -- Check for marker files (`package.json`, `pyproject.toml`, `go.mod`, `pom.xml`, `Cargo.toml`, etc.)
 2. **Detect existing tools** -- Check for configs like `.eslintrc*`, `ruff.toml`, `tsconfig.json`, `mypy.ini`, `biome.json`
 3. **Detect test frameworks** -- Check for `conftest.py`, `jest.config.*`, `karma.conf.*`, `playwright.config.*`
-4. **Ask 1-2 questions** -- Coverage threshold (if tests detected), strict vs gradual mode (for legacy codebases)
-5. **Call `get_help()`** -- Read the Configuration Reference section for the full `lucidshark.yml` format
-6. **Generate `lucidshark.yml`** -- Write the config file based on detected project characteristics
-7. **Call `validate_config()`** -- Verify the configuration is valid, fix any errors
-8. **Inform the user** -- Which tools need installation, suggest running `lucidshark scan --all` to verify
+4. **Identify project-specific exclusions** -- Examine directory structure for generated code, vendored deps, etc.
+5. **Ask 1-2 questions** -- Coverage threshold (if tests detected), strict vs gradual mode (for legacy codebases)
+6. **Call `get_help()`** -- Read the Configuration Reference section for the full `lucidshark.yml` format
+7. **Install required tools** -- Check if tools are installed, install missing ones, AND add them to dev dependencies (pyproject.toml, requirements-dev.txt, package.json, etc.)
+8. **Generate `lucidshark.yml`** -- Write the config file based on detected project characteristics
+9. **Call `validate_config()`** -- Verify the configuration is valid, fix any errors
+10. **Run verification scan** -- Execute `scan(domains=["all"])` to verify everything works
 
 **Tool recommendations by language:**
 
@@ -1058,7 +1059,7 @@ project:
 ### Claude Code
 
 ```bash
-lucidshark init --claude-code
+lucidshark init
 ```
 
 This creates:

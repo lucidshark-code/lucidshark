@@ -103,8 +103,8 @@ class TestCLIRunner:
         mock_init_cmd.execute.return_value = EXIT_SUCCESS
         runner._init_cmd = mock_init_cmd  # type: ignore[assignment]
 
-        # init configures AI tools, requires a tool flag
-        result = runner.run(["init", "--claude-code"])
+        # init configures Claude Code by default
+        result = runner.run(["init"])
         assert result == EXIT_SUCCESS
         mock_init_cmd.execute.assert_called_once()
 

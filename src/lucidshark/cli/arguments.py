@@ -51,20 +51,6 @@ def _build_init_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
 
-    # Tool selection
-    tool_group = init_parser.add_argument_group("AI tools")
-    tool_group.add_argument(
-        "--claude-code",
-        action="store_true",
-        help="Configure Claude Code MCP settings.",
-    )
-    tool_group.add_argument(
-        "--all",
-        action="store_true",
-        dest="init_all",
-        help="Configure all supported AI tools.",
-    )
-
     # Options
     options_group = init_parser.add_argument_group("options")
     options_group.add_argument(
@@ -374,7 +360,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="LucidShark - Unified code quality pipeline for AI-assisted development.",
         epilog=(
             "Examples:\n"
-            "  lucidshark init --claude-code       # Configure Claude Code\n"
+            "  lucidshark init                     # Configure Claude Code\n"
             "  lucidshark scan --sca               # Scan dependencies\n"
             "  lucidshark scan --all               # Run all scans\n"
             "  lucidshark scan --linting --fix     # Lint and auto-fix\n"

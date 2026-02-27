@@ -26,21 +26,24 @@ class TestInitCommand:
         cmd = InitCommand(version="1.0.0")
         assert cmd.name == "init"
 
-    def test_no_tool_specified_returns_invalid_usage(self, capsys) -> None:
-        """Test that no tool specified returns EXIT_INVALID_USAGE."""
+    def test_default_configures_claude_code(self, tmp_path: Path, capsys) -> None:
+        """Test that init command configures Claude Code by default."""
         cmd = InitCommand(version="1.0.0")
         args = Namespace(
-            claude_code=False,
-            init_all=False,
-            dry_run=False,
+            dry_run=True,
             force=False,
             remove=False,
         )
-        exit_code = cmd.execute(args)
-        assert exit_code == EXIT_INVALID_USAGE
 
+        claude_config = tmp_path / ".mcp.json"
+
+        with patch.object(Path, "cwd", return_value=tmp_path):
+            with patch.object(cmd, "_get_claude_code_config_path", return_value=claude_config):
+                exit_code = cmd.execute(args)
+
+        assert exit_code == EXIT_SUCCESS
         captured = capsys.readouterr()
-        assert "No AI tool specified" in captured.out
+        assert "Claude Code" in captured.out
 
     def test_init_all_configures_claude_code(self, tmp_path: Path, capsys) -> None:
         """Test that --all configures Claude Code."""

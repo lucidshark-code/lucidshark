@@ -36,7 +36,7 @@ This trust layer doesn't replace existing tools - it orchestrates them and bridg
 LucidShark is the **trust layer for AI-assisted development**. It provides:
 
 ```
-lucidshark init --claude-code
+lucidshark init
 → Configures Claude Code
 
 "Autoconfigure LucidShark" (via AI)
@@ -67,7 +67,7 @@ LucidShark is a **unified code quality pipeline** with native AI agent integrati
 
 ```bash
 # 1. Set up Claude Code
-lucidshark init --claude-code
+lucidshark init
 
 # 2. Ask your AI: "Autoconfigure LucidShark for this project"
 ```
@@ -100,7 +100,7 @@ LucidShark bridges deterministic tools and AI agents via MCP (Model Context Prot
 
 ```bash
 # Configure Claude Code (creates MCP config and instructions)
-lucidshark init --claude-code
+lucidshark init
 
 # Then restart Claude Code for changes to take effect
 ```
@@ -553,7 +553,7 @@ output:
   format: json | table | sarif | summary
 ```
 
-> **Note**: AI tool integration is configured via `lucidshark init --claude-code`, not through lucidshark.yml.
+> **Note**: AI tool integration is configured via `lucidshark init`, not through lucidshark.yml.
 
 #### 5.4.2 Exclude File
 
@@ -1209,13 +1209,12 @@ lucidshark init [OPTIONS]
 Configure Claude Code to use LucidShark.
 
 Options:
-  --claude-code        Configure Claude Code MCP settings
   --dry-run            Show changes without applying
   --force              Overwrite existing configuration
   --remove             Remove LucidShark from tool configuration
 
 Examples:
-  lucidshark init --claude-code      # Configure Claude Code
+  lucidshark init                    # Configure Claude Code
 ```
 
 #### 8.2.2 `scan`
@@ -1483,7 +1482,7 @@ pipeline:
 - [x] MCP server implementation (`lucidshark serve --mcp`) with 8 tools
 - [x] AI instruction formatter
 - [x] File watcher mode
-- [x] Claude Code integration (`lucidshark init --claude-code`)
+- [x] Claude Code integration (`lucidshark init`)
 - [x] Feedback loop configuration
 - [x] MCP autoconfigure tool (AI-driven project setup)
 - [x] MCP validate_config tool

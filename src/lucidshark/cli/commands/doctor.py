@@ -275,7 +275,7 @@ class DoctorCommand(Command):
             global_config=Path.home() / ".claude" / "mcp_servers.json",
             project_config=project_root / ".claude" / "mcp_servers.json",
             project_mcp_json=project_root / ".mcp.json",
-            init_command="lucidshark init --claude-code",
+            init_command="lucidshark init",
             report_if_missing=True,
         )
         if claude_result is not None:

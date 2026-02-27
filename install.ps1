@@ -174,7 +174,7 @@ function lucidshark {
     Write-Host ""
     Write-Host "Then configure your AI tool:"
     Write-Host ""
-    Write-Success "  lucidshark init --claude-code    # For Claude Code"
+    Write-Success "  lucidshark init    # For Claude Code"
     Write-Host ""
     Write-Info "This sets up MCP integration so AI tools can scan automatically."
     Write-Host ""

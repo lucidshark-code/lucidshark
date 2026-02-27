@@ -441,8 +441,9 @@ class MCPToolExecutor:
         return {
             "instructions": (
                 "Follow these steps: Analyze the codebase, ask 1-2 quick questions if needed, "
-                "then generate lucidshark.yml with smart defaults using the Write tool, "
-                "and finally validate it with the validate_config MCP tool."
+                "install any missing tools and add them to the project's dev dependencies, "
+                "generate lucidshark.yml with smart defaults using the Write tool, "
+                "validate it with the validate_config MCP tool, and run a verification scan."
             ),
             "analysis_steps": [
                 {
@@ -564,6 +565,110 @@ class MCPToolExecutor:
                 },
                 {
                     "step": 7,
+                    "action": "Install required tools and add to package manager",
+                    "guidance": (
+                        "IMPORTANT: Before generating the config, ensure all required tools are installed. "
+                        "Claude MUST check if each tool is installed and install missing ones automatically. "
+                        "Security tools (trivy, opengrep, checkov, duplo) are auto-downloaded by LucidShark. "
+                        "Language-specific tools must be installed via package manager AND added to dev dependencies."
+                    ),
+                    "tools_by_language": {
+                        "python": {
+                            "tools": ["ruff", "mypy", "pytest", "coverage", "pytest-cov"],
+                            "check_command": "pip list | grep -iE '^(ruff|mypy|pytest|coverage) '",
+                            "install_command": "pip install {missing_tools}",
+                            "add_to_file": {
+                                "pyproject.toml": (
+                                    "Add missing tools to [project.optional-dependencies] dev = [...] section. "
+                                    "Example: dev = ['ruff>=0.4', 'mypy>=1.0', 'pytest>=7.0', 'coverage>=7.0', 'pytest-cov>=4.0']"
+                                ),
+                                "requirements-dev.txt": (
+                                    "Append missing tools to requirements-dev.txt, one per line. "
+                                    "Example: ruff>=0.4\\nmypy>=1.0\\npytest>=7.0\\ncoverage>=7.0\\npytest-cov>=4.0"
+                                ),
+                                "setup.py": (
+                                    "Add to extras_require={'dev': [...]} in setup.py"
+                                ),
+                            },
+                        },
+                        "javascript_typescript": {
+                            "tools": ["eslint", "typescript", "jest", "prettier"],
+                            "check_command": "npm list {tool} || yarn list {tool}",
+                            "install_command": "npm install --save-dev {missing_tools}",
+                            "add_to_file": {
+                                "package.json": (
+                                    "Tools are automatically added to devDependencies when using npm install --save-dev"
+                                ),
+                            },
+                        },
+                        "java_kotlin": {
+                            "tools": ["checkstyle", "spotbugs", "jacoco (all via Maven/Gradle plugins)"],
+                            "note": (
+                                "Java/Kotlin tools are configured via Maven/Gradle plugins, not installed separately. "
+                                "Verify pom.xml or build.gradle has the required plugins configured."
+                            ),
+                        },
+                        "rust": {
+                            "tools": ["clippy", "cargo-tarpaulin"],
+                            "check_command": "cargo --list | grep clippy && cargo install --list | grep tarpaulin",
+                            "install_command": "rustup component add clippy && cargo install cargo-tarpaulin",
+                        },
+                        "go": {
+                            "tools": ["golangci-lint", "go test (built-in)"],
+                            "check_command": "which golangci-lint",
+                            "install_command": "go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest",
+                            "note": (
+                                "Go has no built-in LucidShark plugins yet. Use 'command' field in lucidshark.yml: "
+                                "linting.command: 'golangci-lint run --out-format json', "
+                                "testing.command: 'go test -v ./...', "
+                                "coverage.command: 'go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out'"
+                            ),
+                        },
+                        "other_languages": {
+                            "description": (
+                                "For languages without built-in LucidShark plugins (C, C++, C#, Ruby, PHP, Swift, etc.), "
+                                "you can still use LucidShark for:"
+                            ),
+                            "available_features": [
+                                "Security scanning: trivy (SCA) and opengrep (SAST) work for most languages",
+                                "Duplication detection: duplo supports C, C++, C#, Java, JavaScript, Python, Ruby, Go, and more",
+                            ],
+                            "custom_integration": (
+                                "For linting, type checking, testing, and coverage, use the 'command' field to integrate "
+                                "your own tools. Example for C++: "
+                                "linting.command: 'clang-tidy src/**/*.cpp --export-fixes=fixes.yaml', "
+                                "testing.command: 'ctest --output-on-failure'"
+                            ),
+                            "example_config": (
+                                "pipeline:\\n"
+                                "  linting:\\n"
+                                "    enabled: true\\n"
+                                "    command: 'your-linter-command'\\n"
+                                "  testing:\\n"
+                                "    enabled: true\\n"
+                                "    command: 'your-test-command'\\n"
+                                "  security:\\n"
+                                "    enabled: true\\n"
+                                "    tools:\\n"
+                                "      - name: trivy\\n"
+                                "        domains: [sca]\\n"
+                                "      - name: opengrep\\n"
+                                "        domains: [sast]\\n"
+                                "  duplication:\\n"
+                                "    enabled: true\\n"
+                                "    tools: [duplo]"
+                            ),
+                        },
+                    },
+                    "execution_steps": [
+                        "1. Check which tools are already installed using the check_command",
+                        "2. Install any missing tools using the install_command",
+                        "3. Add the tools to the appropriate dev dependencies file so they persist",
+                        "4. Verify installation succeeded before proceeding",
+                    ],
+                },
+                {
+                    "step": 8,
                     "action": "Generate lucidshark.yml",
                     "output_file": "lucidshark.yml",
                     "template_guidance": (
@@ -572,9 +677,61 @@ class MCPToolExecutor:
                         "pipeline configuration with detected tools, fail_on thresholds, "
                         "coverage threshold, and ignore patterns."
                     ),
+                    "custom_commands_for_unsupported_languages": (
+                        "IMPORTANT: For languages without built-in LucidShark plugins (Go, C, C++, C#, Ruby, PHP, Swift, etc.), "
+                        "you MUST write appropriate 'command' fields to integrate the language's standard tools. "
+                        "Do NOT leave these domains disabled or empty - find the right commands for the project."
+                    ),
+                    "command_examples_by_language": {
+                        "go": {
+                            "linting": "golangci-lint run ./...",
+                            "type_checking": "go vet ./...",
+                            "testing": "go test -v ./...",
+                            "coverage": "go test -coverprofile=coverage.out ./... && go tool cover -func=coverage.out",
+                        },
+                        "c_cpp_cmake": {
+                            "linting": "cmake --build build --target clang-tidy",
+                            "testing": "ctest --test-dir build --output-on-failure",
+                            "coverage": "cmake --build build --target coverage",
+                        },
+                        "c_cpp_make": {
+                            "linting": "make lint",
+                            "testing": "make test",
+                        },
+                        "csharp_dotnet": {
+                            "linting": "dotnet format --verify-no-changes",
+                            "testing": "dotnet test --verbosity normal",
+                            "coverage": "dotnet test --collect:'XPlat Code Coverage'",
+                        },
+                        "ruby": {
+                            "linting": "bundle exec rubocop",
+                            "testing": "bundle exec rspec",
+                            "coverage": "bundle exec rspec --format documentation",
+                        },
+                        "php": {
+                            "linting": "vendor/bin/phpcs --standard=PSR12 src/",
+                            "type_checking": "vendor/bin/phpstan analyse src/",
+                            "testing": "vendor/bin/phpunit",
+                        },
+                        "swift": {
+                            "linting": "swiftlint",
+                            "testing": "swift test",
+                        },
+                        "elixir": {
+                            "linting": "mix credo",
+                            "type_checking": "mix dialyzer",
+                            "testing": "mix test",
+                        },
+                    },
+                    "command_field_rules": [
+                        "Examine the project's build files (Makefile, CMakeLists.txt, package.json scripts, etc.) to find existing commands",
+                        "If a standard tool exists for the language, use it even if not explicitly configured in the project",
+                        "Always test that the command works before finalizing the config",
+                        "Use 'post_command' for cleanup tasks like removing temp files or generating reports",
+                    ],
                 },
                 {
-                    "step": 8,
+                    "step": 9,
                     "action": "Validate the generated configuration",
                     "tool_to_call": "validate_config()",
                     "what_to_do": (
@@ -588,14 +745,13 @@ class MCPToolExecutor:
                     ),
                 },
                 {
-                    "step": 9,
-                    "action": "Inform user about tool installation and next steps",
+                    "step": 10,
+                    "action": "Run verification scan and inform user",
                     "guidance": (
-                        "After generating the config, tell the user: "
-                        "1) Which tools need to be installed (security tools are auto-downloaded), "
-                        "2) Run 'lucidshark init --claude-code' for AI integration, "
-                        "3) Run 'lucidshark scan --all' to verify the configuration works, "
-                        "4) IMPORTANT: Restart Claude Code for the configuration to take effect."
+                        "After config is validated and tools are installed: "
+                        "1) Run 'lucidshark scan --all' via the scan MCP tool to verify everything works, "
+                        "2) If 'lucidshark init' hasn't been run, suggest it for AI integration,"
+                        "3) IMPORTANT: Remind user to restart Claude Code for configuration changes to take effect."
                     ),
                 },
             ],
@@ -715,6 +871,28 @@ class MCPToolExecutor:
                     "go": [
                         "**/vendor/**",
                     ],
+                    "c_cpp": [
+                        "**/build/**",
+                        "**/cmake-build-*/**",
+                        "**/out/**",
+                        "**/*.o",
+                        "**/*.a",
+                        "**/*.so",
+                        "**/*.dylib",
+                    ],
+                    "csharp": [
+                        "**/bin/**",
+                        "**/obj/**",
+                        "**/packages/**",
+                        "**/.vs/**",
+                    ],
+                    "ruby": [
+                        "**/vendor/bundle/**",
+                        "**/.bundle/**",
+                    ],
+                    "php": [
+                        "**/vendor/**",
+                    ],
                 },
                 "project_specific_guidance": (
                     "After applying the above patterns, also examine the project's actual directory "
@@ -738,13 +916,37 @@ class MCPToolExecutor:
                     "test_runner": "jest (most common), karma (Angular), or playwright (E2E)",
                     "coverage": "istanbul/nyc (usually included with jest)",
                 },
-                "java": {
+                "java_kotlin": {
                     "linter": "checkstyle",
+                    "type_checker": "spotbugs (bug detection via static analysis)",
                     "test_runner": "maven (runs JUnit/TestNG tests)",
                     "coverage": "jacoco (Maven/Gradle plugin)",
                     "note": (
                         "For Java projects with integration tests requiring Docker or external services, "
                         "use extra_args to skip them: extra_args: [\"-DskipITs\", \"-Ddocker.skip=true\"]"
+                    ),
+                },
+                "rust": {
+                    "linter": "clippy (built into cargo)",
+                    "type_checker": "cargo check (built into cargo)",
+                    "test_runner": "cargo test (built into cargo)",
+                    "coverage": "tarpaulin (cargo-tarpaulin)",
+                },
+                "go": {
+                    "linter": "golangci-lint (use via command field)",
+                    "type_checker": "go vet (built into go, use via command field)",
+                    "test_runner": "go test (built into go, use via command field)",
+                    "coverage": "go test -cover (use via command field)",
+                    "note": (
+                        "Go has no built-in LucidShark plugins. Use the 'command' field in lucidshark.yml "
+                        "to integrate go tools. Example: linting.command: 'golangci-lint run --out-format json'"
+                    ),
+                },
+                "other_languages": {
+                    "note": (
+                        "For C, C++, C#, Ruby, PHP, Swift, and other languages without built-in plugins: "
+                        "use the 'command' field to integrate your own tools. Security scanning (trivy, opengrep) "
+                        "and duplication detection (duplo) work for most languages out of the box."
                     ),
                 },
             },
@@ -966,10 +1168,10 @@ ignore:
 """,
             },
             "post_config_steps": [
-                "Run 'lucidshark init --claude-code' to set up AI tool integration",
-                "Install required linting/testing tools via package manager (security tools auto-download)",
-                "Run 'lucidshark scan --all' to test the configuration and see initial results",
-                "If many issues appear, consider starting with relaxed thresholds (see gradual_adoption example)",
+                "Tools should already be installed and added to dev dependencies (step 7)",
+                "Run 'lucidshark init' if AI tool integration is not yet configured",
+                "Run 'lucidshark scan --all' to verify the configuration (should be done in step 10)",
+                "If many issues appear, consider relaxing thresholds (see gradual_adoption example)",
                 "IMPORTANT: Restart Claude Code for the new configuration to take effect",
             ],
         }

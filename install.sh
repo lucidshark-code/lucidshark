@@ -230,7 +230,7 @@ main() {
     echo ""
     echo "Then configure your AI tool:"
     echo ""
-    success "  lucidshark init --claude-code    # For Claude Code"
+    success "  lucidshark init    # For Claude Code"
     echo ""
     info "This sets up MCP integration so AI tools can scan automatically."
     echo ""

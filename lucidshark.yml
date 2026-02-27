@@ -7,11 +7,13 @@ project:
 pipeline:
   linting:
     enabled: true
-    tools: [ruff]
+    tools:
+      - name: ruff
 
   type_checking:
     enabled: true
-    tools: [mypy]
+    tools:
+      - name: mypy
 
   security:
     enabled: true
@@ -23,20 +25,22 @@ pipeline:
 
   testing:
     enabled: true
-    tools: [pytest]
+    tools:
+      - name: pytest
 
   coverage:
     enabled: true
-    tools: [coverage_py]
+    tools:
+      - name: coverage_py
     threshold: 80
 
   duplication:
     enabled: true
     threshold: 5.0
     min_lines: 7
-    tools: [duplo]
+    tools:
+      - name: duplo
     exclude:
-      - "htmlcov/**"
       - "docs/**"
       - "tests/**"
 
@@ -48,13 +52,30 @@ fail_on:
   coverage: below_threshold
   duplication: above_threshold
 
+# Global excludes - comprehensive list for Python projects
 exclude:
-  - "**/.venv/**"
-  - "**/__pycache__/**"
-  - "**/dist/**"
-  - "**/build/**"
+  # Git and IDE
   - "**/.git/**"
   - "**/.github/**"
   - "**/.lucidshark/**"
-  - "**/lucidshark.egg-info/**"
+  # Python virtual environments
+  - "**/.venv/**"
+  - "**/venv/**"
+  # Python caches
+  - "**/__pycache__/**"
+  - "**/.mypy_cache/**"
+  - "**/.pytest_cache/**"
+  - "**/.ruff_cache/**"
+  # Build artifacts
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/*.egg-info/**"
+  - "**/.eggs/**"
+  # Coverage reports
+  - "**/htmlcov/**"
+  # Test automation
+  - "**/.tox/**"
+  - "**/.nox/**"
+  # Project-specific
   - "tests/integration/projects/**"
+  - ".tasks/**"
