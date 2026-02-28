@@ -175,16 +175,19 @@ class ScanCommand(Command):
         if linting_enabled:
             linting_exclude = None
             linting_command = None
+            linting_pre_command = None
             linting_post_command = None
             if config.pipeline.linting:
                 if config.pipeline.linting.exclude:
                     linting_exclude = config.pipeline.linting.exclude
                 linting_command = config.pipeline.linting.command
+                linting_pre_command = config.pipeline.linting.pre_command
                 linting_post_command = config.pipeline.linting.post_command
             all_issues.extend(runner.run_linting(
                 context, fix_enabled,
                 exclude_patterns=linting_exclude,
                 command=linting_command,
+                pre_command=linting_pre_command,
                 post_command=linting_post_command,
             ))
 
@@ -201,16 +204,19 @@ class ScanCommand(Command):
         if type_checking_enabled:
             tc_exclude = None
             tc_command = None
+            tc_pre_command = None
             tc_post_command = None
             if config.pipeline.type_checking:
                 if config.pipeline.type_checking.exclude:
                     tc_exclude = config.pipeline.type_checking.exclude
                 tc_command = config.pipeline.type_checking.command
+                tc_pre_command = config.pipeline.type_checking.pre_command
                 tc_post_command = config.pipeline.type_checking.post_command
             all_issues.extend(runner.run_type_checking(
                 context,
                 exclude_patterns=tc_exclude,
                 command=tc_command,
+                pre_command=tc_pre_command,
                 post_command=tc_post_command,
             ))
 
@@ -235,16 +241,19 @@ class ScanCommand(Command):
             # Run tests, with coverage instrumentation if coverage is also enabled
             testing_exclude = None
             testing_command = None
+            testing_pre_command = None
             testing_post_command = None
             if config.pipeline.testing:
                 if config.pipeline.testing.exclude:
                     testing_exclude = config.pipeline.testing.exclude
                 testing_command = config.pipeline.testing.command
+                testing_pre_command = config.pipeline.testing.pre_command
                 testing_post_command = config.pipeline.testing.post_command
             all_issues.extend(runner.run_tests(
                 context, with_coverage=coverage_enabled,
                 exclude_patterns=testing_exclude,
                 command=testing_command,
+                pre_command=testing_pre_command,
                 post_command=testing_post_command,
             ))
 
@@ -256,17 +265,20 @@ class ScanCommand(Command):
             run_tests_for_coverage = not testing_enabled
             coverage_exclude = None
             coverage_command = None
+            coverage_pre_command = None
             coverage_post_command = None
             if config.pipeline.coverage:
                 if config.pipeline.coverage.exclude:
                     coverage_exclude = config.pipeline.coverage.exclude
                 coverage_command = config.pipeline.coverage.command
+                coverage_pre_command = config.pipeline.coverage.pre_command
                 coverage_post_command = config.pipeline.coverage.post_command
             all_issues.extend(
                 runner.run_coverage(
                     context, coverage_threshold, run_tests_for_coverage,
                     exclude_patterns=coverage_exclude,
                     command=coverage_command,
+                    pre_command=coverage_pre_command,
                     post_command=coverage_post_command,
                 )
             )

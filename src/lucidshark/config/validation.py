@@ -83,12 +83,13 @@ VALID_PIPELINE_KEYS: Set[str] = {
 }
 
 # Valid keys under pipeline domain sections (linting, type_checking, testing, etc.)
-# All domains support custom commands via 'command' and 'post_command'
+# All domains support custom commands via 'command', 'pre_command', and 'post_command'
 VALID_PIPELINE_DOMAIN_KEYS: Set[str] = {
     "enabled",
     "tools",
     "exclude",
     "command",       # Custom shell command to run instead of plugins
+    "pre_command",   # Shell command to run before main command (e.g., cleanup)
     "post_command",  # Shell command to run after main command
 }
 
@@ -103,6 +104,7 @@ VALID_PIPELINE_COVERAGE_KEYS: Set[str] = {
     "extra_args",  # Extra arguments to pass to Maven/Gradle
     "exclude",
     "command",       # Custom shell command to run coverage
+    "pre_command",   # Shell command to run before coverage (e.g., cleanup)
     "post_command",  # Shell command to run after coverage
 }
 
@@ -489,13 +491,20 @@ def validate_config(
                             key=f"pipeline.{domain}.exclude",
                         ))
 
-                    # Validate command and post_command (all domains)
+                    # Validate command, pre_command, and post_command (all domains)
                     cmd = domain_config.get("command")
                     if cmd is not None and not isinstance(cmd, str):
                         warnings.append(ConfigValidationWarning(
                             message=f"'pipeline.{domain}.command' must be a string",
                             source=source,
                             key=f"pipeline.{domain}.command",
+                        ))
+                    pre_cmd = domain_config.get("pre_command")
+                    if pre_cmd is not None and not isinstance(pre_cmd, str):
+                        warnings.append(ConfigValidationWarning(
+                            message=f"'pipeline.{domain}.pre_command' must be a string",
+                            source=source,
+                            key=f"pipeline.{domain}.pre_command",
                         ))
                     post_cmd = domain_config.get("post_command")
                     if post_cmd is not None and not isinstance(post_cmd, str):

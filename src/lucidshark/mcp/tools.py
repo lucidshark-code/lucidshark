@@ -1275,16 +1275,19 @@ ignore:
         loop = asyncio.get_event_loop()
         linting_exclude = None
         linting_command = None
+        linting_pre_command = None
         linting_post_command = None
         if self.config.pipeline.linting:
             if self.config.pipeline.linting.exclude:
                 linting_exclude = self.config.pipeline.linting.exclude
             linting_command = self.config.pipeline.linting.command
+            linting_pre_command = self.config.pipeline.linting.pre_command
             linting_post_command = self.config.pipeline.linting.post_command
         run_fn = functools.partial(
             self._runner.run_linting, context, fix,
             exclude_patterns=linting_exclude,
             command=linting_command,
+            pre_command=linting_pre_command,
             post_command=linting_post_command,
         )
         return await loop.run_in_executor(None, run_fn)
@@ -1301,16 +1304,19 @@ ignore:
         loop = asyncio.get_event_loop()
         tc_exclude = None
         tc_command = None
+        tc_pre_command = None
         tc_post_command = None
         if self.config.pipeline.type_checking:
             if self.config.pipeline.type_checking.exclude:
                 tc_exclude = self.config.pipeline.type_checking.exclude
             tc_command = self.config.pipeline.type_checking.command
+            tc_pre_command = self.config.pipeline.type_checking.pre_command
             tc_post_command = self.config.pipeline.type_checking.post_command
         run_fn = functools.partial(
             self._runner.run_type_checking, context,
             exclude_patterns=tc_exclude,
             command=tc_command,
+            pre_command=tc_pre_command,
             post_command=tc_post_command,
         )
         return await loop.run_in_executor(None, run_fn)
@@ -1330,16 +1336,19 @@ ignore:
         loop = asyncio.get_event_loop()
         testing_exclude = None
         testing_command = None
+        testing_pre_command = None
         testing_post_command = None
         if self.config.pipeline.testing:
             if self.config.pipeline.testing.exclude:
                 testing_exclude = self.config.pipeline.testing.exclude
             testing_command = self.config.pipeline.testing.command
+            testing_pre_command = self.config.pipeline.testing.pre_command
             testing_post_command = self.config.pipeline.testing.post_command
         run_fn = functools.partial(
             self._runner.run_tests, context, with_coverage,
             exclude_patterns=testing_exclude,
             command=testing_command,
+            pre_command=testing_pre_command,
             post_command=testing_post_command,
         )
         return await loop.run_in_executor(None, run_fn)
@@ -1361,11 +1370,13 @@ ignore:
         loop = asyncio.get_event_loop()
         coverage_exclude = None
         coverage_command = None
+        coverage_pre_command = None
         coverage_post_command = None
         if self.config.pipeline.coverage:
             if self.config.pipeline.coverage.exclude:
                 coverage_exclude = self.config.pipeline.coverage.exclude
             coverage_command = self.config.pipeline.coverage.command
+            coverage_pre_command = self.config.pipeline.coverage.pre_command
             coverage_post_command = self.config.pipeline.coverage.post_command
         run_coverage_fn = functools.partial(
             self._runner.run_coverage,
@@ -1373,6 +1384,7 @@ ignore:
             run_tests=run_tests,
             exclude_patterns=coverage_exclude,
             command=coverage_command,
+            pre_command=coverage_pre_command,
             post_command=coverage_post_command,
         )
         issues = await loop.run_in_executor(None, run_coverage_fn)

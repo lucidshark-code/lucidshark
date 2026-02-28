@@ -1266,3 +1266,134 @@ class TestCoverageCommand:
             runner.run_coverage(context, command="coverage run", post_command="coverage html")
 
         assert call_order == ["coverage run", "coverage html"]
+
+
+# ---------------------------------------------------------------------------
+# TestPreCommand — pre_command support for all domains
+# ---------------------------------------------------------------------------
+
+
+class TestPreCommand:
+    """Tests for pre_command support across all domains."""
+
+    def test_pre_command_runs_before_test_command(self, tmp_path: Path) -> None:
+        """pre_command executes before main test command."""
+        runner = _make_runner(tmp_path)
+        context = _make_context(tmp_path)
+        call_order: list[str] = []
+
+        def side_effect(cmd: str, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+            call_order.append(cmd)
+            return _completed(returncode=0)
+
+        with patch("lucidshark.core.domain_runner.subprocess.run", side_effect=side_effect):
+            runner.run_tests(
+                context,
+                command="make test",
+                pre_command="docker stop mongo",
+                post_command="make clean",
+            )
+
+        assert call_order == ["docker stop mongo", "make test", "make clean"]
+
+    def test_pre_command_runs_before_linting_command(self, tmp_path: Path) -> None:
+        """pre_command executes before main linting command."""
+        runner = _make_runner(tmp_path)
+        context = _make_context(tmp_path)
+        call_order: list[str] = []
+
+        def side_effect(cmd: str, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+            call_order.append(cmd)
+            return _completed(returncode=0)
+
+        with patch("lucidshark.core.domain_runner.subprocess.run", side_effect=side_effect):
+            runner.run_linting(
+                context,
+                command="lint .",
+                pre_command="setup-lint",
+                post_command="cleanup-lint",
+            )
+
+        assert call_order == ["setup-lint", "lint .", "cleanup-lint"]
+
+    def test_pre_command_runs_before_type_checking_command(self, tmp_path: Path) -> None:
+        """pre_command executes before main type checking command."""
+        runner = _make_runner(tmp_path)
+        context = _make_context(tmp_path)
+        call_order: list[str] = []
+
+        def side_effect(cmd: str, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+            call_order.append(cmd)
+            return _completed(returncode=0)
+
+        with patch("lucidshark.core.domain_runner.subprocess.run", side_effect=side_effect):
+            runner.run_type_checking(
+                context,
+                command="mypy .",
+                pre_command="generate-stubs",
+                post_command="cleanup-stubs",
+            )
+
+        assert call_order == ["generate-stubs", "mypy .", "cleanup-stubs"]
+
+    def test_pre_command_runs_before_coverage_command(self, tmp_path: Path) -> None:
+        """pre_command executes before main coverage command."""
+        runner = _make_runner(tmp_path)
+        context = _make_context(tmp_path)
+        call_order: list[str] = []
+
+        def side_effect(cmd: str, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+            call_order.append(cmd)
+            return _completed(returncode=0)
+
+        with patch("lucidshark.core.domain_runner.subprocess.run", side_effect=side_effect):
+            runner.run_coverage(
+                context,
+                command="coverage run",
+                pre_command="docker stop db",
+                post_command="coverage html",
+            )
+
+        assert call_order == ["docker stop db", "coverage run", "coverage html"]
+
+    def test_pre_command_failure_logged_not_raised(self, tmp_path: Path) -> None:
+        """pre_command failure is logged but main command still runs."""
+        runner = _make_runner(tmp_path)
+        context = _make_context(tmp_path)
+        call_count = 0
+
+        def side_effect(_cmd: str, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # pre_command fails
+                return _completed(returncode=1, stderr="cleanup failed")
+            # main command succeeds
+            return _completed(returncode=0, stdout="OK")
+
+        with patch("lucidshark.core.domain_runner.subprocess.run", side_effect=side_effect):
+            issues = runner.run_tests(
+                context,
+                command="make test",
+                pre_command="bad-cleanup",
+            )
+
+        # Main command succeeded, so no test failure issues
+        # (pre_command failure is just logged)
+        assert len(issues) == 0
+        assert call_count == 2  # Both commands ran
+
+    def test_pre_command_none_skips_subprocess(self, tmp_path: Path) -> None:
+        """No pre_command means no extra subprocess call."""
+        runner = _make_runner(tmp_path)
+        context = _make_context(tmp_path)
+        call_order: list[str] = []
+
+        def side_effect(cmd: str, **_kwargs: Any) -> subprocess.CompletedProcess[str]:
+            call_order.append(cmd)
+            return _completed(returncode=0)
+
+        with patch("lucidshark.core.domain_runner.subprocess.run", side_effect=side_effect):
+            runner.run_tests(context, command="make test", pre_command=None)
+
+        assert call_order == ["make test"]

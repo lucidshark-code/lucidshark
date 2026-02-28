@@ -280,6 +280,7 @@ class DomainRunner:
         fix: bool = False,
         exclude_patterns: Optional[List[str]] = None,
         command: Optional[str] = None,
+        pre_command: Optional[str] = None,
         post_command: Optional[str] = None,
     ) -> List[UnifiedIssue]:
         """Run linting checks.
@@ -289,6 +290,7 @@ class DomainRunner:
             fix: Whether to apply automatic fixes.
             exclude_patterns: Domain-specific exclude patterns to merge.
             command: Custom shell command to run instead of plugins.
+            pre_command: Shell command to run before linting (e.g., cleanup).
             post_command: Shell command to run after linting completes.
 
         Returns:
@@ -300,6 +302,8 @@ class DomainRunner:
         issues: List[UnifiedIssue] = []
 
         if command:
+            # Run pre_command before main command (e.g., cleanup leftover state)
+            self._run_pre_command(pre_command, "linting.pre_command")
             # Custom command overrides plugin-based execution
             result = self._run_shell_command(command, "lint_command")
             issues = self._parse_command_output(result, ToolDomain.LINTING, command)
@@ -345,6 +349,7 @@ class DomainRunner:
         context: ScanContext,
         exclude_patterns: Optional[List[str]] = None,
         command: Optional[str] = None,
+        pre_command: Optional[str] = None,
         post_command: Optional[str] = None,
     ) -> List[UnifiedIssue]:
         """Run type checking.
@@ -353,6 +358,7 @@ class DomainRunner:
             context: Scan context.
             exclude_patterns: Domain-specific exclude patterns to merge.
             command: Custom shell command to run instead of plugins.
+            pre_command: Shell command to run before type checking (e.g., cleanup).
             post_command: Shell command to run after type checking completes.
 
         Returns:
@@ -364,6 +370,8 @@ class DomainRunner:
         issues: List[UnifiedIssue] = []
 
         if command:
+            # Run pre_command before main command (e.g., cleanup leftover state)
+            self._run_pre_command(pre_command, "type_checking.pre_command")
             # Custom command overrides plugin-based execution
             result = self._run_shell_command(command, "type_check_command")
             issues = self._parse_command_output(result, ToolDomain.TYPE_CHECKING, command)
@@ -411,6 +419,25 @@ class DomainRunner:
             capture_output=True,
             text=True,
         )
+
+    def _run_pre_command(self, pre_command: Optional[str], label: str) -> None:
+        """Run a pre-command if provided and log any failures.
+
+        Pre-commands run before the main operation, typically for cleanup
+        (e.g., stopping leftover Docker containers before tests).
+
+        Args:
+            pre_command: Optional shell command to execute before main operation.
+            label: Label for logging (e.g., "testing.pre_command").
+        """
+        if not pre_command:
+            return
+        pre_result = self._run_shell_command(pre_command, label)
+        if pre_result.returncode != 0:
+            LOGGER.warning(
+                f"{label} failed (exit code {pre_result.returncode}): "
+                f"{pre_result.stderr.strip()[:200] if pre_result.stderr else ''}"
+            )
 
     def _run_post_command(self, post_command: Optional[str], label: str) -> None:
         """Run a post-command if provided and log any failures.
@@ -705,6 +732,7 @@ class DomainRunner:
         with_coverage: bool = False,
         exclude_patterns: Optional[List[str]] = None,
         command: Optional[str] = None,
+        pre_command: Optional[str] = None,
         post_command: Optional[str] = None,
     ) -> List[UnifiedIssue]:
         """Run test suite.
@@ -714,6 +742,7 @@ class DomainRunner:
             with_coverage: If True, run tests with coverage instrumentation.
             exclude_patterns: Domain-specific exclude patterns to merge.
             command: Custom shell command to run tests. Overrides plugin-based runner.
+            pre_command: Shell command to run before tests (e.g., cleanup containers).
             post_command: Shell command to run after tests complete.
 
         Returns:
@@ -725,6 +754,8 @@ class DomainRunner:
         issues: List[UnifiedIssue] = []
 
         if command:
+            # Run pre_command before main command (e.g., cleanup leftover containers)
+            self._run_pre_command(pre_command, "testing.pre_command")
             # Custom command overrides plugin-based execution
             result = self._run_shell_command(command, "testing.command")
 
@@ -789,6 +820,7 @@ class DomainRunner:
         run_tests: bool = True,
         exclude_patterns: Optional[List[str]] = None,
         command: Optional[str] = None,
+        pre_command: Optional[str] = None,
         post_command: Optional[str] = None,
     ) -> List[UnifiedIssue]:
         """Run coverage analysis.
@@ -799,6 +831,7 @@ class DomainRunner:
             run_tests: Whether to run tests for coverage.
             exclude_patterns: Domain-specific exclude patterns to merge.
             command: Custom shell command to run coverage. Overrides plugin-based runner.
+            pre_command: Shell command to run before coverage (e.g., cleanup).
             post_command: Shell command to run after coverage completes.
 
         Returns:
@@ -810,6 +843,8 @@ class DomainRunner:
         issues: List[UnifiedIssue] = []
 
         if command:
+            # Run pre_command before main command (e.g., cleanup leftover state)
+            self._run_pre_command(pre_command, "coverage.pre_command")
             # Custom command overrides plugin-based execution
             result = self._run_shell_command(command, "coverage_command")
 

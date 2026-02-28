@@ -119,7 +119,7 @@ class JaCoCoPlugin(CoveragePlugin):
             LOGGER.info("Using existing JaCoCo report...")
 
         # Parse JaCoCo report
-        result = self._parse_jacoco_report(context.project_root, threshold, build_system)
+        result = self._parse_jacoco_report(context.project_root, threshold, build_system, context)
         result.test_stats = test_stats
 
         return result
@@ -361,6 +361,7 @@ class JaCoCoPlugin(CoveragePlugin):
         project_root: Path,
         threshold: float,
         build_system: str,
+        context: Optional[ScanContext] = None,
     ) -> CoverageResult:
         """Parse JaCoCo XML report.
 
@@ -368,6 +369,7 @@ class JaCoCoPlugin(CoveragePlugin):
             project_root: Project root directory.
             threshold: Coverage percentage threshold.
             build_system: Build system name (maven or gradle).
+            context: Optional scan context with exclude patterns.
 
         Returns:
             CoverageResult with parsed data.
@@ -411,13 +413,14 @@ class JaCoCoPlugin(CoveragePlugin):
             )
             return CoverageResult(threshold=threshold, tool="jacoco")
 
-        return self._parse_xml_report(report_file, project_root, threshold)
+        return self._parse_xml_report(report_file, project_root, threshold, context)
 
     def _parse_xml_report(
         self,
         report_file: Path,
         project_root: Path,
         threshold: float,
+        context: Optional[ScanContext] = None,
     ) -> CoverageResult:
         """Parse JaCoCo XML report file.
 
@@ -425,6 +428,7 @@ class JaCoCoPlugin(CoveragePlugin):
             report_file: Path to JaCoCo XML report.
             project_root: Project root directory.
             threshold: Coverage percentage threshold.
+            context: Optional scan context with exclude patterns.
 
         Returns:
             CoverageResult with parsed data.
@@ -437,23 +441,20 @@ class JaCoCoPlugin(CoveragePlugin):
             LOGGER.error(f"Failed to parse JaCoCo XML report: {e}")
             return CoverageResult(threshold=threshold, tool="jacoco")
 
-        # Parse overall counters
+        # Check if we have exclude patterns from context
+        has_excludes = context is not None and context.ignore_patterns is not None
+
+        # We'll calculate totals from per-file data if we have excludes,
+        # otherwise use report-level counters
         total_lines = 0
         covered_lines = 0
         missed_lines = 0
-
-        # JaCoCo uses INSTRUCTION, BRANCH, LINE, COMPLEXITY, METHOD, CLASS counters
-        # We focus on LINE coverage - get the report-level counter (direct child of root)
-        line_counter = root.find("counter[@type='LINE']")
-        if line_counter is not None:
-            missed_lines = int(line_counter.get("missed", 0))
-            covered_lines = int(line_counter.get("covered", 0))
-            total_lines = missed_lines + covered_lines
+        excluded_count = 0
 
         result = CoverageResult(
-            total_lines=total_lines,
-            covered_lines=covered_lines,
-            missing_lines=missed_lines,
+            total_lines=0,
+            covered_lines=0,
+            missing_lines=0,
             threshold=threshold,
             tool="jacoco",
         )
@@ -468,24 +469,42 @@ class JaCoCoPlugin(CoveragePlugin):
                     project_root, package_name, source_name
                 )
 
+                # Check if file should be excluded
+                if has_excludes:
+                    assert context is not None and context.ignore_patterns is not None
+                    if context.ignore_patterns.matches(file_path, project_root):
+                        excluded_count += 1
+                        LOGGER.debug(f"Excluding from coverage: {file_path}")
+                        continue
+
                 line_counter = sourcefile.find("counter[@type='LINE']")
                 if line_counter is not None:
                     file_missed = int(line_counter.get("missed", 0))
                     file_covered = int(line_counter.get("covered", 0))
 
+                    # Accumulate totals from non-excluded files
+                    total_lines += file_missed + file_covered
+                    covered_lines += file_covered
+                    missed_lines += file_missed
+
                     # Get missing line numbers
-                    missing_lines = []
+                    missing_line_nums = []
                     for line in sourcefile.findall("line"):
                         if int(line.get("mi", 0)) > 0:  # mi = missed instructions
-                            missing_lines.append(int(line.get("nr", 0)))
+                            missing_line_nums.append(int(line.get("nr", 0)))
 
                     file_coverage = FileCoverage(
                         file_path=file_path,
                         total_lines=file_missed + file_covered,
                         covered_lines=file_covered,
-                        missing_lines=missing_lines,
+                        missing_lines=missing_line_nums,
                     )
                     result.files[str(file_path)] = file_coverage
+
+        # Update result with calculated totals
+        result.total_lines = total_lines
+        result.covered_lines = covered_lines
+        result.missing_lines = missed_lines
 
         # Calculate percentage
         percentage = result.percentage
@@ -497,9 +516,10 @@ class JaCoCoPlugin(CoveragePlugin):
             )
             result.issues.append(issue)
 
+        exclude_msg = f" ({excluded_count} files excluded)" if excluded_count > 0 else ""
         LOGGER.info(
             f"JaCoCo coverage: {percentage:.1f}% ({covered_lines}/{total_lines} lines) "
-            f"- threshold: {threshold}%"
+            f"- threshold: {threshold}%{exclude_msg}"
         )
 
         return result

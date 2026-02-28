@@ -307,10 +307,11 @@ def _parse_domain_pipeline_config(
 
     exclude = domain_data.get("exclude", [])
     command = domain_data.get("command")
+    pre_command = domain_data.get("pre_command")
     post_command = domain_data.get("post_command")
     return DomainPipelineConfig(
         enabled=enabled, tools=tools, exclude=exclude,
-        command=command, post_command=post_command,
+        command=command, pre_command=pre_command, post_command=post_command,
     )
 
 
@@ -345,6 +346,7 @@ def _parse_coverage_pipeline_config(
         extra_args=coverage_data.get("extra_args", []),
         exclude=coverage_data.get("exclude", []),
         command=coverage_data.get("command"),
+        pre_command=coverage_data.get("pre_command"),
         post_command=coverage_data.get("post_command"),
     )
 

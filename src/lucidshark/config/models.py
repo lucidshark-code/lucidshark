@@ -82,6 +82,7 @@ class DomainPipelineConfig:
     tools: List[ToolConfig] = field(default_factory=list)
     exclude: List[str] = field(default_factory=list)  # Patterns to exclude from this domain
     command: Optional[str] = None  # Custom shell command to run instead of plugins
+    pre_command: Optional[str] = None  # Shell command to run before main command (e.g., cleanup)
     post_command: Optional[str] = None  # Shell command to run after main command
 
 
@@ -97,6 +98,7 @@ class CoveragePipelineConfig:
     extra_args: List[str] = field(default_factory=list)
     exclude: List[str] = field(default_factory=list)  # Patterns to exclude from coverage
     command: Optional[str] = None  # Custom shell command to run coverage
+    pre_command: Optional[str] = None  # Shell command to run before coverage (e.g., cleanup)
     post_command: Optional[str] = None  # Shell command to run after coverage
 
 
