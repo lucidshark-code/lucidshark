@@ -616,6 +616,75 @@ class TestValidateConfigSecurity:
         )
 
 
+class TestCoverageRequiresTesting:
+    """Tests for coverage-requires-testing validation."""
+
+    def test_warns_when_coverage_enabled_testing_disabled(self) -> None:
+        """Coverage enabled with testing disabled should produce an error."""
+        data = {
+            "pipeline": {
+                "coverage": {"enabled": True, "tools": [{"name": "coverage_py"}]},
+                "testing": {"enabled": False, "tools": [{"name": "pytest"}]},
+            }
+        }
+        warnings = validate_config(data, source="test.yml")
+        assert any("Coverage requires testing" in w.message for w in warnings)
+
+    def test_warns_when_coverage_enabled_testing_missing(self) -> None:
+        """Coverage enabled with testing not configured should produce an error."""
+        data = {
+            "pipeline": {
+                "coverage": {"enabled": True, "tools": [{"name": "coverage_py"}]},
+                # testing not configured at all
+            }
+        }
+        warnings = validate_config(data, source="test.yml")
+        # Testing not configured (None) means not enabled
+        assert any("Coverage requires testing" in w.message for w in warnings)
+
+    def test_no_warning_when_both_enabled(self) -> None:
+        """No warning when both coverage and testing are enabled."""
+        data = {
+            "pipeline": {
+                "coverage": {"enabled": True, "tools": [{"name": "coverage_py"}]},
+                "testing": {"enabled": True, "tools": [{"name": "pytest"}]},
+            }
+        }
+        warnings = validate_config(data, source="test.yml")
+        assert not any("Coverage requires testing" in w.message for w in warnings)
+
+    def test_no_warning_when_coverage_disabled(self) -> None:
+        """No warning when coverage is disabled."""
+        data = {
+            "pipeline": {
+                "coverage": {"enabled": False, "tools": [{"name": "coverage_py"}]},
+                "testing": {"enabled": False, "tools": [{"name": "pytest"}]},
+            }
+        }
+        warnings = validate_config(data, source="test.yml")
+        assert not any("Coverage requires testing" in w.message for w in warnings)
+
+    def test_coverage_testing_error_is_error_not_warning(self, tmp_path: Path) -> None:
+        """Coverage-requires-testing should be classified as ERROR severity."""
+        config_file = tmp_path / "lucidshark.yml"
+        config_file.write_text("""
+pipeline:
+  coverage:
+    enabled: true
+    tools:
+      - name: coverage_py
+  testing:
+    enabled: false
+    tools:
+      - name: pytest
+""")
+        is_valid, issues = validate_config_file(config_file)
+        # Should be invalid because coverage requires testing
+        assert is_valid is False
+        error_issues = [i for i in issues if i.severity == ValidationSeverity.ERROR]
+        assert any("Coverage requires testing" in i.message for i in error_issues)
+
+
 class TestValidateConfigDuplication:
     """Tests for pipeline.duplication validation."""
 

@@ -87,7 +87,7 @@ Run the quality/security pipeline. By default, scans only changed files (uncommi
 | `--iac` | iac | Infrastructure-as-Code scanning (Checkov) |
 | `--container` | container | Container image scanning (Trivy) |
 | `--testing` | testing | Run test suite (pytest, Jest, Karma, Playwright, Maven, cargo test) |
-| `--coverage` | coverage | Coverage analysis (coverage.py, Istanbul, JaCoCo, Tarpaulin) |
+| `--coverage` | coverage | Coverage analysis (coverage.py, Istanbul, JaCoCo, Tarpaulin). **Requires `--testing`** |
 | `--duplication` | duplication | Code duplication detection (Duplo) |
 | `--all` | all | Enable all domains |
 
@@ -627,6 +627,8 @@ Common use cases:
 - **Cleanup**: `post_command: "rm -rf tmp/test-artifacts"` to remove temporary files
 - **Report generation**: `post_command: "node scripts/merge-reports.js"` to post-process output
 
+  # IMPORTANT: Coverage requires testing to be enabled (see "Testing and Coverage Integration")
+  # Testing produces the coverage files that coverage analysis reads
   coverage:
     enabled: true
     exclude:          # Patterns to exclude from coverage analysis
@@ -1338,4 +1340,87 @@ exclude:
   - "**/dist/**"
   - "**/build/**"
   # Add language-specific and project-specific excludes here
+```
+
+---
+
+## Testing and Coverage Integration
+
+**IMPORTANT: Coverage requires testing.** The coverage domain does not run tests itself — it analyzes coverage files produced by the testing domain. When you enable coverage, you MUST also enable testing.
+
+### How It Works
+
+1. **Testing runs with coverage instrumentation** — When both testing and coverage are enabled, LucidShark runs tests with coverage collection enabled
+2. **Coverage analyzes the results** — The coverage domain reads the coverage files produced by testing and generates reports
+3. **Error if coverage without testing** — If you try to run coverage without testing, LucidShark will return an error
+
+### Coverage Files by Language
+
+Each test runner produces coverage files in a specific format:
+
+| Language | Test Runner | Coverage Tool | Command | Output File |
+|----------|-------------|---------------|---------|-------------|
+| **Python** | pytest | coverage.py | `coverage run -m pytest` | `.coverage` |
+| **JavaScript/TypeScript** | jest | istanbul | `jest --coverage` | `coverage/lcov.info` |
+| **Java (Maven)** | maven | jacoco | `mvn test` (with JaCoCo plugin) | `target/site/jacoco/jacoco.xml` |
+| **Java (Gradle)** | gradle | jacoco | `gradle test` (with JaCoCo plugin) | `build/reports/jacoco/test/jacocoTestReport.xml` |
+| **Rust** | cargo | tarpaulin | `cargo tarpaulin --out json` | `tarpaulin-report.json` |
+
+### Configuration Requirements
+
+When configuring coverage in `lucidshark.yml`, you MUST also enable testing:
+
+```yaml
+pipeline:
+  # REQUIRED: Testing must be enabled for coverage to work
+  testing:
+    enabled: true
+    tools: [pytest]  # or jest, maven, cargo, etc.
+
+  # Coverage analyzes the output from testing
+  coverage:
+    enabled: true
+    tools: [coverage_py]  # or istanbul, jacoco, tarpaulin
+    threshold: 80
+```
+
+**Error example:** The following configuration is INVALID and will fail validation:
+
+```yaml
+# INVALID: Coverage without testing
+pipeline:
+  testing:
+    enabled: false  # ERROR: Testing must be enabled for coverage
+  coverage:
+    enabled: true
+```
+
+### CLI Usage
+
+When running scans from the command line:
+
+```bash
+# Correct: Both testing and coverage
+lucidshark scan --testing --coverage
+
+# Correct: Use --all (includes both testing and coverage if configured)
+lucidshark scan --all
+
+# ERROR: Coverage without testing
+lucidshark scan --coverage  # Will fail with error
+```
+
+### MCP Usage
+
+When using the MCP scan tool:
+
+```
+# Correct: Both testing and coverage
+scan(domains=["testing", "coverage"])
+
+# Correct: Use "all"
+scan(domains=["all"])
+
+# ERROR: Coverage without testing
+scan(domains=["coverage"])  # Will return error
 ```

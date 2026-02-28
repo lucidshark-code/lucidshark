@@ -116,6 +116,18 @@ class MCPToolExecutor:
         # Convert domain strings to ToolDomain enums
         enabled_domains = self._parse_domains(domains)
 
+        # Coverage requires testing to be enabled - testing produces the coverage files
+        from lucidshark.core.models import ToolDomain
+        if ToolDomain.COVERAGE in enabled_domains and ToolDomain.TESTING not in enabled_domains:
+            return {
+                "error": (
+                    "Coverage requires testing to be enabled. Testing produces the coverage "
+                    "files that coverage analysis reads. Add 'testing' to the domains list."
+                ),
+                "blocking": True,
+                "total_issues": 0,
+            }
+
         # Bootstrap security tools if needed (before async operations)
         security_domains = [d for d in enabled_domains if isinstance(d, ScanDomain)]
         if security_domains and not self._tools_bootstrapped:
@@ -517,6 +529,12 @@ class MCPToolExecutor:
                         "For Java: check if project has integration tests (src/test/java/**/*IT.java) "
                         "that require Docker - if so, suggest extra_args to skip them."
                     ),
+                    "coverage_testing_dependency": (
+                        "IMPORTANT: Coverage REQUIRES testing to be enabled. Testing produces the "
+                        "coverage files that coverage analysis reads. If you enable coverage, you "
+                        "MUST also enable testing in the generated config. The scan will fail if "
+                        "coverage is enabled without testing."
+                    ),
                 },
                 {
                     "step": 4,
@@ -798,7 +816,8 @@ class MCPToolExecutor:
                 ],
                 "always_use_defaults": {
                     "security": "Always enable security scanning (trivy + opengrep). Fail on 'high' severity.",
-                    "testing": "Enable if tests detected. Always fail on test failures.",
+                    "testing": "Enable if tests detected. Always fail on test failures. MUST be enabled if coverage is enabled.",
+                    "coverage": "Enable if coverage tool detected. REQUIRES testing to be enabled (testing produces coverage files).",
                     "linting": "Enable with detected tool. Use strictness setting for fail_on.",
                     "type_checking": "Enable if tool detected. Use strictness setting for fail_on.",
                     "duplication": "Always enable duplication detection (duplo). Threshold 5%, min_lines 7.",

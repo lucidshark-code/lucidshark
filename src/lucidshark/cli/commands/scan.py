@@ -10,6 +10,7 @@ from typing import List, Optional
 from lucidshark.cli.commands import Command
 from lucidshark.cli.config_bridge import ConfigBridge
 from lucidshark.cli.exit_codes import (
+    EXIT_INVALID_USAGE,
     EXIT_ISSUES_FOUND,
     EXIT_SCANNER_ERROR,
     EXIT_SUCCESS,
@@ -64,6 +65,26 @@ class ScanCommand(Command):
         # Handle dry-run mode
         if getattr(args, "dry_run", False):
             return self._dry_run(args, config)
+
+        # Coverage requires testing to be enabled - testing produces the coverage files
+        all_flag = getattr(args, "all", False)
+        coverage_flag = getattr(args, "coverage", False)
+        testing_flag = getattr(args, "testing", False)
+        coverage_configured = (
+            config.pipeline.coverage is not None and config.pipeline.coverage.enabled
+        )
+        testing_configured = (
+            config.pipeline.testing is not None and config.pipeline.testing.enabled
+        )
+        coverage_enabled = coverage_flag or (all_flag and coverage_configured)
+        testing_enabled = testing_flag or (all_flag and testing_configured)
+        if coverage_enabled and not testing_enabled:
+            LOGGER.error(
+                "Coverage requires testing to be enabled. Testing produces the coverage "
+                "files that coverage analysis reads. Add --testing flag or enable "
+                "testing in your lucidshark.yml configuration."
+            )
+            return EXIT_INVALID_USAGE
 
         try:
             result = self._run_scan(args, config)

@@ -10,6 +10,7 @@ import pytest
 
 from lucidshark.cli.commands.scan import ScanCommand
 from lucidshark.cli.exit_codes import (
+    EXIT_INVALID_USAGE,
     EXIT_ISSUES_FOUND,
     EXIT_SCANNER_ERROR,
     EXIT_SUCCESS,
@@ -418,6 +419,25 @@ class TestScanCommandRunScan:
             mock_ctx, with_coverage=False, exclude_patterns=None,
             command=None, pre_command=None, post_command=None,
         )
+
+    def test_run_scan_coverage_without_testing_returns_error(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Coverage requires testing to be enabled - returns EXIT_INVALID_USAGE."""
+        cmd = ScanCommand(version="1.0.0")
+        config = _make_config(
+            pipeline=PipelineConfig(
+                coverage=CoveragePipelineConfig(enabled=True, threshold=80),
+            )
+        )
+        # Coverage enabled but testing NOT enabled - should return error
+        args = _make_args(tmp_path, coverage=True, testing=False)
+
+        # Check is done in execute(), not _run_scan()
+        result = cmd.execute(args, config)
+
+        assert result == EXIT_INVALID_USAGE
 
     @patch("lucidshark.cli.commands.scan.PipelineExecutor")
     @patch("lucidshark.cli.commands.scan.DomainRunner")

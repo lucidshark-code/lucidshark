@@ -445,21 +445,29 @@ class JaCoCoPlugin(CoveragePlugin):
         has_excludes = context is not None and context.ignore_patterns is not None
 
         # We'll calculate totals from per-file data if we have excludes,
-        # otherwise use report-level counters
+        # otherwise use report-level counters for efficiency
         total_lines = 0
         covered_lines = 0
         missed_lines = 0
         excluded_count = 0
 
+        # When no excludes, use report-level LINE counter (more reliable)
+        if not has_excludes:
+            line_counter = root.find("counter[@type='LINE']")
+            if line_counter is not None:
+                missed_lines = int(line_counter.get("missed", 0))
+                covered_lines = int(line_counter.get("covered", 0))
+                total_lines = missed_lines + covered_lines
+
         result = CoverageResult(
-            total_lines=0,
-            covered_lines=0,
-            missing_lines=0,
+            total_lines=total_lines,
+            covered_lines=covered_lines,
+            missing_lines=missed_lines,
             threshold=threshold,
             tool="jacoco",
         )
 
-        # Parse per-package/class coverage
+        # Parse per-package/class coverage for per-file details
         for package in root.findall(".//package"):
             package_name = package.get("name", "")
 
@@ -482,10 +490,11 @@ class JaCoCoPlugin(CoveragePlugin):
                     file_missed = int(line_counter.get("missed", 0))
                     file_covered = int(line_counter.get("covered", 0))
 
-                    # Accumulate totals from non-excluded files
-                    total_lines += file_missed + file_covered
-                    covered_lines += file_covered
-                    missed_lines += file_missed
+                    # Accumulate totals from non-excluded files (only when filtering)
+                    if has_excludes:
+                        total_lines += file_missed + file_covered
+                        covered_lines += file_covered
+                        missed_lines += file_missed
 
                     # Get missing line numbers
                     missing_line_nums = []
@@ -501,10 +510,11 @@ class JaCoCoPlugin(CoveragePlugin):
                     )
                     result.files[str(file_path)] = file_coverage
 
-        # Update result with calculated totals
-        result.total_lines = total_lines
-        result.covered_lines = covered_lines
-        result.missing_lines = missed_lines
+        # Update result with calculated totals (only needed when filtering by excludes)
+        if has_excludes:
+            result.total_lines = total_lines
+            result.covered_lines = covered_lines
+            result.missing_lines = missed_lines
 
         # Calculate percentage
         percentage = result.percentage

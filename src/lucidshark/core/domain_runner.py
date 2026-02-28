@@ -817,7 +817,7 @@ class DomainRunner:
         self,
         context: ScanContext,
         threshold: float = 80.0,
-        run_tests: bool = True,
+        run_tests: bool = False,
         exclude_patterns: Optional[List[str]] = None,
         command: Optional[str] = None,
         pre_command: Optional[str] = None,
@@ -825,10 +825,15 @@ class DomainRunner:
     ) -> List[UnifiedIssue]:
         """Run coverage analysis.
 
+        IMPORTANT: Coverage requires testing to have already run with coverage
+        instrumentation. The testing domain produces the coverage files
+        (e.g., .coverage for Python) that coverage analysis reads.
+
         Args:
             context: Scan context.
             threshold: Coverage percentage threshold.
-            run_tests: Whether to run tests for coverage.
+            run_tests: Whether to run tests for coverage. Default is False since
+                testing should have already run with coverage instrumentation.
             exclude_patterns: Domain-specific exclude patterns to merge.
             command: Custom shell command to run coverage. Overrides plugin-based runner.
             pre_command: Shell command to run before coverage (e.g., cleanup).

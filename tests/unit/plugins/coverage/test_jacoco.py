@@ -147,6 +147,7 @@ class TestJaCoCoMeasureCoverage:
             context.project_root = project_root
             context.stream_handler = None
             context.config = None
+            context.ignore_patterns = None  # No exclude patterns
 
             result = plugin.measure_coverage(context, threshold=80.0, run_tests=True)
             assert result.total_lines == 100

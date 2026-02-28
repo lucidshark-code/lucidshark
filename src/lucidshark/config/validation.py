@@ -590,6 +590,32 @@ def validate_config(
                         key="pipeline.duplication.exclude",
                     ))
 
+            # Validate coverage requires testing to be enabled
+            # Coverage analyzes output files produced by testing with coverage instrumentation
+            coverage_config = pipeline.get("coverage")
+            testing_config = pipeline.get("testing")
+
+            coverage_enabled = (
+                coverage_config is not None
+                and isinstance(coverage_config, dict)
+                and coverage_config.get("enabled", True)
+            )
+            testing_enabled = (
+                testing_config is not None
+                and isinstance(testing_config, dict)
+                and testing_config.get("enabled", True)
+            )
+
+            if coverage_enabled and not testing_enabled:
+                warnings.append(ConfigValidationWarning(
+                    message=(
+                        "Coverage requires testing to be enabled. Testing produces the coverage "
+                        "files that coverage analysis reads. Enable 'pipeline.testing.enabled: true'."
+                    ),
+                    source=source,
+                    key="pipeline.coverage",
+                ))
+
     # Validate ai section
     ai = data.get("ai")
     if ai is not None:
@@ -755,12 +781,13 @@ def validate_config_file(config_path: Path) -> Tuple[bool, List[ConfigValidation
     # Type errors are ERROR severity, unknown keys are WARNING severity
     for warning in warnings:
         # Determine severity based on message content
-        # Type mismatches and invalid values are errors
+        # Type mismatches, invalid values, and dependency errors are errors
         is_error = any(phrase in warning.message for phrase in [
             "must be a",
             "Invalid severity",
             "Invalid value",
             "Config must be",
+            "Coverage requires testing",  # Coverage depends on testing
         ])
 
         issues.append(ConfigValidationIssue(
