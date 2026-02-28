@@ -6,6 +6,10 @@ import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+# Skip entire module if MCP is not installed (optional dependency)
+pytest.importorskip("mcp")
 
 from mcp.types import (
     CallToolRequest,

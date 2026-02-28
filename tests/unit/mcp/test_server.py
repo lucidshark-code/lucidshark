@@ -6,6 +6,9 @@ from pathlib import Path
 
 import pytest
 
+# Skip entire module if MCP is not installed (optional dependency)
+pytest.importorskip("mcp")
+
 from lucidshark.config import LucidSharkConfig
 from lucidshark.mcp.server import LucidSharkMCPServer
 
