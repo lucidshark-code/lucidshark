@@ -15,7 +15,7 @@ from lucidshark.cli.commands.init import (
     LUCIDSHARK_SKILL_CONTENT,
     LUCIDSHARK_CLAUDE_MD_SECTION,
 )
-from lucidshark.cli.exit_codes import EXIT_SUCCESS, EXIT_INVALID_USAGE
+from lucidshark.cli.exit_codes import EXIT_SUCCESS
 
 
 class TestInitCommand:
@@ -472,7 +472,7 @@ class TestConfigureClaudeMd:
         content = claude_md.read_text(encoding="utf-8")
         assert "<!-- lucidshark:start" in content
         assert "<!-- lucidshark:end -->" in content
-        assert "mcp__lucidshark__scan" in content
+        assert "lucidshark scan" in content  # CLI-first approach
         assert "Smart Domain Selection" in content
 
     def test_appends_to_existing_claude_md(self, tmp_path: Path) -> None:

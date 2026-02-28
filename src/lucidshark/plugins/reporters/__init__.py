@@ -10,6 +10,7 @@ from lucidshark.plugins.reporters.json_reporter import JSONReporter
 from lucidshark.plugins.reporters.table_reporter import TableReporter
 from lucidshark.plugins.reporters.summary_reporter import SummaryReporter
 from lucidshark.plugins.reporters.sarif_reporter import SARIFReporter
+from lucidshark.plugins.reporters.ai_reporter import AIReporter
 from lucidshark.plugins import REPORTER_ENTRY_POINT_GROUP
 from lucidshark.plugins.discovery import (
     discover_plugins,
@@ -35,6 +36,7 @@ def list_available_reporters() -> list[str]:
 
 __all__ = [
     "ReporterPlugin",
+    "AIReporter",
     "JSONReporter",
     "TableReporter",
     "SummaryReporter",

@@ -166,9 +166,9 @@ def _build_scan_parser(subparsers: argparse._SubParsersAction) -> None:
     output_group = scan_parser.add_argument_group("output")
     output_group.add_argument(
         "--format",
-        choices=["json", "table", "sarif", "summary"],
+        choices=["ai", "json", "table", "sarif", "summary"],
         default=None,
-        help="Output format (default: json, or as specified in config file).",
+        help="Output format. 'ai' is optimized for AI agents (default: json).",
     )
 
     # Configuration options
