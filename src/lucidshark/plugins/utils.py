@@ -29,6 +29,15 @@ except ImportError:
     _tomllib = None
 
 
+def get_tomllib() -> Any:
+    """Get the tomllib module (Python 3.11+) or tomli fallback.
+
+    Returns:
+        The tomllib/tomli module, or None if neither is available.
+    """
+    return _tomllib
+
+
 def get_cli_version(
     binary: Path,
     version_flag: str = "--version",

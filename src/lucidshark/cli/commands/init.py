@@ -11,7 +11,7 @@ import shutil
 import sys
 from argparse import Namespace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
     from lucidshark.config.models import LucidSharkConfig
@@ -616,63 +616,53 @@ class InitCommand(Command):
             return False
 
     @staticmethod
-    def _remove_managed_section(content: str, start_marker: str, end_marker: str) -> str:
-        """Remove a managed section delimited by markers from content.
+    def _process_managed_section(
+        content: str,
+        start_marker: str,
+        end_marker: str,
+        replacement: Optional[str] = None,
+    ) -> str:
+        """Process a managed section delimited by markers.
 
         Args:
             content: The full file content.
             start_marker: Start of the managed section (prefix match).
             end_marker: End of the managed section (exact line match).
+            replacement: If provided, replaces section with this content.
+                         If None, section is removed.
 
         Returns:
-            Content with the managed section removed.
+            Content with the managed section processed.
         """
         lines = content.split("\n")
-        result = []
+        result: List[str] = []
         in_section = False
+        replaced = False
         for line in lines:
             if not in_section and start_marker in line:
                 in_section = True
-                continue
-            if in_section and end_marker in line:
+                if replacement is not None and not replaced:
+                    result.append(replacement.rstrip())
+                    replaced = True
+            elif in_section and end_marker in line:
                 in_section = False
-                continue
-            if not in_section:
+            elif not in_section:
                 result.append(line)
         return "\n".join(result)
+
+    @staticmethod
+    def _remove_managed_section(content: str, start_marker: str, end_marker: str) -> str:
+        """Remove a managed section delimited by markers from content."""
+        return InitCommand._process_managed_section(content, start_marker, end_marker)
 
     @staticmethod
     def _replace_managed_section(
         content: str, start_marker: str, end_marker: str, new_section: str
     ) -> str:
-        """Replace a managed section delimited by markers with new content.
-
-        Args:
-            content: The full file content.
-            start_marker: Start of the managed section (prefix match).
-            end_marker: End of the managed section (exact line match).
-            new_section: New content to insert (includes its own markers).
-
-        Returns:
-            Content with the managed section replaced.
-        """
-        lines = content.split("\n")
-        result = []
-        in_section = False
-        section_inserted = False
-        for line in lines:
-            if not in_section and start_marker in line:
-                in_section = True
-                if not section_inserted:
-                    result.append(new_section.rstrip())
-                    section_inserted = True
-                continue
-            if in_section and end_marker in line:
-                in_section = False
-                continue
-            if not in_section:
-                result.append(line)
-        return "\n".join(result)
+        """Replace a managed section with new content."""
+        return InitCommand._process_managed_section(
+            content, start_marker, end_marker, new_section
+        )
 
     def _get_claude_code_config_path(self) -> Optional[Path]:
         """Get the Claude Code MCP config file path.

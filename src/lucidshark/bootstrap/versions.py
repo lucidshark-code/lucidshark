@@ -6,23 +6,13 @@ This is the single source of truth for all lucidshark-managed tool versions.
 
 from __future__ import annotations
 
-import sys
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
-# Import tomllib (Python 3.11+) or tomli (Python 3.10)
-try:
-    if sys.version_info >= (3, 11):
-        import tomllib
+from lucidshark.plugins.utils import get_tomllib
 
-        _tomllib: Any = tomllib
-    else:
-        import tomli
-
-        _tomllib = tomli
-except ImportError:
-    _tomllib = None  # Will use fallback versions
+_tomllib = get_tomllib()
 
 
 # Hardcoded fallback versions (kept in sync with pyproject.toml)
