@@ -10,36 +10,21 @@ Produces output optimized for AI agents with:
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 from typing import IO, Any, Dict, List, Optional
 
 from lucidshark.core.models import (
     ScanDomain,
     ScanResult,
-    Severity,
     ToolDomain,
     UnifiedIssue,
 )
+from lucidshark.mcp.formatter import (
+    FixInstruction,
+    SEVERITY_PRIORITY,
+    DOMAIN_ACTION_PREFIX,
+)
 from lucidshark.plugins.reporters.base import ReporterPlugin
-
-
-@dataclass
-class FixInstruction:
-    """Rich fix instruction for AI agents."""
-
-    priority: int  # 1 (highest) to 5 (lowest)
-    action: str  # FIX_SECURITY_VULNERABILITY, FIX_TYPE_ERROR, etc.
-    summary: str  # One-line summary
-    file: str
-    line: int
-    column: Optional[int] = None
-    problem: str = ""  # Detailed problem description
-    fix_steps: List[str] = field(default_factory=list)  # Ordered steps to fix
-    suggested_fix: Optional[str] = None  # Suggested code replacement
-    current_code: Optional[str] = None  # Current code snippet
-    documentation_url: Optional[str] = None
-    related_issues: List[str] = field(default_factory=list)  # Related issue IDs
-    issue_id: str = ""  # Original issue ID for reference
 
 
 class AIReporter(ReporterPlugin):
@@ -51,26 +36,6 @@ class AIReporter(ReporterPlugin):
     - Domain pass/fail status
     - Recommended next actions
     """
-
-    SEVERITY_PRIORITY = {
-        Severity.CRITICAL: 1,
-        Severity.HIGH: 2,
-        Severity.MEDIUM: 3,
-        Severity.LOW: 4,
-        Severity.INFO: 5,
-    }
-
-    DOMAIN_ACTION_PREFIX = {
-        ScanDomain.SCA: "FIX_DEPENDENCY_",
-        ScanDomain.SAST: "FIX_SECURITY_",
-        ScanDomain.IAC: "FIX_INFRASTRUCTURE_",
-        ScanDomain.CONTAINER: "FIX_CONTAINER_",
-        ToolDomain.LINTING: "FIX_LINTING_",
-        ToolDomain.TYPE_CHECKING: "FIX_TYPE_",
-        ToolDomain.SECURITY: "FIX_SECURITY_",
-        ToolDomain.TESTING: "FIX_TEST_",
-        ToolDomain.COVERAGE: "IMPROVE_COVERAGE_",
-    }
 
     @property
     def name(self) -> str:
@@ -198,7 +163,7 @@ class AIReporter(ReporterPlugin):
         file_path = str(issue.file_path) if issue.file_path else ""
 
         return FixInstruction(
-            priority=self.SEVERITY_PRIORITY.get(issue.severity, 3),
+            priority=SEVERITY_PRIORITY.get(issue.severity, 3),
             action=self._generate_action(issue),
             summary=self._generate_summary_line(issue),
             file=file_path,
@@ -215,7 +180,7 @@ class AIReporter(ReporterPlugin):
 
     def _generate_action(self, issue: UnifiedIssue) -> str:
         """Generate action type from issue."""
-        prefix = self.DOMAIN_ACTION_PREFIX.get(issue.domain, "FIX_")
+        prefix = DOMAIN_ACTION_PREFIX.get(issue.domain, "FIX_")
         title_lower = issue.title.lower() if issue.title else ""
         domain = issue.domain
 

@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 from lucidshark.core.models import ScanDomain, Severity, ToolDomain, UnifiedIssue
-from lucidshark.mcp.formatter import FixInstruction, InstructionFormatter
+from lucidshark.mcp.formatter import (
+    FixInstruction,
+    InstructionFormatter,
+    SEVERITY_PRIORITY,
+)
 
 
 class TestFixInstruction:
@@ -112,11 +116,11 @@ class TestInstructionFormatter:
         self, formatter: InstructionFormatter
     ) -> None:
         """Test severity to priority mapping."""
-        assert formatter.SEVERITY_PRIORITY[Severity.CRITICAL] == 1
-        assert formatter.SEVERITY_PRIORITY[Severity.HIGH] == 2
-        assert formatter.SEVERITY_PRIORITY[Severity.MEDIUM] == 3
-        assert formatter.SEVERITY_PRIORITY[Severity.LOW] == 4
-        assert formatter.SEVERITY_PRIORITY[Severity.INFO] == 5
+        assert SEVERITY_PRIORITY[Severity.CRITICAL] == 1
+        assert SEVERITY_PRIORITY[Severity.HIGH] == 2
+        assert SEVERITY_PRIORITY[Severity.MEDIUM] == 3
+        assert SEVERITY_PRIORITY[Severity.LOW] == 4
+        assert SEVERITY_PRIORITY[Severity.INFO] == 5
 
     def test_generate_action_for_security_issues(
         self, formatter: InstructionFormatter

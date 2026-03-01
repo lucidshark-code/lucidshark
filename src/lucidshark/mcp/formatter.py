@@ -31,31 +31,33 @@ class FixInstruction:
     issue_id: str = ""  # Original issue ID for reference
 
 
+# Shared constants for AI formatting - used by both MCP formatter and AI reporter
+SEVERITY_PRIORITY: Dict[Severity, int] = {
+    Severity.CRITICAL: 1,
+    Severity.HIGH: 2,
+    Severity.MEDIUM: 3,
+    Severity.LOW: 4,
+    Severity.INFO: 5,
+}
+
+# Map both ScanDomain and ToolDomain to action prefixes
+DOMAIN_ACTION_PREFIX: Dict[ScanDomain | ToolDomain, str] = {
+    # ScanDomain values
+    ScanDomain.SCA: "FIX_DEPENDENCY_",
+    ScanDomain.SAST: "FIX_SECURITY_",
+    ScanDomain.IAC: "FIX_INFRASTRUCTURE_",
+    ScanDomain.CONTAINER: "FIX_CONTAINER_",
+    # ToolDomain values
+    ToolDomain.LINTING: "FIX_LINTING_",
+    ToolDomain.TYPE_CHECKING: "FIX_TYPE_",
+    ToolDomain.SECURITY: "FIX_SECURITY_",
+    ToolDomain.TESTING: "FIX_TEST_",
+    ToolDomain.COVERAGE: "IMPROVE_COVERAGE_",
+}
+
+
 class InstructionFormatter:
     """Transforms UnifiedIssue to AI-friendly instructions."""
-
-    SEVERITY_PRIORITY = {
-        Severity.CRITICAL: 1,
-        Severity.HIGH: 2,
-        Severity.MEDIUM: 3,
-        Severity.LOW: 4,
-        Severity.INFO: 5,
-    }
-
-    # Map both ScanDomain and ToolDomain to action prefixes
-    DOMAIN_ACTION_PREFIX = {
-        # ScanDomain values
-        ScanDomain.SCA: "FIX_DEPENDENCY_",
-        ScanDomain.SAST: "FIX_SECURITY_",
-        ScanDomain.IAC: "FIX_INFRASTRUCTURE_",
-        ScanDomain.CONTAINER: "FIX_CONTAINER_",
-        # ToolDomain values
-        ToolDomain.LINTING: "FIX_LINTING_",
-        ToolDomain.TYPE_CHECKING: "FIX_TYPE_",
-        ToolDomain.SECURITY: "FIX_SECURITY_",
-        ToolDomain.TESTING: "FIX_TEST_",
-        ToolDomain.COVERAGE: "IMPROVE_COVERAGE_",
-    }
 
     def format_scan_result(
         self,
@@ -192,7 +194,7 @@ class InstructionFormatter:
         file_path = str(issue.file_path) if issue.file_path else ""
 
         return FixInstruction(
-            priority=self.SEVERITY_PRIORITY.get(issue.severity, 3),
+            priority=SEVERITY_PRIORITY.get(issue.severity, 3),
             action=self._generate_action(issue),
             summary=self._generate_summary_line(issue),
             file=file_path,
@@ -216,7 +218,7 @@ class InstructionFormatter:
         Returns:
             Action string like FIX_SECURITY_VULNERABILITY.
         """
-        prefix = self.DOMAIN_ACTION_PREFIX.get(issue.domain, "FIX_")
+        prefix = DOMAIN_ACTION_PREFIX.get(issue.domain, "FIX_")
         title_lower = issue.title.lower() if issue.title else ""
         domain = issue.domain
 
