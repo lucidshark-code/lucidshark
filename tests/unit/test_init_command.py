@@ -633,6 +633,9 @@ class TestConfigureClaudeHooks:
         settings = json.loads(settings_path.read_text(encoding="utf-8"))
         assert settings["other_setting"] == "value"
         assert "PostToolUse" in settings["hooks"]
+        # PreToolUse hooks must also be preserved
+        assert "PreToolUse" in settings["hooks"]
+        assert settings["hooks"]["PreToolUse"] == [{"matcher": "Bash", "hooks": []}]
 
     def test_skips_if_already_configured(self, tmp_path: Path, capsys) -> None:
         """Test that setup skips if hooks already configured."""
@@ -673,8 +676,67 @@ class TestConfigureClaudeHooks:
 
         assert success
         settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        # Should have exactly one PostToolUse hook group (old replaced, not duplicated)
+        assert len(settings["hooks"]["PostToolUse"]) == 1
         command = settings["hooks"]["PostToolUse"][0]["hooks"][0]["command"]
         assert "scan before completing" in command
+
+    def test_force_preserves_non_lucidshark_hooks(self, tmp_path: Path) -> None:
+        """Test that --force only updates LucidShark hook, preserving others."""
+        cmd = InitCommand(version="1.0.0")
+        settings_path = tmp_path / ".claude" / "settings.json"
+        settings_path.parent.mkdir(parents=True)
+        # Write settings with both LucidShark and non-LucidShark hooks
+        mixed_hooks = {
+            "other_setting": "keep_me",
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [
+                            {"type": "command", "command": "echo 'custom pre-hook'"}
+                        ],
+                    }
+                ],
+                "PostToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [
+                            {"type": "command", "command": "echo 'custom post-hook'"}
+                        ],
+                    },
+                    {
+                        "matcher": "Edit|Write|NotebookEdit",
+                        "hooks": [
+                            {"type": "command", "command": "echo '[LucidShark] old message'"}
+                        ],
+                    },
+                ],
+            },
+        }
+        settings_path.write_text(json.dumps(mixed_hooks), encoding="utf-8")
+
+        with patch.object(Path, "cwd", return_value=tmp_path):
+            success = cmd._configure_claude_hooks(dry_run=False, force=True, remove=False)
+
+        assert success
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        # Non-hook settings preserved
+        assert settings["other_setting"] == "keep_me"
+        # PreToolUse hooks preserved
+        assert len(settings["hooks"]["PreToolUse"]) == 1
+        assert settings["hooks"]["PreToolUse"][0]["matcher"] == "Bash"
+        # PostToolUse: custom hook preserved + LucidShark hook updated
+        post_hooks = settings["hooks"]["PostToolUse"]
+        assert len(post_hooks) == 2
+        # Custom hook still there
+        custom = [h for h in post_hooks if h["matcher"] == "Bash"]
+        assert len(custom) == 1
+        assert "custom post-hook" in custom[0]["hooks"][0]["command"]
+        # LucidShark hook updated
+        ls_hooks = [h for h in post_hooks if "LucidShark" in h["hooks"][0].get("command", "")]
+        assert len(ls_hooks) == 1
+        assert "scan before completing" in ls_hooks[0]["hooks"][0]["command"]
 
     def test_dry_run_does_not_write(self, tmp_path: Path, capsys) -> None:
         """Test that --dry-run does not write settings file."""

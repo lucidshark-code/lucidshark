@@ -697,9 +697,20 @@ class InitCommand(Command):
             print(f"  Would {action} LucidShark hooks in {settings_path}")
             return True
 
-        # Merge hooks into existing settings
+        # Merge hooks into existing settings, preserving non-LucidShark hooks
         new_settings = dict(existing_settings)
-        new_settings[hooks_key] = LUCIDSHARK_HOOKS_CONFIG[hooks_key]
+        # Remove any existing LucidShark hooks first so we don't duplicate
+        if has_hooks:
+            self._remove_lucidshark_hooks(new_settings)
+        # Merge: add LucidShark PostToolUse hooks alongside existing hooks
+        existing_hooks = new_settings.get(hooks_key, {})
+        new_hooks = LUCIDSHARK_HOOKS_CONFIG[hooks_key]
+        for event_type, hook_groups in new_hooks.items():
+            if event_type in existing_hooks:
+                existing_hooks[event_type].extend(hook_groups)
+            else:
+                existing_hooks[event_type] = list(hook_groups)
+        new_settings[hooks_key] = existing_hooks
 
         try:
             settings_path.parent.mkdir(parents=True, exist_ok=True)
