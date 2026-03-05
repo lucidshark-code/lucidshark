@@ -39,6 +39,7 @@ a = Analysis(
         'lucidshark.plugins.linters.eslint',
         'lucidshark.plugins.linters.biome',
         'lucidshark.plugins.linters.checkstyle',
+        'lucidshark.plugins.linters.clippy',
         # Plugin entry points - scanners
         'lucidshark.plugins.scanners.trivy',
         'lucidshark.plugins.scanners.opengrep',
@@ -53,14 +54,20 @@ a = Analysis(
         'lucidshark.plugins.type_checkers.mypy',
         'lucidshark.plugins.type_checkers.pyright',
         'lucidshark.plugins.type_checkers.typescript',
+        'lucidshark.plugins.type_checkers.spotbugs',
+        'lucidshark.plugins.type_checkers.cargo_check',
         # Plugin entry points - test runners
         'lucidshark.plugins.test_runners.pytest',
         'lucidshark.plugins.test_runners.jest',
         'lucidshark.plugins.test_runners.karma',
         'lucidshark.plugins.test_runners.playwright',
+        'lucidshark.plugins.test_runners.maven',
+        'lucidshark.plugins.test_runners.cargo',
         # Plugin entry points - coverage
         'lucidshark.plugins.coverage.coverage_py',
         'lucidshark.plugins.coverage.istanbul',
+        'lucidshark.plugins.coverage.jacoco',
+        'lucidshark.plugins.coverage.tarpaulin',
         # Plugin entry points - duplication
         'lucidshark.plugins.duplication.duplo',
         # Dependencies that may need explicit import
