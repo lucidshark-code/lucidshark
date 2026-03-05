@@ -743,7 +743,7 @@ All other tools must be installed manually before use. If you configure a tool t
 | `karma` | JavaScript, TypeScript | `npm install karma` |
 | `playwright` | JavaScript, TypeScript | `npm install @playwright/test` |
 | `maven` | Java | `brew install maven` (macOS) or download from maven.apache.org |
-| `cargo_test` | Rust | Included with Rust toolchain (`rustup`) |
+| `cargo` | Rust | Included with Rust toolchain (`rustup`) |
 
 **Coverage Tools:**
 
@@ -1205,6 +1205,8 @@ lucidshark init
 This creates:
 - `.mcp.json` - MCP server configuration (auto-detects lucidshark path)
 - `.claude/skills/lucidshark/SKILL.md` - Proactive scanning skill for Claude
+- `.claude/CLAUDE.md` - Adds a managed section with scanning instructions
+- `.claude/settings.json` - PostToolUse hooks for scan reminders after code edits
 
 Or manually create `.mcp.json`:
 ```json

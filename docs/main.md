@@ -253,7 +253,6 @@ pipeline:
     post_command: "make clean" # Optional: runs after command completes
     tools:
       - name: pytest
-        args: ["-v"]
 
 #### Custom Commands
 
@@ -501,7 +500,7 @@ pipeline:
     tools:
       - name: string
         config: string  # Path to tool config
-        args: [string]  # Additional arguments
+        options: {...}  # Tool-specific options (passed through)
 
   type_checking:
     enabled: boolean
@@ -512,7 +511,7 @@ pipeline:
     tools:
       - name: string
         strict: boolean
-        args: [string]
+        options: {...}  # Tool-specific options
 
   security:
     enabled: boolean
@@ -530,8 +529,7 @@ pipeline:
     exclude: [string]     # Patterns to exclude from testing
     tools:
       - name: string
-        args: [string]
-        coverage: boolean
+        options: {...}  # Tool-specific options
 
   coverage:
     enabled: boolean
@@ -681,9 +679,9 @@ LucidShark pins versions for tools it downloads directly (security scanners and 
 # pyproject.toml
 [tool.lucidshark.tools]
 # Security scanners
-trivy = "0.69.2"
-opengrep = "1.15.0"
-checkov = "3.2.499"
+trivy = "0.69.3"
+opengrep = "1.16.3"
+checkov = "3.2.506"
 # Duplication detection
 duplo = "0.1.6"
 ```
