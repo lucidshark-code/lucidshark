@@ -101,14 +101,16 @@ class TestRunnerPlugin(ABC):
         """
 
     @abstractmethod
-    def run_tests(
-        self, context: ScanContext, with_coverage: bool = False
-    ) -> TestResult:
+    def run_tests(self, context: ScanContext) -> TestResult:
         """Run tests on the specified paths.
+
+        Test runners that support it (pytest, jest, vitest, maven) include
+        coverage instrumentation automatically. Others (cargo test, karma,
+        playwright) do not — their coverage tools are either separate
+        (tarpaulin) or config-driven (karma).
 
         Args:
             context: Scan context with paths and configuration.
-            with_coverage: If True, run tests with coverage instrumentation.
 
         Returns:
             TestResult with test statistics and issues for failures.

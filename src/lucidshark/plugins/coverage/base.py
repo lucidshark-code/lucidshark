@@ -8,14 +8,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
-
-# Re-export TestStatistics for plugins
-__all__ = ["CoveragePlugin", "CoverageResult", "FileCoverage", "TestStatistics"]
-
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 from lucidshark.core.models import CoverageSummary, ScanContext, UnifiedIssue, ToolDomain
+
+__all__ = ["CoveragePlugin", "CoverageResult", "FileCoverage"]
 
 
 @dataclass
@@ -37,22 +34,6 @@ class FileCoverage:
 
 
 @dataclass
-class TestStatistics:
-    """Test execution statistics."""
-
-    total: int = 0
-    passed: int = 0
-    failed: int = 0
-    skipped: int = 0
-    errors: int = 0
-
-    @property
-    def success(self) -> bool:
-        """Whether all tests passed (no failures or errors)."""
-        return self.failed == 0 and self.errors == 0
-
-
-@dataclass
 class CoverageResult:
     """Result statistics from coverage analysis."""
 
@@ -63,8 +44,6 @@ class CoverageResult:
     threshold: float = 0.0
     files: Dict[str, FileCoverage] = field(default_factory=dict)
     issues: List[UnifiedIssue] = field(default_factory=list)
-    # Test statistics (populated when tests are run for coverage)
-    test_stats: Optional[TestStatistics] = None
     tool: str = ""  # Name of the coverage tool that produced this result
 
     @property
@@ -76,9 +55,7 @@ class CoverageResult:
 
     @property
     def passed(self) -> bool:
-        """Whether coverage meets the threshold and tests passed (if run)."""
-        if self.test_stats is not None and not self.test_stats.success:
-            return False
+        """Whether coverage meets the threshold."""
         return self.percentage >= self.threshold
 
     def to_summary(self) -> CoverageSummary:
@@ -87,7 +64,7 @@ class CoverageResult:
         Returns:
             CoverageSummary dataclass with all coverage statistics.
         """
-        summary = CoverageSummary(
+        return CoverageSummary(
             coverage_percentage=round(self.percentage, 2),
             threshold=self.threshold,
             total_lines=self.total_lines,
@@ -95,13 +72,6 @@ class CoverageResult:
             missing_lines=self.missing_lines,
             passed=self.passed,
         )
-        if self.test_stats is not None:
-            summary.tests_total = self.test_stats.total
-            summary.tests_passed = self.test_stats.passed
-            summary.tests_failed = self.test_stats.failed
-            summary.tests_skipped = self.test_stats.skipped
-            summary.tests_errors = self.test_stats.errors
-        return summary
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for MCP/JSON output.
@@ -109,7 +79,7 @@ class CoverageResult:
         Returns:
             Dictionary with coverage statistics.
         """
-        result: Dict[str, Any] = {
+        return {
             "coverage_percentage": round(self.percentage, 2),
             "threshold": self.threshold,
             "total_lines": self.total_lines,
@@ -117,16 +87,6 @@ class CoverageResult:
             "missing_lines": self.missing_lines,
             "passed": self.passed,
         }
-        if self.test_stats is not None:
-            result["tests"] = {
-                "total": self.test_stats.total,
-                "passed": self.test_stats.passed,
-                "failed": self.test_stats.failed,
-                "skipped": self.test_stats.skipped,
-                "errors": self.test_stats.errors,
-                "success": self.test_stats.success,
-            }
-        return result
 
     def filter_to_changed_files(
         self,
@@ -185,8 +145,6 @@ class CoverageResult:
         covered_lines = sum(f.covered_lines for f in filtered_files.values())
         missing_lines = sum(len(f.missing_lines) for f in filtered_files.values())
 
-        # Create new result with filtered data
-        # Keep test_stats unchanged since tests still ran fully
         return CoverageResult(
             total_lines=total_lines,
             covered_lines=covered_lines,
@@ -195,7 +153,6 @@ class CoverageResult:
             threshold=self.threshold,
             files=filtered_files,
             issues=[],  # Issues will be regenerated if coverage is below threshold
-            test_stats=self.test_stats,
             tool=self.tool,
         )
 
@@ -269,14 +226,17 @@ class CoveragePlugin(ABC):
         self,
         context: ScanContext,
         threshold: float = 80.0,
-        run_tests: bool = True,
     ) -> CoverageResult:
-        """Run coverage analysis on the specified paths.
+        """Parse existing coverage data and return results.
+
+        Coverage plugins only parse existing coverage data files. They never
+        run tests independently. If no coverage data is found, the result
+        should contain an error issue directing the user to run the testing
+        domain first.
 
         Args:
             context: Scan context with paths and configuration.
             threshold: Coverage percentage threshold (default 80%).
-            run_tests: Whether to run tests if no existing coverage data exists.
 
         Returns:
             CoverageResult with coverage statistics and issues if below threshold.

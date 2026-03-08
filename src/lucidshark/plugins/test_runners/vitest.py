@@ -1,7 +1,7 @@
-"""Jest test runner plugin.
+"""Vitest test runner plugin.
 
-Jest is a delightful JavaScript Testing Framework.
-https://jestjs.io/
+Vitest is a blazing fast unit test framework powered by Vite.
+https://vitest.dev/
 """
 
 from __future__ import annotations
@@ -26,21 +26,21 @@ from lucidshark.plugins.utils import ensure_node_binary, get_cli_version
 LOGGER = get_logger(__name__)
 
 
-class JestRunner(TestRunnerPlugin):
-    """Jest test runner plugin for JavaScript/TypeScript test execution."""
+class VitestRunner(TestRunnerPlugin):
+    """Vitest test runner plugin for JavaScript/TypeScript test execution."""
 
     def __init__(self, project_root: Optional[Path] = None):
-        """Initialize JestRunner.
+        """Initialize VitestRunner.
 
         Args:
-            project_root: Optional project root for finding Jest installation.
+            project_root: Optional project root for finding Vitest installation.
         """
         self._project_root = project_root
 
     @property
     def name(self) -> str:
         """Plugin identifier."""
-        return "jest"
+        return "vitest"
 
     @property
     def languages(self) -> List[str]:
@@ -48,7 +48,7 @@ class JestRunner(TestRunnerPlugin):
         return ["javascript", "typescript"]
 
     def get_version(self) -> str:
-        """Get Jest version."""
+        """Get Vitest version."""
         try:
             binary = self.ensure_binary()
             return get_cli_version(binary)
@@ -56,18 +56,18 @@ class JestRunner(TestRunnerPlugin):
             return "unknown"
 
     def ensure_binary(self) -> Path:
-        """Ensure Jest is available."""
+        """Ensure Vitest is available."""
         return ensure_node_binary(
             self._project_root,
-            "jest",
-            "Jest is not installed. Install it with:\n"
-            "  npm install jest --save-dev\n"
+            "vitest",
+            "Vitest is not installed. Install it with:\n"
+            "  npm install vitest --save-dev\n"
             "  OR\n"
-            "  npm install -g jest"
+            "  npm install -g vitest",
         )
 
     def run_tests(self, context: ScanContext) -> TestResult:
-        """Run Jest on the specified paths.
+        """Run Vitest on the specified paths.
 
         Always runs with --coverage to generate coverage data.
 
@@ -84,11 +84,12 @@ class JestRunner(TestRunnerPlugin):
             return TestResult()
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            report_file = Path(tmpdir) / "jest-results.json"
+            report_file = Path(tmpdir) / "vitest-results.json"
 
             cmd = [
                 str(binary),
-                "--json",
+                "run",  # Non-watch mode
+                "--reporter=json",
                 f"--outputFile={report_file}",
                 "--passWithNoTests",  # Don't fail if no tests found
                 "--coverage",  # Always generate coverage data
@@ -112,17 +113,17 @@ class JestRunner(TestRunnerPlugin):
                     timeout=600,  # 10 minute timeout for test runs
                 )
             except subprocess.TimeoutExpired:
-                LOGGER.warning("Jest timed out after 600 seconds")
+                LOGGER.warning("Vitest timed out after 600 seconds")
                 return TestResult()
             except Exception as e:
-                LOGGER.error(f"Failed to run Jest: {e}")
+                LOGGER.error(f"Failed to run Vitest: {e}")
                 return TestResult()
 
             # Parse JSON report
             if report_file.exists():
                 return self._parse_json_report(report_file, context.project_root)
             else:
-                # Jest might output JSON to stdout if no outputFile
+                # Vitest might output JSON to stdout
                 return self._parse_json_output(result.stdout, context.project_root)
 
     def _parse_json_report(
@@ -130,7 +131,7 @@ class JestRunner(TestRunnerPlugin):
         report_file: Path,
         project_root: Path,
     ) -> TestResult:
-        """Parse Jest JSON report file.
+        """Parse Vitest JSON report file.
 
         Args:
             report_file: Path to JSON report file.
@@ -143,7 +144,7 @@ class JestRunner(TestRunnerPlugin):
             with open(report_file) as f:
                 report = json.load(f)
         except Exception as e:
-            LOGGER.error(f"Failed to parse Jest JSON report: {e}")
+            LOGGER.error(f"Failed to parse Vitest JSON report: {e}")
             return TestResult()
 
         return self._process_report(report, project_root)
@@ -153,10 +154,10 @@ class JestRunner(TestRunnerPlugin):
         output: str,
         project_root: Path,
     ) -> TestResult:
-        """Parse Jest JSON output from stdout.
+        """Parse Vitest JSON output from stdout.
 
         Args:
-            output: JSON output from Jest.
+            output: JSON output from Vitest.
             project_root: Project root directory.
 
         Returns:
@@ -168,7 +169,7 @@ class JestRunner(TestRunnerPlugin):
         try:
             report = json.loads(output)
         except json.JSONDecodeError as e:
-            LOGGER.warning(f"Failed to parse Jest JSON output: {e}")
+            LOGGER.warning(f"Failed to parse Vitest JSON output: {e}")
             return TestResult()
 
         return self._process_report(report, project_root)
@@ -178,7 +179,9 @@ class JestRunner(TestRunnerPlugin):
         report: Dict[str, Any],
         project_root: Path,
     ) -> TestResult:
-        """Process Jest JSON report.
+        """Process Vitest JSON report.
+
+        Vitest uses a Jest-compatible JSON format.
 
         Args:
             report: Parsed JSON report.
@@ -197,13 +200,15 @@ class JestRunner(TestRunnerPlugin):
         test_results = report.get("testResults", [])
         duration_ms = 0
         for test_result in test_results:
-            duration_ms += test_result.get("endTime", 0) - test_result.get("startTime", 0)
+            duration_ms += test_result.get("endTime", 0) - test_result.get(
+                "startTime", 0
+            )
 
         result = TestResult(
             passed=num_passed,
             failed=num_failed,
             skipped=num_pending + num_todo,
-            errors=0,  # Jest doesn't distinguish errors from failures
+            errors=0,
             duration_ms=duration_ms,
         )
 
@@ -220,7 +225,7 @@ class JestRunner(TestRunnerPlugin):
                             result.issues.append(issue)
 
         LOGGER.info(
-            f"Jest: {result.passed} passed, {result.failed} failed, "
+            f"Vitest: {result.passed} passed, {result.failed} failed, "
             f"{result.skipped} skipped"
         )
         return result
@@ -231,7 +236,7 @@ class JestRunner(TestRunnerPlugin):
         test_file: Dict[str, Any],
         project_root: Path,
     ) -> Optional[UnifiedIssue]:
-        """Convert Jest assertion failure to UnifiedIssue.
+        """Convert Vitest assertion failure to UnifiedIssue.
 
         Args:
             assertion: Assertion result dict.
@@ -273,12 +278,16 @@ class JestRunner(TestRunnerPlugin):
             issue_id = self._generate_issue_id(full_name, assertion_text)
 
             # Build title
-            title = f"{display_name}: {assertion_text}" if assertion_text else f"{display_name} failed"
+            title = (
+                f"{display_name}: {assertion_text}"
+                if assertion_text
+                else f"{display_name} failed"
+            )
 
             return UnifiedIssue(
                 id=issue_id,
                 domain=ToolDomain.TESTING,
-                source_tool="jest",
+                source_tool="vitest",
                 severity=Severity.HIGH,
                 rule_id="failed",
                 title=title,
@@ -296,14 +305,14 @@ class JestRunner(TestRunnerPlugin):
                 },
             )
         except Exception as e:
-            LOGGER.warning(f"Failed to parse Jest assertion failure: {e}")
+            LOGGER.warning(f"Failed to parse Vitest assertion failure: {e}")
             return None
 
     def _extract_assertion(self, message: str) -> str:
-        """Extract assertion from Jest failure message.
+        """Extract assertion from Vitest failure message.
 
         Args:
-            message: Failure message from Jest.
+            message: Failure message from Vitest.
 
         Returns:
             Extracted assertion or truncated message.
@@ -346,4 +355,4 @@ class JestRunner(TestRunnerPlugin):
         """
         content = f"{full_name}:{assertion}"
         hash_val = hashlib.sha256(content.encode()).hexdigest()[:12]
-        return f"jest-{hash_val}"
+        return f"vitest-{hash_val}"

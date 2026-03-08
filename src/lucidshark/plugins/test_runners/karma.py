@@ -67,14 +67,13 @@ class KarmaRunner(TestRunnerPlugin):
             "  npm install -g karma-cli"
         )
 
-    def run_tests(
-        self, context: ScanContext, with_coverage: bool = False
-    ) -> TestResult:
+    def run_tests(self, context: ScanContext) -> TestResult:
         """Run Karma on the specified paths.
+
+        Coverage is handled via Karma config, not a CLI flag.
 
         Args:
             context: Scan context with paths and configuration.
-            with_coverage: Whether to run with coverage (not yet implemented).
 
         Returns:
             TestResult with test statistics and issues for failures.

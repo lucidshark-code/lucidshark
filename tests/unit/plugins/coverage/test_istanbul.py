@@ -10,7 +10,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lucidshark.core.models import Severity, ToolDomain
-from lucidshark.plugins.coverage.base import TestStatistics
 from lucidshark.plugins.coverage.istanbul import IstanbulPlugin
 
 
@@ -104,18 +103,123 @@ class TestIstanbulMeasureCoverage:
     """Tests for measure_coverage flow."""
 
     @patch("shutil.which", return_value=None)
-    def test_measure_coverage_binary_not_found(self, mock_which: MagicMock) -> None:
-        """Test measure_coverage when nyc not found."""
-        plugin = IstanbulPlugin()
-        context = MagicMock()
-        context.project_root = Path("/project")
+    def test_measure_coverage_binary_not_found_no_direct_files(self, mock_which: MagicMock) -> None:
+        """Test measure_coverage when nyc not found and no direct coverage files exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            plugin = IstanbulPlugin()
+            context = MagicMock()
+            context.project_root = project_root
 
-        result = plugin.measure_coverage(context, threshold=80.0)
-        assert result.threshold == 80.0
-        assert result.total_lines == 0
+            result = plugin.measure_coverage(context, threshold=80.0)
+            assert result.threshold == 80.0
+            assert result.total_lines == 0
+            assert len(result.issues) == 1
+            assert result.issues[0].rule_id == "no_coverage_data"
 
-    def test_measure_coverage_run_tests_fails(self) -> None:
-        """Test measure_coverage when test run fails."""
+    def test_measure_coverage_reads_coverage_summary_json(self) -> None:
+        """Test measure_coverage reads coverage/coverage-summary.json directly."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            cov_dir = project_root / "coverage"
+            cov_dir.mkdir()
+
+            report = {
+                "total": {
+                    "lines": {"total": 100, "covered": 85, "pct": 85.0},
+                    "statements": {"total": 100, "covered": 85, "pct": 85.0},
+                    "branches": {"total": 50, "covered": 40, "pct": 80.0},
+                    "functions": {"total": 20, "covered": 18, "pct": 90.0},
+                },
+                "src/app.js": {
+                    "lines": {"total": 100, "covered": 85, "pct": 85.0},
+                },
+            }
+            (cov_dir / "coverage-summary.json").write_text(json.dumps(report))
+
+            # No nyc binary needed
+            plugin = IstanbulPlugin(project_root=project_root)
+            context = MagicMock()
+            context.project_root = project_root
+
+            result = plugin.measure_coverage(context, threshold=80.0)
+            assert result.total_lines == 100
+            assert result.covered_lines == 85
+            assert result.passed is True
+            assert len(result.files) == 1
+            assert "src/app.js" in result.files
+
+    def test_measure_coverage_reads_coverage_final_json(self) -> None:
+        """Test measure_coverage reads coverage/coverage-final.json directly."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            cov_dir = project_root / "coverage"
+            cov_dir.mkdir()
+
+            report = {
+                f"{tmpdir}/src/index.js": {
+                    "path": f"{tmpdir}/src/index.js",
+                    "statementMap": {
+                        "0": {"start": {"line": 1, "column": 0}, "end": {"line": 1, "column": 20}},
+                        "1": {"start": {"line": 2, "column": 0}, "end": {"line": 2, "column": 20}},
+                        "2": {"start": {"line": 5, "column": 0}, "end": {"line": 5, "column": 15}},
+                    },
+                    "s": {"0": 5, "1": 3, "2": 0},
+                    "fnMap": {},
+                    "f": {},
+                    "branchMap": {},
+                    "b": {},
+                },
+            }
+            (cov_dir / "coverage-final.json").write_text(json.dumps(report))
+
+            plugin = IstanbulPlugin(project_root=project_root)
+            context = MagicMock()
+            context.project_root = project_root
+
+            result = plugin.measure_coverage(context, threshold=50.0)
+            assert result.total_lines == 3
+            assert result.covered_lines == 2
+            assert len(result.files) == 1
+            file_cov = list(result.files.values())[0]
+            assert file_cov.missing_lines == [5]
+
+    def test_measure_coverage_prefers_direct_files_over_nyc_output(self) -> None:
+        """Test that coverage/ files are preferred over .nyc_output/."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+
+            # Create both coverage/ and .nyc_output/
+            cov_dir = project_root / "coverage"
+            cov_dir.mkdir()
+            report = {
+                "total": {
+                    "lines": {"total": 200, "covered": 190, "pct": 95.0},
+                    "statements": {"total": 200, "covered": 190, "pct": 95.0},
+                    "branches": {"total": 100, "covered": 95, "pct": 95.0},
+                    "functions": {"total": 40, "covered": 38, "pct": 95.0},
+                },
+            }
+            (cov_dir / "coverage-summary.json").write_text(json.dumps(report))
+
+            nyc_output = project_root / ".nyc_output"
+            nyc_output.mkdir()
+            (nyc_output / "data.json").write_text("{}")
+
+            plugin = IstanbulPlugin(project_root=project_root)
+            context = MagicMock()
+            context.project_root = project_root
+
+            # Should read from coverage/ directly, not invoke nyc report
+            with patch("subprocess.run") as mock_run:
+                result = plugin.measure_coverage(context, threshold=80.0)
+                mock_run.assert_not_called()
+
+            assert result.total_lines == 200
+            assert result.covered_lines == 190
+
+    def test_measure_coverage_no_coverage_or_nyc_output_returns_no_data_issue(self) -> None:
+        """Test measure_coverage when neither coverage/ nor .nyc_output/ exist."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             node_bin = project_root / "node_modules" / ".bin"
@@ -128,12 +232,14 @@ class TestIstanbulMeasureCoverage:
             context = MagicMock()
             context.project_root = project_root
 
-            with patch.object(plugin, "_run_tests_with_coverage", return_value=(False, None)):
-                result = plugin.measure_coverage(context, threshold=80.0, run_tests=True)
-                assert result.threshold == 80.0
+            result = plugin.measure_coverage(context, threshold=80.0)
+            assert result.total_lines == 0
+            assert len(result.issues) == 1
+            assert result.issues[0].rule_id == "no_coverage_data"
+            assert result.issues[0].source_tool == "istanbul"
 
-    def test_measure_coverage_skip_test_run(self) -> None:
-        """Test measure_coverage with run_tests=False."""
+    def test_measure_coverage_empty_nyc_output_returns_no_data_issue(self) -> None:
+        """Test measure_coverage when .nyc_output directory is empty and no coverage/ files."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             node_bin = project_root / "node_modules" / ".bin"
@@ -142,108 +248,17 @@ class TestIstanbulMeasureCoverage:
             nyc_bin.touch()
             nyc_bin.chmod(0o755)
 
-            plugin = IstanbulPlugin(project_root=project_root)
-            context = MagicMock()
-            context.project_root = project_root
-
-            with patch.object(plugin, "_generate_and_parse_report") as mock_report:
-                mock_report.return_value = MagicMock(total_lines=100, covered_lines=85, test_stats=None)
-                plugin.measure_coverage(context, threshold=80.0, run_tests=False)
-                mock_report.assert_called_once()
-
-
-class TestIstanbulRunTestsWithCoverage:
-    """Tests for running tests with NYC coverage."""
-
-    def test_run_with_jest(self) -> None:
-        """Test running nyc with jest."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            node_bin = project_root / "node_modules" / ".bin"
-            node_bin.mkdir(parents=True)
-            nyc_bin = node_bin / "nyc"
-            nyc_bin.touch()
-            nyc_bin.chmod(0o755)
-            jest_bin = node_bin / "jest"
-            jest_bin.touch()
-            jest_bin.chmod(0o755)
+            # Create empty .nyc_output directory (no coverage/ dir)
+            (project_root / ".nyc_output").mkdir()
 
             plugin = IstanbulPlugin(project_root=project_root)
             context = MagicMock()
             context.project_root = project_root
 
-            mock_proc = MagicMock()
-            mock_proc.returncode = 0
-            with patch("subprocess.run", return_value=mock_proc) as mock_run:
-                success, test_stats = plugin._run_tests_with_coverage(nyc_bin, context)
-                assert success is True
-                assert test_stats is not None
-                assert test_stats.success is True
-                cmd = mock_run.call_args[0][0]
-                assert str(nyc_bin) in cmd[0]
-
-    def test_run_with_jest_tests_fail(self) -> None:
-        """Test running nyc with jest when tests fail (non-zero exit)."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            node_bin = project_root / "node_modules" / ".bin"
-            node_bin.mkdir(parents=True)
-            nyc_bin = node_bin / "nyc"
-            nyc_bin.touch()
-            nyc_bin.chmod(0o755)
-            jest_bin = node_bin / "jest"
-            jest_bin.touch()
-            jest_bin.chmod(0o755)
-
-            plugin = IstanbulPlugin(project_root=project_root)
-            context = MagicMock()
-            context.project_root = project_root
-
-            mock_proc = MagicMock()
-            mock_proc.returncode = 1
-            with patch("subprocess.run", return_value=mock_proc):
-                success, test_stats = plugin._run_tests_with_coverage(nyc_bin, context)
-                assert success is True
-                assert test_stats is not None
-                assert test_stats.failed == 1
-                assert test_stats.success is False
-
-    def test_run_fallback_to_npm_test(self) -> None:
-        """Test fallback to npm test when jest not found."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-
-            plugin = IstanbulPlugin(project_root=project_root)
-            context = MagicMock()
-            context.project_root = project_root
-
-            nyc_bin = Path("/usr/local/bin/nyc")
-
-            mock_proc = MagicMock()
-            mock_proc.returncode = 0
-            with patch("shutil.which", return_value=None):
-                with patch("lucidshark.core.paths.resolve_node_bin", return_value=None):
-                    with patch("subprocess.run", return_value=mock_proc) as mock_run:
-                        success, test_stats = plugin._run_tests_with_coverage(nyc_bin, context)
-                        assert success is True
-                        cmd = mock_run.call_args[0][0]
-                        assert "npm" in cmd
-
-    def test_run_tests_exception(self) -> None:
-        """Test handling exception during test run."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-
-            plugin = IstanbulPlugin(project_root=project_root)
-            context = MagicMock()
-            context.project_root = project_root
-
-            with patch("shutil.which", return_value=None):
-                with patch("lucidshark.core.paths.resolve_node_bin", return_value=None):
-                    with patch("subprocess.run", side_effect=OSError("fail")):
-                        success, test_stats = plugin._run_tests_with_coverage(Path("/usr/bin/nyc"), context)
-                        assert success is False
-                        assert test_stats is None
+            result = plugin.measure_coverage(context, threshold=80.0)
+            assert result.total_lines == 0
+            assert len(result.issues) == 1
+            assert result.issues[0].rule_id == "no_coverage_data"
 
 
 class TestIstanbulGenerateAndParseReport:
@@ -422,6 +437,112 @@ class TestIstanbulJsonParsing:
             assert result.total_lines == 0
 
 
+class TestIstanbulFinalReportParsing:
+    """Tests for _parse_final_report (coverage-final.json)."""
+
+    def test_parse_final_report_basic(self) -> None:
+        """Test parsing a basic coverage-final.json file."""
+        plugin = IstanbulPlugin()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            report = {
+                f"{tmpdir}/src/index.js": {
+                    "path": f"{tmpdir}/src/index.js",
+                    "statementMap": {
+                        "0": {"start": {"line": 1, "column": 0}, "end": {"line": 1, "column": 20}},
+                        "1": {"start": {"line": 3, "column": 0}, "end": {"line": 3, "column": 20}},
+                        "2": {"start": {"line": 5, "column": 0}, "end": {"line": 5, "column": 15}},
+                        "3": {"start": {"line": 7, "column": 0}, "end": {"line": 7, "column": 10}},
+                    },
+                    "s": {"0": 10, "1": 5, "2": 0, "3": 0},
+                    "fnMap": {},
+                    "f": {},
+                    "branchMap": {},
+                    "b": {},
+                },
+            }
+            report_file = project_root / "coverage-final.json"
+            report_file.write_text(json.dumps(report))
+
+            result = plugin._parse_final_report(report_file, project_root, threshold=80.0)
+
+            assert result.total_lines == 4
+            assert result.covered_lines == 2
+            assert result.tool == "istanbul"
+
+            file_cov = list(result.files.values())[0]
+            assert file_cov.total_lines == 4
+            assert file_cov.covered_lines == 2
+            assert file_cov.missing_lines == [5, 7]
+
+    def test_parse_final_report_multiple_files(self) -> None:
+        """Test parsing coverage-final.json with multiple files."""
+        plugin = IstanbulPlugin()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            report = {
+                f"{tmpdir}/src/a.js": {
+                    "statementMap": {
+                        "0": {"start": {"line": 1, "column": 0}, "end": {"line": 1, "column": 10}},
+                    },
+                    "s": {"0": 1},
+                },
+                f"{tmpdir}/src/b.js": {
+                    "statementMap": {
+                        "0": {"start": {"line": 1, "column": 0}, "end": {"line": 1, "column": 10}},
+                    },
+                    "s": {"0": 0},
+                },
+            }
+            report_file = project_root / "coverage-final.json"
+            report_file.write_text(json.dumps(report))
+
+            result = plugin._parse_final_report(report_file, project_root, threshold=80.0)
+
+            assert result.total_lines == 2
+            assert result.covered_lines == 1
+            assert len(result.files) == 2
+            # 50% < 80% threshold => issue
+            assert len(result.issues) == 1
+
+    def test_parse_final_report_all_covered(self) -> None:
+        """Test parsing coverage-final.json when all statements are covered."""
+        plugin = IstanbulPlugin()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            report = {
+                f"{tmpdir}/src/a.js": {
+                    "statementMap": {
+                        "0": {"start": {"line": 1, "column": 0}, "end": {"line": 1, "column": 10}},
+                    },
+                    "s": {"0": 5},
+                },
+            }
+            report_file = project_root / "coverage-final.json"
+            report_file.write_text(json.dumps(report))
+
+            result = plugin._parse_final_report(report_file, project_root, threshold=80.0)
+            assert result.total_lines == 1
+            assert result.covered_lines == 1
+            assert len(result.issues) == 0
+
+    def test_parse_final_report_invalid_json(self) -> None:
+        """Test parsing invalid coverage-final.json."""
+        plugin = IstanbulPlugin()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            report_file = project_root / "coverage-final.json"
+            report_file.write_text("not valid json")
+
+            result = plugin._parse_final_report(report_file, project_root, threshold=80.0)
+            assert result.total_lines == 0
+            assert result.tool == "istanbul"
+
+
 class TestIstanbulCoverageIssueCreation:
     """Tests for coverage issue creation."""
 
@@ -547,3 +668,20 @@ class TestIstanbulIssueIdGeneration:
         issue_id = plugin._generate_issue_id(75.0, 80.0)
 
         assert issue_id.startswith("istanbul-")
+
+
+class TestIstanbulNoDataIssue:
+    """Tests for _create_no_data_issue."""
+
+    def test_no_data_issue_fields(self) -> None:
+        """Test no-data issue has correct fields."""
+        plugin = IstanbulPlugin()
+        issue = plugin._create_no_data_issue()
+        assert issue.id == "no-coverage-data-istanbul"
+        assert issue.rule_id == "no_coverage_data"
+        assert issue.source_tool == "istanbul"
+        assert issue.severity == Severity.HIGH
+        assert issue.domain == ToolDomain.COVERAGE
+        assert "istanbul" in issue.description.lower()
+        assert "coverage/" in issue.description
+        assert ".nyc_output/" in issue.description

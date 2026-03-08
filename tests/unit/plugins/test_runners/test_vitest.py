@@ -1,4 +1,4 @@
-"""Unit tests for Jest runner plugin."""
+"""Unit tests for Vitest runner plugin."""
 
 from __future__ import annotations
 
@@ -11,102 +11,105 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from lucidshark.core.models import Severity, ToolDomain
-from lucidshark.plugins.test_runners.jest import JestRunner
+from lucidshark.plugins.test_runners.vitest import VitestRunner
 
 
-class TestJestRunner:
-    """Tests for JestRunner class."""
+class TestVitestRunner:
+    """Tests for VitestRunner class."""
 
     def test_name(self) -> None:
         """Test plugin name."""
-        runner = JestRunner()
-        assert runner.name == "jest"
+        runner = VitestRunner()
+        assert runner.name == "vitest"
 
     def test_languages(self) -> None:
         """Test supported languages."""
-        runner = JestRunner()
+        runner = VitestRunner()
         assert runner.languages == ["javascript", "typescript"]
 
     def test_domain(self) -> None:
         """Test domain is TESTING."""
-        runner = JestRunner()
+        runner = VitestRunner()
         assert runner.domain == ToolDomain.TESTING
 
 
-class TestJestRunnerBinaryFinding:
+class TestVitestRunnerBinaryFinding:
     """Tests for binary finding logic."""
 
     def test_find_in_node_modules(self) -> None:
-        """Test finding jest in project node_modules."""
+        """Test finding vitest in project node_modules."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             node_bin = project_root / "node_modules" / ".bin"
             node_bin.mkdir(parents=True)
-            jest_bin = node_bin / "jest"
-            jest_bin.touch()
-            jest_bin.chmod(0o755)
+            vitest_bin = node_bin / "vitest"
+            vitest_bin.touch()
+            vitest_bin.chmod(0o755)
 
-            runner = JestRunner(project_root=project_root)
+            runner = VitestRunner(project_root=project_root)
             binary = runner.ensure_binary()
 
-            assert binary == jest_bin
+            assert binary == vitest_bin
 
     @patch("shutil.which")
     def test_find_in_system_path(self, mock_which: MagicMock) -> None:
-        """Test finding jest in system PATH."""
-        mock_which.return_value = "/usr/local/bin/jest"
+        """Test finding vitest in system PATH."""
+        mock_which.return_value = "/usr/local/bin/vitest"
 
-        runner = JestRunner()
+        runner = VitestRunner()
         binary = runner.ensure_binary()
 
-        assert binary == Path("/usr/local/bin/jest")
+        assert binary == Path("/usr/local/bin/vitest")
 
     @patch("shutil.which")
     def test_not_found_raises_error(self, mock_which: MagicMock) -> None:
-        """Test FileNotFoundError when jest not found."""
+        """Test FileNotFoundError when vitest not found."""
         mock_which.return_value = None
 
-        runner = JestRunner()
+        runner = VitestRunner()
         with pytest.raises(FileNotFoundError) as exc:
             runner.ensure_binary()
 
-        assert "Jest is not installed" in str(exc.value)
+        assert "Vitest is not installed" in str(exc.value)
 
 
-class TestJestGetVersion:
+class TestVitestGetVersion:
     """Tests for version detection."""
 
     def test_get_version_success(self) -> None:
-        """Test getting Jest version."""
+        """Test getting Vitest version."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             node_bin = project_root / "node_modules" / ".bin"
             node_bin.mkdir(parents=True)
-            jest_bin = node_bin / "jest"
-            jest_bin.touch()
-            jest_bin.chmod(0o755)
+            vitest_bin = node_bin / "vitest"
+            vitest_bin.touch()
+            vitest_bin.chmod(0o755)
 
-            runner = JestRunner(project_root=project_root)
+            runner = VitestRunner(project_root=project_root)
 
-            with patch("lucidshark.plugins.test_runners.jest.get_cli_version", return_value="29.7.0"):
+            with patch(
+                "lucidshark.plugins.test_runners.vitest.get_cli_version",
+                return_value="3.0.4",
+            ):
                 version = runner.get_version()
-                assert version == "29.7.0"
+                assert version == "3.0.4"
 
     @patch("shutil.which", return_value=None)
     def test_get_version_unknown_when_not_found(self, mock_which: MagicMock) -> None:
-        """Test version returns 'unknown' when jest not found."""
-        runner = JestRunner()
+        """Test version returns 'unknown' when vitest not found."""
+        runner = VitestRunner()
         version = runner.get_version()
         assert version == "unknown"
 
 
-class TestJestRunTests:
+class TestVitestRunTests:
     """Tests for test execution flow."""
 
     @patch("shutil.which", return_value=None)
     def test_run_tests_binary_not_found(self, mock_which: MagicMock) -> None:
         """Test run_tests returns empty result when binary not found."""
-        runner = JestRunner()
+        runner = VitestRunner()
         context = MagicMock()
         context.project_root = Path("/project")
         context.paths = []
@@ -122,16 +125,19 @@ class TestJestRunTests:
             project_root = Path(tmpdir)
             node_bin = project_root / "node_modules" / ".bin"
             node_bin.mkdir(parents=True)
-            jest_bin = node_bin / "jest"
-            jest_bin.touch()
-            jest_bin.chmod(0o755)
+            vitest_bin = node_bin / "vitest"
+            vitest_bin.touch()
+            vitest_bin.chmod(0o755)
 
-            runner = JestRunner(project_root=project_root)
+            runner = VitestRunner(project_root=project_root)
             context = MagicMock()
             context.project_root = project_root
             context.paths = []
 
-            with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("jest", 600)):
+            with patch(
+                "subprocess.run",
+                side_effect=subprocess.TimeoutExpired("vitest", 600),
+            ):
                 result = runner.run_tests(context)
                 assert result.passed == 0
 
@@ -141,11 +147,11 @@ class TestJestRunTests:
             project_root = Path(tmpdir)
             node_bin = project_root / "node_modules" / ".bin"
             node_bin.mkdir(parents=True)
-            jest_bin = node_bin / "jest"
-            jest_bin.touch()
-            jest_bin.chmod(0o755)
+            vitest_bin = node_bin / "vitest"
+            vitest_bin.touch()
+            vitest_bin.chmod(0o755)
 
-            runner = JestRunner(project_root=project_root)
+            runner = VitestRunner(project_root=project_root)
             context = MagicMock()
             context.project_root = project_root
             context.paths = []
@@ -160,11 +166,11 @@ class TestJestRunTests:
             project_root = Path(tmpdir)
             node_bin = project_root / "node_modules" / ".bin"
             node_bin.mkdir(parents=True)
-            jest_bin = node_bin / "jest"
-            jest_bin.touch()
-            jest_bin.chmod(0o755)
+            vitest_bin = node_bin / "vitest"
+            vitest_bin.touch()
+            vitest_bin.chmod(0o755)
 
-            runner = JestRunner(project_root=project_root)
+            runner = VitestRunner(project_root=project_root)
             context = MagicMock()
             context.project_root = project_root
             context.paths = []
@@ -183,11 +189,11 @@ class TestJestRunTests:
             project_root = Path(tmpdir)
             node_bin = project_root / "node_modules" / ".bin"
             node_bin.mkdir(parents=True)
-            jest_bin = node_bin / "jest"
-            jest_bin.touch()
-            jest_bin.chmod(0o755)
+            vitest_bin = node_bin / "vitest"
+            vitest_bin.touch()
+            vitest_bin.chmod(0o755)
 
-            runner = JestRunner(project_root=project_root)
+            runner = VitestRunner(project_root=project_root)
             context = MagicMock()
             context.project_root = project_root
             context.paths = [Path("src/tests")]
@@ -200,17 +206,63 @@ class TestJestRunTests:
                 cmd = mock_run.call_args[0][0]
                 assert "src/tests" in cmd
 
+    def test_run_tests_uses_run_flag(self) -> None:
+        """Test that 'run' flag is used for non-watch mode."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            node_bin = project_root / "node_modules" / ".bin"
+            node_bin.mkdir(parents=True)
+            vitest_bin = node_bin / "vitest"
+            vitest_bin.touch()
+            vitest_bin.chmod(0o755)
+
+            runner = VitestRunner(project_root=project_root)
+            context = MagicMock()
+            context.project_root = project_root
+            context.paths = []
+
+            mock_result = MagicMock()
+            mock_result.stdout = "{}"
+
+            with patch("subprocess.run", return_value=mock_result) as mock_run:
+                runner.run_tests(context)
+                cmd = mock_run.call_args[0][0]
+                assert "run" in cmd
+
+    def test_run_tests_uses_json_reporter(self) -> None:
+        """Test that --reporter=json is used."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            node_bin = project_root / "node_modules" / ".bin"
+            node_bin.mkdir(parents=True)
+            vitest_bin = node_bin / "vitest"
+            vitest_bin.touch()
+            vitest_bin.chmod(0o755)
+
+            runner = VitestRunner(project_root=project_root)
+            context = MagicMock()
+            context.project_root = project_root
+            context.paths = []
+
+            mock_result = MagicMock()
+            mock_result.stdout = "{}"
+
+            with patch("subprocess.run", return_value=mock_result) as mock_run:
+                runner.run_tests(context)
+                cmd = mock_run.call_args[0][0]
+                assert "--reporter=json" in cmd
+
     def test_run_tests_parses_json_report_from_file(self) -> None:
         """Test parsing JSON report from output file."""
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             node_bin = project_root / "node_modules" / ".bin"
             node_bin.mkdir(parents=True)
-            jest_bin = node_bin / "jest"
-            jest_bin.touch()
-            jest_bin.chmod(0o755)
+            vitest_bin = node_bin / "vitest"
+            vitest_bin.touch()
+            vitest_bin.chmod(0o755)
 
-            runner = JestRunner(project_root=project_root)
+            runner = VitestRunner(project_root=project_root)
             context = MagicMock()
             context.project_root = project_root
             context.paths = []
@@ -240,12 +292,12 @@ class TestJestRunTests:
                 assert result.failed == 0
 
 
-class TestJestReportProcessing:
-    """Tests for Jest report processing."""
+class TestVitestReportProcessing:
+    """Tests for Vitest report processing."""
 
     def test_process_report_with_failures(self) -> None:
-        """Test processing Jest report with failures."""
-        runner = JestRunner()
+        """Test processing Vitest report with failures."""
+        runner = VitestRunner()
 
         report = {
             "numPassedTests": 5,
@@ -255,7 +307,7 @@ class TestJestReportProcessing:
             "startTime": 1000,
             "testResults": [
                 {
-                    "name": "/project/tests/example.test.js",
+                    "name": "/project/tests/example.test.ts",
                     "status": "failed",
                     "startTime": 1000,
                     "endTime": 1500,
@@ -289,11 +341,11 @@ class TestJestReportProcessing:
 
         issue = result.issues[0]
         assert "should fail" in issue.title
-        assert issue.source_tool == "jest"
+        assert issue.source_tool == "vitest"
 
     def test_process_report_all_passed(self) -> None:
-        """Test processing Jest report with all tests passed."""
-        runner = JestRunner()
+        """Test processing Vitest report with all tests passed."""
+        runner = VitestRunner()
 
         report = {
             "numPassedTests": 10,
@@ -313,7 +365,7 @@ class TestJestReportProcessing:
 
     def test_process_report_with_todo_tests(self) -> None:
         """Test todo tests are counted as skipped."""
-        runner = JestRunner()
+        runner = VitestRunner()
 
         report = {
             "numPassedTests": 5,
@@ -328,7 +380,7 @@ class TestJestReportProcessing:
 
     def test_process_report_duration_calculation(self) -> None:
         """Test duration is calculated from testResults."""
-        runner = JestRunner()
+        runner = VitestRunner()
 
         report = {
             "numPassedTests": 2,
@@ -336,8 +388,20 @@ class TestJestReportProcessing:
             "numPendingTests": 0,
             "numTodoTests": 0,
             "testResults": [
-                {"name": "a.test.js", "status": "passed", "startTime": 1000, "endTime": 1500, "assertionResults": []},
-                {"name": "b.test.js", "status": "passed", "startTime": 1500, "endTime": 2500, "assertionResults": []},
+                {
+                    "name": "a.test.ts",
+                    "status": "passed",
+                    "startTime": 1000,
+                    "endTime": 1500,
+                    "assertionResults": [],
+                },
+                {
+                    "name": "b.test.ts",
+                    "status": "passed",
+                    "startTime": 1500,
+                    "endTime": 2500,
+                    "assertionResults": [],
+                },
             ],
         }
 
@@ -345,43 +409,45 @@ class TestJestReportProcessing:
         assert result.duration_ms == 1500  # 500 + 1000
 
 
-class TestJestJsonOutput:
+class TestVitestJsonOutput:
     """Tests for JSON output parsing."""
 
     def test_parse_json_output_empty(self) -> None:
         """Test empty output returns empty result."""
-        runner = JestRunner()
+        runner = VitestRunner()
         result = runner._parse_json_output("", Path("/project"))
         assert result.passed == 0
 
     def test_parse_json_output_whitespace_only(self) -> None:
         """Test whitespace-only output returns empty result."""
-        runner = JestRunner()
+        runner = VitestRunner()
         result = runner._parse_json_output("   \n  ", Path("/project"))
         assert result.passed == 0
 
     def test_parse_json_output_invalid_json(self) -> None:
         """Test invalid JSON returns empty result."""
-        runner = JestRunner()
+        runner = VitestRunner()
         result = runner._parse_json_output("not json {", Path("/project"))
         assert result.passed == 0
 
     def test_parse_json_output_valid(self) -> None:
         """Test valid JSON output is parsed correctly."""
-        runner = JestRunner()
-        output = json.dumps({
-            "numPassedTests": 5,
-            "numFailedTests": 0,
-            "numPendingTests": 0,
-            "numTodoTests": 0,
-            "testResults": [],
-        })
+        runner = VitestRunner()
+        output = json.dumps(
+            {
+                "numPassedTests": 5,
+                "numFailedTests": 0,
+                "numPendingTests": 0,
+                "numTodoTests": 0,
+                "testResults": [],
+            }
+        )
         result = runner._parse_json_output(output, Path("/project"))
         assert result.passed == 5
 
     def test_parse_json_report_file_not_readable(self) -> None:
         """Test handling unreadable JSON report file."""
-        runner = JestRunner()
+        runner = VitestRunner()
 
         with tempfile.TemporaryDirectory() as tmpdir:
             report_file = Path(tmpdir) / "report.json"
@@ -391,12 +457,12 @@ class TestJestJsonOutput:
             assert result.passed == 0
 
 
-class TestJestAssertionToIssue:
+class TestVitestAssertionToIssue:
     """Tests for assertion to issue conversion."""
 
     def test_assertion_with_location(self) -> None:
         """Test converting assertion with location info."""
-        runner = JestRunner()
+        runner = VitestRunner()
 
         assertion = {
             "fullName": "Suite should work",
@@ -407,20 +473,20 @@ class TestJestAssertionToIssue:
             "location": {"line": 15},
         }
         test_file = {
-            "name": "/project/tests/app.test.js",
+            "name": "/project/tests/app.test.ts",
             "status": "failed",
         }
 
         issue = runner._assertion_to_issue(assertion, test_file, Path("/project"))
         assert issue is not None
         assert issue.line_start == 15
-        assert issue.file_path == Path("/project/tests/app.test.js")
+        assert issue.file_path == Path("/project/tests/app.test.ts")
         assert "Suite > should work" in issue.title
         assert issue.severity == Severity.HIGH
 
     def test_assertion_without_location(self) -> None:
         """Test converting assertion without location."""
-        runner = JestRunner()
+        runner = VitestRunner()
 
         assertion = {
             "fullName": "should work",
@@ -431,7 +497,7 @@ class TestJestAssertionToIssue:
             "location": {},
         }
         test_file = {
-            "name": "tests/app.test.js",
+            "name": "tests/app.test.ts",
             "status": "failed",
         }
 
@@ -441,7 +507,7 @@ class TestJestAssertionToIssue:
 
     def test_assertion_relative_file_path(self) -> None:
         """Test that relative file paths are resolved against project root."""
-        runner = JestRunner()
+        runner = VitestRunner()
 
         assertion = {
             "fullName": "Test",
@@ -451,17 +517,17 @@ class TestJestAssertionToIssue:
             "failureMessages": ["fail"],
         }
         test_file = {
-            "name": "tests/app.test.js",  # relative path
+            "name": "tests/app.test.ts",  # relative path
             "status": "failed",
         }
 
         issue = runner._assertion_to_issue(assertion, test_file, Path("/project"))
         assert issue is not None
-        assert issue.file_path == Path("/project/tests/app.test.js")
+        assert issue.file_path == Path("/project/tests/app.test.ts")
 
     def test_assertion_no_failure_messages(self) -> None:
         """Test handling assertion with no failure messages."""
-        runner = JestRunner()
+        runner = VitestRunner()
 
         assertion = {
             "fullName": "Test",
@@ -470,19 +536,19 @@ class TestJestAssertionToIssue:
             "status": "failed",
             "failureMessages": [],
         }
-        test_file = {"name": "test.js", "status": "failed"}
+        test_file = {"name": "test.ts", "status": "failed"}
 
         issue = runner._assertion_to_issue(assertion, test_file, Path("/project"))
         assert issue is not None
         assert "Test failed" in issue.description
 
 
-class TestJestAssertionExtraction:
+class TestVitestAssertionExtraction:
     """Tests for assertion message extraction."""
 
     def test_extract_expect_pattern(self) -> None:
         """Test extracting expect() assertion."""
-        runner = JestRunner()
+        runner = VitestRunner()
 
         message = """
 expect(received).toBe(expected)
@@ -496,7 +562,7 @@ Received: 1
 
     def test_extract_expected_received_pattern(self) -> None:
         """Test extracting Expected/Received pattern."""
-        runner = JestRunner()
+        runner = VitestRunner()
 
         message = """
 Expected: 42
@@ -508,11 +574,11 @@ Received: 0
 
     def test_extract_first_meaningful_line(self) -> None:
         """Test extracting first meaningful line as fallback."""
-        runner = JestRunner()
+        runner = VitestRunner()
 
         message = """
 TypeError: Cannot read property 'foo' of undefined
-    at Object.<anonymous> (test.js:5:1)
+    at Object.<anonymous> (test.ts:5:1)
         """
 
         result = runner._extract_assertion(message)
@@ -520,13 +586,13 @@ TypeError: Cannot read property 'foo' of undefined
 
     def test_empty_message(self) -> None:
         """Test empty message returns empty string."""
-        runner = JestRunner()
+        runner = VitestRunner()
         result = runner._extract_assertion("")
         assert result == ""
 
     def test_extract_skips_short_lines(self) -> None:
         """Test that short lines (<=5 chars) are skipped in fallback."""
-        runner = JestRunner()
+        runner = VitestRunner()
 
         message = """
 at Object.test
@@ -537,12 +603,12 @@ Some meaningful error message here
         assert len(result) > 5
 
 
-class TestJestIssueIdGeneration:
+class TestVitestIssueIdGeneration:
     """Tests for deterministic issue ID generation."""
 
     def test_same_input_same_id(self) -> None:
         """Test same input produces same ID."""
-        runner = JestRunner()
+        runner = VitestRunner()
 
         id1 = runner._generate_issue_id("Test > should work", "expect")
         id2 = runner._generate_issue_id("Test > should work", "expect")
@@ -551,7 +617,7 @@ class TestJestIssueIdGeneration:
 
     def test_different_input_different_id(self) -> None:
         """Test different input produces different ID."""
-        runner = JestRunner()
+        runner = VitestRunner()
 
         id1 = runner._generate_issue_id("Test > should work", "expect 1")
         id2 = runner._generate_issue_id("Test > should fail", "expect 2")
@@ -559,10 +625,10 @@ class TestJestIssueIdGeneration:
         assert id1 != id2
 
     def test_id_format(self) -> None:
-        """Test ID format starts with jest-."""
-        runner = JestRunner()
+        """Test ID format starts with vitest-."""
+        runner = VitestRunner()
 
         issue_id = runner._generate_issue_id("Test > should work", "expect")
 
-        assert issue_id.startswith("jest-")
-        assert len(issue_id) == len("jest-") + 12  # 12 char hash
+        assert issue_id.startswith("vitest-")
+        assert len(issue_id) == len("vitest-") + 12  # 12 char hash

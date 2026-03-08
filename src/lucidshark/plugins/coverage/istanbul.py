@@ -8,14 +8,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from lucidshark.core.logging import get_logger
-from lucidshark.core.paths import resolve_node_bin
 from lucidshark.core.models import (
     ScanContext,
     Severity,
@@ -26,15 +24,19 @@ from lucidshark.plugins.coverage.base import (
     CoveragePlugin,
     CoverageResult,
     FileCoverage,
-    TestStatistics,
 )
 from lucidshark.plugins.utils import (
     ensure_node_binary,
     get_cli_version,
-    create_test_failure_issue,
 )
 
 LOGGER = get_logger(__name__)
+
+# Standard locations where Jest writes Istanbul-format coverage reports.
+_JEST_COVERAGE_PATHS = [
+    "coverage/coverage-summary.json",
+    "coverage/coverage-final.json",
+]
 
 
 class IstanbulPlugin(CoveragePlugin):
@@ -81,109 +83,62 @@ class IstanbulPlugin(CoveragePlugin):
         self,
         context: ScanContext,
         threshold: float = 80.0,
-        run_tests: bool = True,
     ) -> CoverageResult:
-        """Run coverage analysis on the specified paths.
+        """Parse existing coverage data.
+
+        Looks for existing .nyc_output directory and generates a report from it.
+        If no coverage data exists or report generation fails, returns an error
+        issue directing the user to run the testing domain first.
 
         Args:
             context: Scan context with paths and configuration.
             threshold: Coverage percentage threshold (default 80%).
-            run_tests: Whether to run tests if no existing coverage data exists.
 
         Returns:
             CoverageResult with coverage statistics and issues if below threshold.
         """
+        # First, check if Jest/Istanbul wrote coverage files directly
+        # (modern Jest writes to coverage/ without needing .nyc_output)
+        for rel_path in _JEST_COVERAGE_PATHS:
+            report_file = context.project_root / rel_path
+            if report_file.exists():
+                if rel_path.endswith("coverage-summary.json"):
+                    result = self._parse_json_report(
+                        report_file, context.project_root, threshold
+                    )
+                else:
+                    result = self._parse_final_report(
+                        report_file, context.project_root, threshold
+                    )
+                if result.total_lines == 0 and not result.issues:
+                    result.issues.append(self._create_no_data_issue())
+                return result
+
+        # Fallback: use .nyc_output/ + nyc report (for projects using NYC directly)
         try:
             binary = self.ensure_binary()
         except FileNotFoundError as e:
             LOGGER.warning(str(e))
-            return CoverageResult(threshold=threshold)
+            result = CoverageResult(threshold=threshold, tool="istanbul")
+            result.issues.append(self._create_no_data_issue())
+            return result
 
-        test_stats: Optional[TestStatistics] = None
+        # Check if .nyc_output directory exists with coverage data
+        nyc_output = context.project_root / ".nyc_output"
+        if not nyc_output.exists() or not any(nyc_output.iterdir()):
+            LOGGER.warning("No coverage/ or .nyc_output/ directory found with coverage data")
+            result = CoverageResult(threshold=threshold, tool="istanbul")
+            result.issues.append(self._create_no_data_issue())
+            return result
 
-        # Always run tests fresh when run_tests=True to ensure accurate coverage
-        if run_tests:
-            LOGGER.info("Running tests with coverage...")
-            success, test_stats = self._run_tests_with_coverage(binary, context)
-            if not success:
-                LOGGER.warning("Failed to run tests with coverage")
-                return CoverageResult(threshold=threshold, tool="istanbul")
-
-            # If tests had failures (non-zero exit), fail coverage immediately
-            if test_stats and not test_stats.success:
-                LOGGER.warning(
-                    f"Tests failed ({test_stats.failed} failed, {test_stats.errors} errors) "
-                    f"- coverage is invalid"
-                )
-                result = CoverageResult(threshold=threshold, tool="istanbul")
-                result.test_stats = test_stats
-                result.issues.append(create_test_failure_issue(
-                    source_tool="istanbul",
-                    failed=test_stats.failed,
-                    errors=test_stats.errors,
-                    total=test_stats.total,
-                ))
-                return result
-
-        # Generate JSON report from coverage data
+        # Generate JSON report from existing coverage data
         result = self._generate_and_parse_report(binary, context, threshold)
-        result.test_stats = test_stats
+
+        # If report generation returned an empty result (failure), add no-data issue
+        if result.total_lines == 0 and not result.issues:
+            result.issues.append(self._create_no_data_issue())
 
         return result
-
-    def _run_tests_with_coverage(
-        self,
-        binary: Path,
-        context: ScanContext,
-    ) -> Tuple[bool, Optional[TestStatistics]]:
-        """Run tests with NYC coverage.
-
-        Args:
-            binary: Path to NYC binary.
-            context: Scan context.
-
-        Returns:
-            Tuple of (success, test_stats). Success is True if tests ran.
-            Test stats indicate pass/fail via the return code.
-        """
-        # Check for jest or npm test
-        jest_path = None
-        if self._project_root:
-            node_jest = resolve_node_bin(self._project_root, "jest")
-            if node_jest:
-                jest_path = node_jest
-
-        if not jest_path:
-            jest_which = shutil.which("jest")
-            if jest_which:
-                jest_path = Path(jest_which)
-
-        if jest_path:
-            # Run nyc jest
-            cmd = [str(binary), str(jest_path), "--passWithNoTests"]
-        else:
-            # Fall back to npm test
-            cmd = [str(binary), "npm", "test"]
-
-        LOGGER.debug(f"Running: {' '.join(cmd)}")
-
-        try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                cwd=str(context.project_root),
-            )
-            # Non-zero exit code means tests failed
-            if proc.returncode != 0:
-                test_stats = TestStatistics(total=1, failed=1)
-                return True, test_stats
-            return True, TestStatistics()
-        except Exception as e:
-            LOGGER.error(f"Failed to run tests with coverage: {e}")
-            return False, None
 
     def _generate_and_parse_report(
         self,
@@ -225,11 +180,11 @@ class IstanbulPlugin(CoveragePlugin):
 
                 if result.returncode != 0:
                     LOGGER.warning(f"NYC report failed: {result.stderr}")
-                    return CoverageResult(threshold=threshold)
+                    return CoverageResult(threshold=threshold, tool="istanbul")
 
             except Exception as e:
                 LOGGER.error(f"Failed to generate coverage report: {e}")
-                return CoverageResult(threshold=threshold)
+                return CoverageResult(threshold=threshold, tool="istanbul")
 
             # Parse JSON report
             report_file = report_dir / "coverage-summary.json"
@@ -237,7 +192,7 @@ class IstanbulPlugin(CoveragePlugin):
                 return self._parse_json_report(report_file, context.project_root, threshold)
             else:
                 LOGGER.warning("Coverage JSON report not generated")
-                return CoverageResult(threshold=threshold)
+                return CoverageResult(threshold=threshold, tool="istanbul")
 
     def _parse_json_report(
         self,
@@ -260,7 +215,7 @@ class IstanbulPlugin(CoveragePlugin):
                 report = json.load(f)
         except Exception as e:
             LOGGER.error(f"Failed to parse Istanbul JSON report: {e}")
-            return CoverageResult(threshold=threshold)
+            return CoverageResult(threshold=threshold, tool="istanbul")
 
         # Get total statistics
         total = report.get("total", {})
@@ -280,6 +235,7 @@ class IstanbulPlugin(CoveragePlugin):
             missing_lines=total_lines - covered_lines,
             excluded_lines=0,
             threshold=threshold,
+            tool="istanbul",
         )
 
         # Parse per-file coverage (all keys except "total")
@@ -316,6 +272,105 @@ class IstanbulPlugin(CoveragePlugin):
 
         LOGGER.info(
             f"Coverage: {percent_covered:.1f}% ({covered_lines}/{total_lines} lines) "
+            f"- threshold: {threshold}%"
+        )
+
+        return result
+
+    def _parse_final_report(
+        self,
+        report_file: Path,
+        project_root: Path,
+        threshold: float,
+    ) -> CoverageResult:
+        """Parse Istanbul-format coverage-final.json report.
+
+        This format contains per-file statement/branch/function maps.
+        We extract statement-level coverage from the ``s`` dict and use
+        ``statementMap`` to identify missing lines.
+
+        Args:
+            report_file: Path to coverage-final.json.
+            project_root: Project root directory.
+            threshold: Coverage percentage threshold.
+
+        Returns:
+            CoverageResult with parsed data.
+        """
+        try:
+            with open(report_file) as f:
+                report = json.load(f)
+        except Exception as e:
+            LOGGER.error(f"Failed to parse Istanbul coverage-final.json: {e}")
+            return CoverageResult(threshold=threshold, tool="istanbul")
+
+        total_statements = 0
+        covered_statements = 0
+        files: Dict[str, FileCoverage] = {}
+
+        for file_path, file_data in report.items():
+            s_map = file_data.get("s", {})
+            statement_map = file_data.get("statementMap", {})
+            file_total = len(s_map)
+            file_covered = sum(1 for v in s_map.values() if v > 0)
+
+            # Collect missing lines from statementMap where s[key] == 0
+            missing_lines: list[int] = []
+            for key, count in s_map.items():
+                if count == 0 and key in statement_map:
+                    start_line = statement_map[key].get("start", {}).get("line")
+                    if start_line is not None:
+                        missing_lines.append(start_line)
+            missing_lines.sort()
+
+            total_statements += file_total
+            covered_statements += file_covered
+
+            try:
+                rel_path = str(Path(file_path).relative_to(project_root))
+            except ValueError:
+                rel_path = file_path
+
+            files[rel_path] = FileCoverage(
+                file_path=project_root / rel_path,
+                total_lines=file_total,
+                covered_lines=file_covered,
+                missing_lines=missing_lines,
+                excluded_lines=0,
+            )
+
+        percent_covered = (
+            (covered_statements / total_statements * 100)
+            if total_statements > 0
+            else 100.0
+        )
+
+        result = CoverageResult(
+            total_lines=total_statements,
+            covered_lines=covered_statements,
+            missing_lines=total_statements - covered_statements,
+            excluded_lines=0,
+            threshold=threshold,
+            files=files,
+            tool="istanbul",
+        )
+
+        if percent_covered < threshold:
+            issue = self._create_coverage_issue(
+                percent_covered,
+                threshold,
+                total_statements,
+                covered_statements,
+                total_statements - covered_statements,
+                statements={},
+                branches={},
+                functions={},
+            )
+            result.issues.append(issue)
+
+        LOGGER.info(
+            f"Coverage: {percent_covered:.1f}% "
+            f"({covered_statements}/{total_statements} statements) "
             f"- threshold: {threshold}%"
         )
 
@@ -407,3 +462,22 @@ class IstanbulPlugin(CoveragePlugin):
         content = f"istanbul:{round(percentage)}:{threshold}"
         hash_val = hashlib.sha256(content.encode()).hexdigest()[:12]
         return f"istanbul-{hash_val}"
+
+    def _create_no_data_issue(self) -> UnifiedIssue:
+        """Create a UnifiedIssue when no coverage data is found."""
+        return UnifiedIssue(
+            id="no-coverage-data-istanbul",
+            domain=ToolDomain.COVERAGE,
+            source_tool="istanbul",
+            severity=Severity.HIGH,
+            rule_id="no_coverage_data",
+            title="No coverage data found",
+            description=(
+                "No coverage data found for istanbul. "
+                "Looked for coverage/coverage-summary.json, coverage/coverage-final.json, "
+                "and .nyc_output/ but none were found. "
+                "Ensure the testing domain is active and has run before coverage analysis. "
+                "Test runners generate coverage data automatically when they execute."
+            ),
+            fixable=False,
+        )
