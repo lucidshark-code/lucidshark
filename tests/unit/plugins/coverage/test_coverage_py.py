@@ -689,9 +689,9 @@ class TestCoveragePercentageParsing:
                 report_file, project_root, threshold=80.0
             )
 
-            # CoverageResult.percentage returns 100.0 when total_lines == 0
-            assert result.percentage == 100.0
-            assert result.passed is True
+            # CoverageResult.percentage returns 0.0 when total_lines == 0 (not 100%)
+            assert result.percentage == 0.0
+            assert result.passed is False  # No data = failure
 
     def test_100_percent_coverage(self) -> None:
         """Test parsing report with 100% coverage."""

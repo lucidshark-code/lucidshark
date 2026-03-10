@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Strict mode** (enabled by default) — all configured tools must run successfully for a scan to pass
+  - `settings.strict_mode: true` (default) — tool skips (not installed, missing prerequisites, execution failed) create HIGH severity issues
+  - Per-tool `mandatory: true/false` option for fine-grained control when strict mode is disabled
+  - Skipped tools now tracked with `ToolSkipInfo` and `SkipReason` (tool_not_installed, no_applicable_files, missing_prerequisite, execution_failed)
+- **Testing failures now block scans** — when tests fail, a HIGH severity issue is created with pass/fail/skip/error counts
+- **Skipped tools section** in reporter output — summary and AI reporters now show which tools were skipped and why, with suggestions for fixing
+
+### Changed
+- **Breaking:** Coverage with 0/0 lines measured now fails instead of passing — previously returned 100% (vacuous pass), now returns 0% and fails any threshold
+  - Added `has_data` property to `CoverageResult` for semantic clarity
+  - `CoverageResult.passed` returns `False` when no coverage data is measured
+
+### Fixed
+- Missing bundled data files in PyInstaller binary distribution (pmd-ruleset.xml, checkstyle-google.xml, spotbugs-exclude.xml)
+
 ## [0.5.54] - 2026-03-10
 
 ### Added

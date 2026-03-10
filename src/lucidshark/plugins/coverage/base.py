@@ -39,9 +39,12 @@ class FileCoverage:
 
     @property
     def percentage(self) -> float:
-        """Coverage percentage for this file."""
+        """Coverage percentage for this file.
+
+        Returns 0.0 if no lines were measured (not 100.0).
+        """
         if self.total_lines == 0:
-            return 100.0
+            return 0.0
         return (self.covered_lines / self.total_lines) * 100
 
 
@@ -59,15 +62,34 @@ class CoverageResult:
     tool: str = ""  # Name of the coverage tool that produced this result
 
     @property
+    def has_data(self) -> bool:
+        """Whether any coverage data was measured.
+
+        Returns False if total_lines is 0, indicating no data was collected.
+        This is distinct from having 0% coverage (which would have lines but
+        no covered lines).
+        """
+        return self.total_lines > 0
+
+    @property
     def percentage(self) -> float:
-        """Overall coverage percentage."""
+        """Overall coverage percentage.
+
+        Returns 0.0 if no lines were measured (not 100.0).
+        This ensures that unmeasured coverage fails threshold checks.
+        """
         if self.total_lines == 0:
-            return 100.0
+            return 0.0
         return (self.covered_lines / self.total_lines) * 100
 
     @property
     def passed(self) -> bool:
-        """Whether coverage meets the threshold."""
+        """Whether coverage meets the threshold.
+
+        Returns False if no data was measured (total_lines == 0).
+        """
+        if not self.has_data:
+            return False
         return self.percentage >= self.threshold
 
     def to_summary(self) -> CoverageSummary:

@@ -16,6 +16,7 @@ from lucidshark.core.logging import get_logger
 from lucidshark.core.models import (
     ScanContext,
     Severity,
+    SkipReason,
     ToolDomain,
     UnifiedIssue,
 )
@@ -157,6 +158,13 @@ class RuffLinter(LinterPlugin):
             binary = self.ensure_binary()
         except FileNotFoundError as e:
             LOGGER.warning(str(e))
+            context.record_skip(
+                tool_name=self.name,
+                domain=ToolDomain.LINTING,
+                reason=SkipReason.TOOL_NOT_INSTALLED,
+                message=str(e),
+                suggestion="pip install ruff",
+            )
             return []
 
         # Build command
@@ -184,6 +192,12 @@ class RuffLinter(LinterPlugin):
         # If no valid paths after filtering, skip linting
         if not paths:
             LOGGER.debug("No Python files to lint")
+            context.record_skip(
+                tool_name=self.name,
+                domain=ToolDomain.LINTING,
+                reason=SkipReason.NO_APPLICABLE_FILES,
+                message="No Python files to lint",
+            )
             return []
 
         cmd.extend(paths)
@@ -206,9 +220,21 @@ class RuffLinter(LinterPlugin):
             )
         except subprocess.TimeoutExpired:
             LOGGER.warning("Ruff lint timed out after 120 seconds")
+            context.record_skip(
+                tool_name=self.name,
+                domain=ToolDomain.LINTING,
+                reason=SkipReason.EXECUTION_FAILED,
+                message="Ruff lint timed out after 120 seconds",
+            )
             return []
         except Exception as e:
             LOGGER.error(f"Failed to run Ruff: {e}")
+            context.record_skip(
+                tool_name=self.name,
+                domain=ToolDomain.LINTING,
+                reason=SkipReason.EXECUTION_FAILED,
+                message=f"Failed to run Ruff: {e}",
+            )
             return []
 
         # Parse output

@@ -611,6 +611,19 @@ class ScanCommand(Command):
             result.full_issues = full_issues
             result.full_duplication_result = full_duplication_result
 
+        # Copy tool skips from context to result and process mandatory skips
+        if context.tool_skips:
+            from lucidshark.core.skip_handler import process_skips
+
+            # Process skips to determine mandatory flag and generate issues
+            processed_skips, mandatory_issues = process_skips(context.tool_skips, config)
+            result.tool_skips = processed_skips
+
+            # Add mandatory skip issues to the result
+            if mandatory_issues:
+                result.issues.extend(mandatory_issues)
+                result.summary = result.compute_summary()  # Recompute summary
+
         return result
 
     def _check_domain_thresholds(

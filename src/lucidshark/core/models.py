@@ -104,6 +104,31 @@ class Severity(str, Enum):
     INFO = "info"
 
 
+class SkipReason(str, Enum):
+    """Reasons why a tool was skipped during scan execution."""
+
+    TOOL_NOT_INSTALLED = "tool_not_installed"
+    NO_APPLICABLE_FILES = "no_applicable_files"
+    MISSING_PREREQUISITE = "missing_prerequisite"
+    EXECUTION_FAILED = "execution_failed"
+
+
+@dataclass
+class ToolSkipInfo:
+    """Information about a skipped tool.
+
+    Records when a tool is skipped during scan execution, including
+    the reason and any suggestions for resolution.
+    """
+
+    tool_name: str
+    domain: DomainType
+    reason: SkipReason
+    message: str
+    suggestion: Optional[str] = None
+    mandatory: bool = False  # Whether this skip should fail the scan
+
+
 @dataclass
 class UnifiedIssue:
     """Normalized issue representation shared by all tools.
@@ -171,6 +196,35 @@ class ScanContext:
     coverage_result: Any = None
     # Duplication result populated after duplication analysis (for MCP/CLI access)
     duplication_result: Any = None
+    # Tool skips recorded during scan execution
+    tool_skips: List["ToolSkipInfo"] = field(default_factory=list)
+
+    def record_skip(
+        self,
+        tool_name: str,
+        domain: DomainType,
+        reason: "SkipReason",
+        message: str,
+        suggestion: Optional[str] = None,
+    ) -> None:
+        """Record that a tool was skipped during scan execution.
+
+        Args:
+            tool_name: Name of the tool that was skipped.
+            domain: The domain the tool belongs to.
+            reason: Why the tool was skipped.
+            message: Human-readable explanation.
+            suggestion: Optional suggestion for how to fix the issue.
+        """
+        self.tool_skips.append(
+            ToolSkipInfo(
+                tool_name=tool_name,
+                domain=domain,
+                reason=reason,
+                message=message,
+                suggestion=suggestion,
+            )
+        )
 
     def get_scanner_options(self, domain: str) -> Dict[str, Any]:
         """Get plugin-specific options for a domain.
@@ -305,6 +359,8 @@ class ScanResult:
     full_issues: Optional[List[UnifiedIssue]] = None
     # For incremental scanning: unfiltered duplication result for scope checking
     full_duplication_result: Any = None
+    # Tools that were skipped during scan execution
+    tool_skips: List[ToolSkipInfo] = field(default_factory=list)
 
     def compute_summary(self) -> ScanSummary:
         """Compute summary statistics from issues.

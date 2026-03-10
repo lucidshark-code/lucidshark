@@ -522,6 +522,7 @@ pipeline:
       - name: string
         config: string  # Path to tool config
         options: {...}  # Tool-specific options (passed through)
+        mandatory: boolean  # Optional: override strict_mode for this tool
 
   type_checking:
     enabled: boolean
@@ -604,9 +605,47 @@ exclude:
 
 output:
   format: ai | json | table | sarif | summary
+
+# Global settings
+settings:
+  strict_mode: boolean  # Default: true — all configured tools must run successfully
 ```
 
 > **Note**: AI tool integration is configured via `lucidshark init`, not through lucidshark.yml.
+
+#### 5.4.1.1 Strict Mode and Tool Execution
+
+By default, LucidShark runs in **strict mode** (`settings.strict_mode: true`). This means:
+
+- **Every configured tool must run successfully** — if a tool is skipped (not installed, missing prerequisites, execution failed), the scan fails with a HIGH severity issue
+- **Testing failures block the scan** — if tests fail, a HIGH severity issue is created
+- **Coverage with no data fails** — if coverage analysis finds 0 lines measured, the scan fails
+
+| Skip Reason | Example | Blocks Scan (strict) |
+|-------------|---------|---------------------|
+| Tool not installed | mypy not in PATH | ✅ Yes |
+| Missing prerequisite | No compiled classes for SpotBugs | ✅ Yes |
+| Execution failed | Timeout, crash | ✅ Yes |
+| No applicable files | No `.py` files for mypy | ❌ No (informational) |
+
+**To disable strict mode** (allow tool skips without failing):
+```yaml
+settings:
+  strict_mode: false
+```
+
+**Per-tool mandatory flag** (for fine-grained control when strict_mode is false):
+```yaml
+settings:
+  strict_mode: false  # Lenient by default
+pipeline:
+  linting:
+    tools:
+      - name: ruff
+        mandatory: true  # This specific tool must run
+      - name: eslint
+        mandatory: false  # Optional
+```
 
 #### 5.4.2 Exclude File
 

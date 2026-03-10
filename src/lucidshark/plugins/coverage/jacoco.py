@@ -12,7 +12,7 @@ from typing import List, Optional, Tuple
 import defusedxml.ElementTree as ET  # type: ignore[import-untyped]
 
 from lucidshark.core.logging import get_logger
-from lucidshark.core.models import ScanContext
+from lucidshark.core.models import ScanContext, SkipReason, ToolDomain
 from lucidshark.plugins.coverage.base import (
     CoveragePlugin,
     CoverageResult,
@@ -93,11 +93,25 @@ class JaCoCoPlugin(CoveragePlugin):
             _, build_system = self._detect_build_system()
         except FileNotFoundError as e:
             LOGGER.warning(str(e))
+            context.record_skip(
+                tool_name=self.name,
+                domain=ToolDomain.COVERAGE,
+                reason=SkipReason.MISSING_PREREQUISITE,
+                message=str(e),
+                suggestion="Ensure the project has a pom.xml (Maven) or build.gradle (Gradle)",
+            )
             return CoverageResult(threshold=threshold, tool="jacoco")
 
         # Check if JaCoCo report exists
         if not self._jacoco_report_exists(context.project_root, build_system):
             LOGGER.warning("No JaCoCo report found")
+            context.record_skip(
+                tool_name=self.name,
+                domain=ToolDomain.COVERAGE,
+                reason=SkipReason.MISSING_PREREQUISITE,
+                message="No JaCoCo report found",
+                suggestion="Run tests with JaCoCo enabled first (mvn test or gradle test)",
+            )
             result = CoverageResult(threshold=threshold, tool="jacoco")
             result.issues.append(self._create_no_data_issue())
             return result

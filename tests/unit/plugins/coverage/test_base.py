@@ -35,9 +35,9 @@ class TestFileCoverage:
         assert fc.percentage == 75.0
 
     def test_percentage_zero_lines(self) -> None:
-        """Test percentage is 100% when no lines."""
+        """Test percentage is 0% when no lines (not 100%)."""
         fc = FileCoverage(file_path=Path("/test.py"))
-        assert fc.percentage == 100.0
+        assert fc.percentage == 0.0
 
 
 class TestCoverageResult:
@@ -63,9 +63,24 @@ class TestCoverageResult:
         assert result.percentage == 80.0
 
     def test_percentage_zero_lines(self) -> None:
-        """Test percentage is 100% when no lines."""
+        """Test percentage is 0% when no lines (not 100%)."""
         result = CoverageResult()
-        assert result.percentage == 100.0
+        assert result.percentage == 0.0
+
+    def test_has_data_true_with_lines(self) -> None:
+        """Test has_data is True when total_lines > 0."""
+        result = CoverageResult(total_lines=100, covered_lines=80)
+        assert result.has_data is True
+
+    def test_has_data_false_with_no_lines(self) -> None:
+        """Test has_data is False when total_lines == 0."""
+        result = CoverageResult()
+        assert result.has_data is False
+
+    def test_passed_false_when_no_data(self) -> None:
+        """Test passed is False when no data measured, regardless of threshold."""
+        result = CoverageResult(threshold=0.0)  # Even with 0% threshold
+        assert result.passed is False
 
     def test_passed_above_threshold(self) -> None:
         """Test passed is True when above threshold."""
@@ -267,7 +282,7 @@ class TestCoverageResultFilterToChangedFiles:
         assert len(filtered.files) == 0
         assert filtered.total_lines == 0
         assert filtered.covered_lines == 0
-        assert filtered.percentage == 100.0  # No lines = 100%
+        assert filtered.percentage == 0.0  # No lines = 0% (not 100%)
 
     def test_filter_empty_changed_files(self, tmp_path: Path) -> None:
         """Test filtering with empty changed files list."""

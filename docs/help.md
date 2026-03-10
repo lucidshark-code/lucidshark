@@ -736,9 +736,49 @@ exclude:
   - "**/.ruff_cache/**"
   - "**/htmlcov/**"
 
+# Global settings
+settings:
+  strict_mode: true  # All configured tools must run successfully (default: true)
+
 # Output format
 output:
   format: json  # ai, json, table, sarif, summary
+```
+
+#### Strict Mode and Tool Execution
+
+By default, LucidShark runs in **strict mode** (`settings.strict_mode: true`). This means:
+
+- **Every configured tool must run successfully** — if a tool is skipped (not installed, missing prerequisites, execution failed), the scan fails with a HIGH severity issue
+- **Testing failures block the scan** — if tests fail, a HIGH severity issue is created
+- **Coverage with no data fails** — if coverage analysis finds 0 lines measured, the scan fails
+
+**Skip reasons that cause failures in strict mode:**
+| Skip Reason | Example | Blocks Scan? |
+|-------------|---------|--------------|
+| Tool not installed | mypy not installed | ✅ Yes |
+| Missing prerequisite | SpotBugs: no compiled classes | ✅ Yes |
+| Execution failed | Tool timed out or crashed | ✅ Yes |
+| No applicable files | No `.py` files for mypy | ❌ No (informational) |
+
+**To disable strict mode** (allow tool skips without failing):
+```yaml
+settings:
+  strict_mode: false
+```
+
+**Per-tool mandatory flag** (for fine-grained control when strict_mode is false):
+```yaml
+settings:
+  strict_mode: false  # Lenient by default
+
+pipeline:
+  type_checking:
+    tools:
+      - name: mypy
+        mandatory: true  # This specific tool must run
+      - name: pyright
+        mandatory: false  # Optional
 ```
 
 #### Custom Commands

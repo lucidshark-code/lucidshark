@@ -79,6 +79,25 @@ class SummaryReporter(ReporterPlugin):
                 f"  Blocks: {ds.duplicate_blocks}, Lines: {ds.duplicate_lines}"
             )
 
+        # Skipped tools
+        if result.tool_skips:
+            lines.append("\nSkipped tools:")
+            mandatory_skips = [s for s in result.tool_skips if s.mandatory]
+            info_skips = [s for s in result.tool_skips if not s.mandatory]
+
+            if mandatory_skips:
+                lines.append("  MANDATORY FAILURES:")
+                for skip in mandatory_skips:
+                    lines.append(f"    - {skip.tool_name}: {skip.message}")
+                    if skip.suggestion:
+                        lines.append(f"      Fix: {skip.suggestion}")
+
+            if info_skips:
+                if mandatory_skips:
+                    lines.append("  Informational:")
+                for skip in info_skips:
+                    lines.append(f"  - {skip.tool_name}: {skip.message}")
+
         if result.metadata:
             lines.append(f"\nScan duration: {result.metadata.duration_ms}ms")
             lines.append(f"Project: {result.metadata.project_root}")

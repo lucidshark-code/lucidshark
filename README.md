@@ -88,7 +88,7 @@ lucidshark scan --all --base-branch origin/main
 
 See [Incremental Scanning](docs/incremental-scanning.md) for threshold scopes, CI integration, and advanced usage.
 
-**Note:** LucidShark validates that all configured tools are installed before running. If a tool is missing, the scan fails immediately with install instructions. Security tools (trivy, opengrep, checkov), duplo, PMD, Checkstyle, and SpotBugs are downloaded automatically.
+**Note:** LucidShark runs in **strict mode** by default — all configured tools must run successfully. If a tool is missing, not applicable, or fails to execute, the scan fails with a HIGH severity issue and fix suggestions. Security tools (trivy, opengrep, checkov), duplo, PMD, Checkstyle, and SpotBugs are downloaded automatically.
 
 ### Example Output
 

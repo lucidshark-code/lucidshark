@@ -20,6 +20,7 @@ from lucidshark.core.logging import get_logger
 from lucidshark.core.models import (
     ScanContext,
     Severity,
+    SkipReason,
     ToolDomain,
     UnifiedIssue,
 )
@@ -95,6 +96,13 @@ class PytestRunner(TestRunnerPlugin):
             binary = self.ensure_binary()
         except FileNotFoundError as e:
             LOGGER.warning(str(e))
+            context.record_skip(
+                tool_name=self.name,
+                domain=ToolDomain.TESTING,
+                reason=SkipReason.TOOL_NOT_INSTALLED,
+                message=str(e),
+                suggestion="pip install pytest",
+            )
             return TestResult()
 
         # Always attempt to use coverage if available

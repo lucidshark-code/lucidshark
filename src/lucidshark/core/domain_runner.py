@@ -939,6 +939,24 @@ class DomainRunner:
 
                     issues.extend(result.issues)
 
+                    # Create summary issue if tests failed
+                    if not result.success:
+                        issues.append(
+                            UnifiedIssue(
+                                id=f"{name}-test-failure",
+                                domain=ToolDomain.TESTING,
+                                source_tool=name,
+                                severity=Severity.HIGH,
+                                rule_id="test-failure",
+                                title=f"{name}: {result.failed} failed, {result.errors} errors",
+                                description=(
+                                    f"Test suite failed: {result.passed} passed, "
+                                    f"{result.failed} failed, {result.skipped} skipped, "
+                                    f"{result.errors} errors"
+                                ),
+                            )
+                        )
+
                 except FileNotFoundError:
                     LOGGER.debug(f"Test runner {name} not available")
                 except Exception as e:

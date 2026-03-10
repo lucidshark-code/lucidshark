@@ -82,6 +82,23 @@ class AIReporter(ReporterPlugin):
         if result.duplication_summary:
             output["duplication_summary"] = asdict(result.duplication_summary)
 
+        # Add skipped tools information
+        if result.tool_skips:
+            output["skipped_tools"] = [
+                {
+                    "tool": skip.tool_name,
+                    "domain": skip.domain.value if hasattr(skip.domain, "value") else str(skip.domain),
+                    "reason": skip.reason.value,
+                    "message": skip.message,
+                    "suggestion": skip.suggestion,
+                    "mandatory": skip.mandatory,
+                }
+                for skip in result.tool_skips
+            ]
+            mandatory_skips = [s for s in result.tool_skips if s.mandatory]
+            if mandatory_skips:
+                output["mandatory_tool_failures"] = len(mandatory_skips)
+
         return output
 
     def _get_checked_domains(self, result: ScanResult) -> List[str]:

@@ -17,6 +17,7 @@ from lucidshark.core.logging import get_logger
 from lucidshark.core.models import (
     ScanContext,
     Severity,
+    SkipReason,
     ToolDomain,
     UnifiedIssue,
 )
@@ -173,6 +174,13 @@ class MypyChecker(TypeCheckerPlugin):
             binary = self.ensure_binary()
         except FileNotFoundError as e:
             LOGGER.warning(str(e))
+            context.record_skip(
+                tool_name=self.name,
+                domain=ToolDomain.TYPE_CHECKING,
+                reason=SkipReason.TOOL_NOT_INSTALLED,
+                message=str(e),
+                suggestion="pip install mypy",
+            )
             return []
 
         # Build command
@@ -217,6 +225,12 @@ class MypyChecker(TypeCheckerPlugin):
                 LOGGER.debug(
                     "No Python files or directories in scan paths, skipping mypy"
                 )
+                context.record_skip(
+                    tool_name=self.name,
+                    domain=ToolDomain.TYPE_CHECKING,
+                    reason=SkipReason.NO_APPLICABLE_FILES,
+                    message="No Python files or directories in scan paths",
+                )
                 return []
             # Single path that is project_root -> use "." for reliable discovery
             if (
@@ -248,9 +262,21 @@ class MypyChecker(TypeCheckerPlugin):
             )
         except subprocess.TimeoutExpired:
             LOGGER.warning("mypy timed out after 180 seconds")
+            context.record_skip(
+                tool_name=self.name,
+                domain=ToolDomain.TYPE_CHECKING,
+                reason=SkipReason.EXECUTION_FAILED,
+                message="mypy timed out after 180 seconds",
+            )
             return []
         except Exception as e:
             LOGGER.error(f"Failed to run mypy: {e}")
+            context.record_skip(
+                tool_name=self.name,
+                domain=ToolDomain.TYPE_CHECKING,
+                reason=SkipReason.EXECUTION_FAILED,
+                message=f"Failed to run mypy: {e}",
+            )
             return []
 
         # Parse output (mypy may write to stdout or stderr depending on version)

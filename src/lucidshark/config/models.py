@@ -99,6 +99,7 @@ class ToolConfig:
     strict: bool = False  # For type checkers
     domains: List[str] = field(default_factory=list)  # For security scanners
     options: Dict[str, Any] = field(default_factory=dict)  # Tool-specific options
+    mandatory: bool = False  # If True, tool must run or scan fails
 
 
 @dataclass
@@ -264,6 +265,13 @@ class ProjectConfig:
 
 
 @dataclass
+class SettingsConfig:
+    """Global LucidShark settings."""
+
+    strict_mode: bool = True  # All configured tools must run successfully
+
+
+@dataclass
 class LucidSharkConfig:
     """Complete lucidshark configuration.
 
@@ -299,6 +307,9 @@ class LucidSharkConfig:
 
     # Pipeline configuration (enricher ordering, parallelism)
     pipeline: PipelineConfig = field(default_factory=PipelineConfig)
+
+    # Global settings
+    settings: SettingsConfig = field(default_factory=SettingsConfig)
 
     # Metadata (not from YAML, set by loader)
     _config_sources: List[str] = field(default_factory=list, repr=False)

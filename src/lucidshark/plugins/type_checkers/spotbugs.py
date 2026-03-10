@@ -28,6 +28,7 @@ from lucidshark.core.logging import get_logger
 from lucidshark.core.models import (
     ScanContext,
     Severity,
+    SkipReason,
     ToolDomain,
     UnifiedIssue,
 )
@@ -287,11 +288,25 @@ class SpotBugsChecker(TypeCheckerPlugin):
             spotbugs_dir = self.ensure_binary()
         except (FileNotFoundError, RuntimeError) as e:
             LOGGER.warning(str(e))
+            context.record_skip(
+                tool_name=self.name,
+                domain=ToolDomain.TYPE_CHECKING,
+                reason=SkipReason.TOOL_NOT_INSTALLED,
+                message=str(e),
+                suggestion="Check network connectivity or manually install SpotBugs",
+            )
             return []
 
         java_path = self._check_java_available()
         if not java_path:
             LOGGER.warning("Java not found, skipping SpotBugs")
+            context.record_skip(
+                tool_name=self.name,
+                domain=ToolDomain.TYPE_CHECKING,
+                reason=SkipReason.TOOL_NOT_INSTALLED,
+                message="Java not found in PATH",
+                suggestion="Install Java JDK and ensure 'java' is in PATH",
+            )
             return []
 
         # Find compiled class directories
@@ -300,6 +315,13 @@ class SpotBugsChecker(TypeCheckerPlugin):
             LOGGER.warning(
                 "No compiled Java classes found. "
                 "Run 'mvn compile' or 'gradle build' first."
+            )
+            context.record_skip(
+                tool_name=self.name,
+                domain=ToolDomain.TYPE_CHECKING,
+                reason=SkipReason.MISSING_PREREQUISITE,
+                message="No compiled Java classes found",
+                suggestion="Run 'mvn compile' or 'gradle build' first",
             )
             return []
 

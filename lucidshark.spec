@@ -17,7 +17,12 @@ a = Analysis(
     ['src/lucidshark/cli/__init__.py'],
     pathex=[str(src_path)],
     binaries=[],
-    datas=[('src/lucidshark/data/help.md', 'lucidshark/data')],
+    datas=[
+        ('src/lucidshark/data/help.md', 'lucidshark/data'),
+        ('src/lucidshark/data/pmd-ruleset.xml', 'lucidshark/data'),
+        ('src/lucidshark/data/checkstyle-google.xml', 'lucidshark/data'),
+        ('src/lucidshark/data/spotbugs-exclude.xml', 'lucidshark/data'),
+    ],
     hiddenimports=[
         # Core modules
         'lucidshark',
