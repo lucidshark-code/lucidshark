@@ -451,7 +451,8 @@ node_available = pytest.mark.skipif(not _node_available, reason="Node.js not ava
 java_available = pytest.mark.skipif(not _java_available, reason="Java not available")
 
 spotbugs_available = pytest.mark.skipif(
-    not _spotbugs_available, reason="SpotBugs not available (requires Java and download)"
+    not _spotbugs_available,
+    reason="SpotBugs not available (requires Java and download)",
 )
 
 pmd_available = pytest.mark.skipif(

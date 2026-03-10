@@ -243,7 +243,11 @@ def format_validation_errors(errors: List[ToolValidationError]) -> str:
 
     lines.append("Please install the missing tools and try again.")
     lines.append("")
-    lines.append("Note: Security tools (trivy, opengrep, checkov), duplo, pmd, checkstyle,")
-    lines.append("and spotbugs are downloaded automatically - no manual installation required.")
+    lines.append(
+        "Note: Security tools (trivy, opengrep, checkov), duplo, pmd, checkstyle,"
+    )
+    lines.append(
+        "and spotbugs are downloaded automatically - no manual installation required."
+    )
 
     return "\n".join(lines)

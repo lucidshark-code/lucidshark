@@ -72,7 +72,7 @@ class TestSpotBugsBinaryManagement:
 
             with patch(
                 "lucidshark.plugins.type_checkers.spotbugs.shutil.which",
-                return_value=None
+                return_value=None,
             ):
                 checker = SpotBugsChecker(project_root=project_root)
 
@@ -112,13 +112,7 @@ class TestSpotBugsBinaryManagement:
             checker = SpotBugsChecker(version="4.9.3", project_root=Path(tmpdir))
 
             # Check the expected path
-            expected_dir = (
-                Path(tmpdir)
-                / ".lucidshark"
-                / "bin"
-                / "spotbugs"
-                / "4.9.3"
-            )
+            expected_dir = Path(tmpdir) / ".lucidshark" / "bin" / "spotbugs" / "4.9.3"
             assert checker._paths.plugin_bin_dir("spotbugs", "4.9.3") == expected_dir
 
     def test_different_versions_use_different_paths(self) -> None:
@@ -452,7 +446,9 @@ class TestSpotBugsExcludeFilter:
             lucidshark_dir = project_root / ".lucidshark" / "config"
             lucidshark_dir.mkdir(parents=True)
             cached_filter = lucidshark_dir / "spotbugs-exclude.xml"
-            cached_filter.write_text("<FindBugsFilter><!-- bundled --></FindBugsFilter>")
+            cached_filter.write_text(
+                "<FindBugsFilter><!-- bundled --></FindBugsFilter>"
+            )
 
             checker = SpotBugsChecker(project_root=project_root)
             result = checker._find_exclude_filter(project_root)

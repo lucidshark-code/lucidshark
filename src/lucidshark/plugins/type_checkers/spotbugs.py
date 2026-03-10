@@ -429,7 +429,9 @@ class SpotBugsChecker(TypeCheckerPlugin):
             return str(cached_filter)
         except (ModuleNotFoundError, FileNotFoundError, TypeError) as e:
             # No filter available - SpotBugs will use all rules
-            LOGGER.debug(f"Bundled SpotBugs filter not found ({e}), running without filter")
+            LOGGER.debug(
+                f"Bundled SpotBugs filter not found ({e}), running without filter"
+            )
             return None
 
     def _parse_output(
