@@ -398,7 +398,7 @@ def _parse_duplication_pipeline_config(
     return DuplicationPipelineConfig(
         enabled=duplication_data.get("enabled", False),
         threshold=duplication_data.get("threshold", 10.0),
-        threshold_scope=duplication_data.get("threshold_scope", "changed"),
+        threshold_scope=duplication_data.get("threshold_scope", "both"),
         min_lines=duplication_data.get("min_lines", 4),
         min_chars=duplication_data.get("min_chars", 3),
         exclude=duplication_data.get("exclude", []),

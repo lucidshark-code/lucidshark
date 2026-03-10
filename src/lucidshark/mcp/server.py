@@ -141,7 +141,7 @@ class LucidSharkMCPServer:
                                 "enum": ["changed", "project", "both"],
                                 "description": (
                                     "When using base_branch, apply duplication threshold to: "
-                                    "'changed' (default), 'project', or 'both'."
+                                    "'changed', 'project', or 'both' (default)."
                                 ),
                             },
                         },

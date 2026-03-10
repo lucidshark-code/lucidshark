@@ -478,7 +478,7 @@ class MCPToolExecutor:
         # Add duplication summary with scope-based threshold checking
         if context.duplication_result is not None:
             if base_branch and changed_files:
-                scope = duplication_threshold_scope or "changed"
+                scope = duplication_threshold_scope or "both"
 
                 # Compute effective passed based on scope
                 if scope == "changed":

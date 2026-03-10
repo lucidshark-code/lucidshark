@@ -145,9 +145,9 @@ Unlike linting/type_checking, coverage filtering applies to both display AND the
 
 | Scope | Display | Threshold Check |
 |-------|---------|-----------------|
-| `changed` (default) | Duplicates involving changed files | Check filtered duplication % |
+| `changed` | Duplicates involving changed files | Check filtered duplication % |
 | `project` | Duplicates involving changed files | Check full project duplication % |
-| `both` | Duplicates involving changed files | Check both; fail if either exceeds threshold |
+| `both` (default) | Duplicates involving changed files | Check both; fail if either exceeds threshold |
 
 **Example:**
 ```
@@ -161,31 +161,31 @@ Result: FAIL (12% > 10% on changed files)
 
 Like coverage, duplication filtering applies to both display AND the metrics used for threshold calculation (when scope=changed).
 
-> **⚠️ WARNING: Duplication Creep with `scope=changed`**
+> **ℹ️ Why `scope=both` is the Default**
 >
-> The default `scope=changed` can allow **project-wide duplication to grow over time**. Here's why:
+> The default `scope=both` prevents **project-wide duplication from creeping up over time**.
 >
-> The filtered duplication percentage is calculated as:
+> With `scope=changed`, the filtered duplication percentage is calculated as:
 > ```
 > (duplicate_lines_involving_changed_files / total_project_lines) * 100
 > ```
 >
-> **Example of creep:**
+> **Example of creep with `scope=changed`:**
 > - Project has 100,000 total lines
 > - Threshold is 5%
 > - Each PR adds ~50 duplicate lines involving changed files
 > - Filtered percentage per PR: `50 / 100,000 = 0.05%` → PASS
 > - After 200 PRs: project has 10,000 duplicate lines (10%) but each PR passed!
 >
-> **Recommendation for strict quality gates:**
+> With the default `scope=both`, the scan fails if **either** the filtered percentage OR the full project percentage exceeds the threshold, preventing this creep.
+>
+> **To use lenient checking (only changed files):**
 > ```yaml
 > pipeline:
 >   duplication:
 >     threshold: 5.0
->     threshold_scope: both  # or "project"
+>     threshold_scope: changed  # Only check changed files
 > ```
->
-> With `scope=both`, the scan fails if **either** the filtered percentage OR the full project percentage exceeds the threshold. This prevents duplication from creeping up over time.
 
 ## What Gets Included
 
@@ -269,7 +269,7 @@ pipeline:
   duplication:
     enabled: true
     threshold: 10
-    threshold_scope: changed
+    threshold_scope: both  # default; use "changed" for lenient checking
 ```
 
 ### MCP Parameters
@@ -281,7 +281,7 @@ mcp__lucidshark__scan(
     coverage_threshold_scope="changed",
     linting_threshold_scope="changed",
     type_checking_threshold_scope="changed",
-    duplication_threshold_scope="changed"
+    duplication_threshold_scope="both"  # default
 )
 ```
 
@@ -504,7 +504,7 @@ For filtered duplication results:
 
 This gives context: "50 duplicate lines involving your changes represent 0.5% of the project"
 
-> **Note:** Because the filtered percentage is relative to the full project's line count, each PR's contribution appears small. Over many PRs, this can lead to **duplication creep** where the overall project exceeds the threshold while each individual PR passes. Use `threshold_scope: both` or `threshold_scope: project` to prevent this. See the [Duplication section](#duplication) for details.
+> **Note:** Because the filtered percentage is relative to the full project's line count, each PR's contribution appears small. Over many PRs, this can lead to **duplication creep** where the overall project exceeds the threshold while each individual PR passes. The default `threshold_scope: both` prevents this. See the [Duplication section](#duplication) for details.
 
 ### Testing Always Runs Full Suite
 

@@ -320,7 +320,7 @@ Run quality checks on the codebase or specific files. Supports partial scanning 
 | `coverage_threshold_scope` | string | `"changed"` | With `base_branch`: apply coverage threshold to `changed`, `project`, or `both` |
 | `linting_threshold_scope` | string | `"changed"` | With `base_branch`: apply linting threshold to `changed`, `project`, or `both` |
 | `type_checking_threshold_scope` | string | `"changed"` | With `base_branch`: apply type checking threshold to `changed`, `project`, or `both` |
-| `duplication_threshold_scope` | string | `"changed"` | With `base_branch`: apply duplication threshold to `changed`, `project`, or `both` |
+| `duplication_threshold_scope` | string | `"both"` | With `base_branch`: apply duplication threshold to `changed`, `project`, or `both` |
 
 **Valid domains:** `linting`, `type_checking`, `formatting`, `sast`, `sca`, `iac`, `container`, `testing`, `coverage`, `duplication`, `all`
 
@@ -1235,7 +1235,7 @@ exclude:
 | `coverage.extra_args` | array | [] | Extra Maven/Gradle arguments (Java only) |
 | `duplication.enabled` | bool | false | Enable duplication detection |
 | `duplication.threshold` | float | 10.0 | Max allowed duplication percentage |
-| `duplication.threshold_scope` | string | "changed" | With `--base-branch`: apply threshold to `changed`, `project`, or `both`. **Warning:** The default `changed` scope can allow project-wide duplication to creep up over time—use `both` or `project` for strict quality gates. See [Incremental Scanning](incremental-scanning.md#duplication) for details. |
+| `duplication.threshold_scope` | string | "both" | With `--base-branch`: apply threshold to `changed`, `project`, or `both`. The default `both` prevents project-wide duplication from creeping up over time. See [Incremental Scanning](incremental-scanning.md#duplication) for details. |
 | `duplication.min_lines` | int | 4 | Minimum lines for a duplicate block |
 | `duplication.min_chars` | int | 3 | Minimum characters per line |
 | `duplication.exclude` | array | [] | Patterns to exclude from duplication scan (combined with global `exclude`) |
