@@ -578,6 +578,50 @@ class TestDictToConfigIgnoreIssues:
         assert config.ignore_issues[0].expires == "2026-06-01"
         assert isinstance(config.ignore_issues[0].expires, str)
 
+    def test_parses_paths_field(self) -> None:
+        """Test that paths field is parsed from structured entry."""
+        data = {
+            "ignore_issues": [
+                {"rule_id": "S101", "paths": ["tests/**", "**/test_*.py"]}
+            ]
+        }
+        config = dict_to_config(data)
+        assert len(config.ignore_issues) == 1
+        entry = config.ignore_issues[0]
+        assert entry.rule_id == "S101"
+        assert entry.paths == ["tests/**", "**/test_*.py"]
+
+    def test_paths_defaults_to_none(self) -> None:
+        """Test that paths defaults to None when not specified."""
+        data = {"ignore_issues": [{"rule_id": "E501", "reason": "accepted"}]}
+        config = dict_to_config(data)
+        assert config.ignore_issues[0].paths is None
+
+    def test_parses_all_fields_including_paths(self) -> None:
+        """Test parsing entry with all fields including paths."""
+        data = {
+            "ignore_issues": [
+                {
+                    "rule_id": "S101",
+                    "reason": "Asserts OK in tests",
+                    "expires": "2026-12-31",
+                    "paths": ["tests/**"],
+                }
+            ]
+        }
+        config = dict_to_config(data)
+        entry = config.ignore_issues[0]
+        assert entry.rule_id == "S101"
+        assert entry.reason == "Asserts OK in tests"
+        assert entry.expires == "2026-12-31"
+        assert entry.paths == ["tests/**"]
+
+    def test_paths_empty_list(self) -> None:
+        """Test that empty paths list is preserved."""
+        data = {"ignore_issues": [{"rule_id": "E501", "paths": []}]}
+        config = dict_to_config(data)
+        assert config.ignore_issues[0].paths == []
+
 
 class TestParseCoveragePipelineConfigExclude:
     """Tests for _parse_coverage_pipeline_config handling of exclude."""

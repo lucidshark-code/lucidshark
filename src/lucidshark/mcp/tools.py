@@ -358,7 +358,9 @@ class MCPToolExecutor:
         if self.config.ignore_issues:
             from lucidshark.core.ignore_issues import apply_ignore_issues
 
-            ignore_warnings = apply_ignore_issues(all_issues, self.config.ignore_issues)
+            ignore_warnings = apply_ignore_issues(
+                all_issues, self.config.ignore_issues, project_root=self.project_root
+            )
             for w in ignore_warnings:
                 LOGGER.warning(w)
 

@@ -358,7 +358,7 @@ def validate_config(
                 )
             )
         else:
-            _VALID_IGNORE_ISSUE_KEYS = {"rule_id", "reason", "expires"}
+            _VALID_IGNORE_ISSUE_KEYS = {"rule_id", "reason", "expires", "paths"}
             for i, entry in enumerate(ignore_issues):
                 if isinstance(entry, str):
                     if not entry.strip():
@@ -422,6 +422,34 @@ def validate_config(
                                         key=f"ignore_issues[{i}].expires",
                                     )
                                 )
+                    paths = entry.get("paths")
+                    if paths is not None:
+                        if not isinstance(paths, list):
+                            warnings.append(
+                                ConfigValidationWarning(
+                                    message=f"'ignore_issues[{i}].paths' must be a list of patterns",
+                                    source=source,
+                                    key=f"ignore_issues[{i}].paths",
+                                )
+                            )
+                        else:
+                            for j, pattern in enumerate(paths):
+                                if not isinstance(pattern, str):
+                                    warnings.append(
+                                        ConfigValidationWarning(
+                                            message=f"'ignore_issues[{i}].paths[{j}]' must be a string",
+                                            source=source,
+                                            key=f"ignore_issues[{i}].paths[{j}]",
+                                        )
+                                    )
+                                elif not pattern.strip():
+                                    warnings.append(
+                                        ConfigValidationWarning(
+                                            message=f"'ignore_issues[{i}].paths[{j}]' is an empty string",
+                                            source=source,
+                                            key=f"ignore_issues[{i}].paths[{j}]",
+                                        )
+                                    )
                     for key in entry:
                         if key not in _VALID_IGNORE_ISSUE_KEYS:
                             warnings.append(

@@ -73,7 +73,11 @@ TOOL_CONFIGS: Dict[str, Dict[str, Any]] = {
     },
     # Java linters
     "checkstyle": {
-        "files": ["checkstyle.xml", ".checkstyle.xml", "config/checkstyle/checkstyle.xml"],
+        "files": [
+            "checkstyle.xml",
+            ".checkstyle.xml",
+            "config/checkstyle/checkstyle.xml",
+        ],
     },
     "pmd": {
         "files": [

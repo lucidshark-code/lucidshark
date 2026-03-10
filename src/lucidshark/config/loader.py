@@ -510,6 +510,7 @@ def dict_to_config(data: Dict[str, Any]) -> LucidSharkConfig:
                         rule_id=item.get("rule_id", ""),
                         reason=item.get("reason"),
                         expires=raw_expires,
+                        paths=item.get("paths"),
                     )
                 )
 

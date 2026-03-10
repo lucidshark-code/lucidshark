@@ -42,11 +42,16 @@ class IgnoreIssueEntry:
 
     Allows users to acknowledge specific rule IDs so they still appear
     in output but don't affect exit codes.
+
+    The optional `paths` field limits the ignore to specific files matching
+    gitignore-style patterns. If not specified or empty, the ignore applies
+    globally.
     """
 
     rule_id: str
     reason: Optional[str] = None
     expires: Optional[str] = None  # ISO date string YYYY-MM-DD
+    paths: Optional[List[str]] = None  # Gitignore-style patterns to limit scope
 
 
 @dataclass

@@ -592,10 +592,12 @@ fail_on:
 
 # Ignore specific issues by rule ID
 ignore_issues:
-  - string                          # Simple form: just the rule ID
+  - string                          # Simple form: just the rule ID (global ignore)
   - rule_id: string                 # Structured form
     reason: string                  # Optional: why this is ignored
     expires: date                   # Optional: ISO date (YYYY-MM-DD) when this ignore expires
+    paths:                          # Optional: limit ignore to specific files (gitignore-style patterns)
+      - string
 
 exclude:
   - string  # Global glob patterns (applies to all domains)
@@ -642,12 +644,13 @@ This is useful for:
 - Accepted risks in non-production environments
 - False positives from security scanners
 - Linting rules that conflict with project conventions
+- Rules that only apply to certain parts of the codebase (e.g., `assert` in tests)
 
 **Configuration:**
 
 ```yaml
 ignore_issues:
-  # Simple form: just the rule ID
+  # Simple form: just the rule ID (applies globally)
   - E501
   - CVE-2021-3807
 
@@ -657,6 +660,17 @@ ignore_issues:
   - rule_id: CVE-2024-1234
     reason: "Not exploitable -- we don't use the affected API"
     expires: 2026-06-01
+
+  # Path-scoped ignores: only apply to specific files/directories
+  - rule_id: S101
+    reason: "Assert statements are acceptable in test files"
+    paths:
+      - "tests/**"
+      - "**/test_*.py"
+  - rule_id: E402
+    reason: "Module-level imports are fine in scripts"
+    paths:
+      - "scripts/**"
 ```
 
 **Supported fields:**
@@ -666,12 +680,62 @@ ignore_issues:
 | `rule_id` | yes | string | Native scanner rule ID (e.g., `E501`, `CVE-2021-3807`, `CKV_AWS_1`, `py/sql-injection`) |
 | `reason` | no | string | Why this issue is being ignored |
 | `expires` | no | date | ISO date (`YYYY-MM-DD`). After this date, the ignore stops working and a warning is emitted |
+| `paths` | no | list | Gitignore-style patterns to scope the ignore. If not specified or empty, the ignore applies globally |
+
+**Path-Scoped Ignores:**
+
+The `paths` field limits an ignore rule to specific files or directories. This is useful when a rule violation is acceptable in some contexts but not others.
+
+```yaml
+ignore_issues:
+  # Ignore assert usage (S101) only in test files
+  - rule_id: S101
+    reason: "Assert is the standard way to write tests"
+    paths:
+      - "tests/**"           # All files under tests/
+      - "**/test_*.py"       # Any file starting with test_
+      - "**/conftest.py"     # pytest fixtures
+
+  # Ignore line length in generated code
+  - rule_id: E501
+    paths:
+      - "generated/**"
+      - "**/*.generated.py"
+
+  # Ignore magic numbers in constants files
+  - rule_id: PLR2004
+    paths:
+      - "**/constants.py"
+      - "**/config.py"
+
+  # Combine paths with expiry
+  - rule_id: B101
+    reason: "Temporary: assert in scripts during migration"
+    expires: 2026-06-01
+    paths:
+      - "scripts/**"
+```
+
+**Path pattern syntax:**
+
+The `paths` field uses gitignore-style patterns (same syntax as `exclude` and `.lucidsharkignore`):
+
+| Pattern | Description | Example |
+|---------|-------------|---------|
+| `*` | Match any characters except `/` | `*.py` matches `foo.py` |
+| `**` | Match any directory depth | `tests/**` matches `tests/unit/test_foo.py` |
+| `!` | Negate a pattern | `tests/**` + `!tests/integration/**` |
+| `/` (trailing) | Match directories only | `scripts/` |
+
+**Important:** Issues without a file path (e.g., some SCA dependency vulnerabilities) are **not** matched by path-scoped ignores. Use a global ignore (without `paths`) for such issues.
 
 **Behavior:**
 
 - Matched issues are tagged with `ignored: true` and `ignore_reason` in the output
 - Ignored issues appear in all output formats (`json`, `table`, `sarif`, `ai`) but are visually distinguished
 - Ignored issues are **excluded** from `fail_on` threshold checks (they do not affect the exit code)
+- **Path-scoped ignores** only suppress issues in files matching the specified patterns
+- **Empty or missing `paths`** means global ignore (backward compatible)
 - **Expired ignores** stop suppressing issues -- the issue is reported normally and a warning is emitted about the expired ignore entry
 - **Unmatched rule IDs** (rule IDs that don't match any issue in the scan) produce a warning, helping catch typos and stale entries
 - Rule IDs are matched against the `rule_id` field of `UnifiedIssue`, which uses each tool's native identifier format
@@ -682,7 +746,8 @@ ignore_issues:
 |-----------|-------|--------|
 | `exclude` / `.lucidsharkignore` | Files/directories | Entire files skipped by scanners |
 | Inline ignores (`# noqa`, `# nosemgrep`) | Single code location | Tool-native, per-line suppression |
-| `ignore_issues` | All occurrences of a rule | Acknowledged in output, excluded from fail thresholds |
+| `ignore_issues` (global) | All occurrences of a rule | Acknowledged in output, excluded from fail thresholds |
+| `ignore_issues` (with `paths`) | Rule occurrences in specific files | Same as global, but only for matching paths |
 
 ### 5.5 Tool Management
 

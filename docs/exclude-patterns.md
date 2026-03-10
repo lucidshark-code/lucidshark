@@ -523,9 +523,11 @@ fn test_integration() {
 
 While file-level excludes and inline ignores target **where** issues are found, `ignore_issues` targets **which** issues are reported, by rule ID. Ignored issues are acknowledged -- they still appear in output (tagged as ignored) but are excluded from `fail_on` threshold checks and do not affect the exit code.
 
+### Basic Usage
+
 ```yaml
 ignore_issues:
-  # Simple form: just the rule ID
+  # Simple form: just the rule ID (applies globally)
   - E501
   - CVE-2021-3807
 
@@ -537,16 +539,149 @@ ignore_issues:
     expires: 2026-06-01
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `rule_id` | yes | Native scanner rule ID (e.g., `E501`, `CVE-2021-3807`, `CKV_AWS_1`, `py/sql-injection`) |
-| `reason` | no | Why this issue is being ignored |
-| `expires` | no | ISO date (`YYYY-MM-DD`). After this date, the ignore stops working and a warning is emitted |
+### Path-Scoped Ignores
 
-**Key behaviors:**
+Use the `paths` field to limit an ignore rule to specific files or directories. This is useful when a rule violation is acceptable in some contexts but not others.
+
+```yaml
+ignore_issues:
+  # Ignore assert usage (S101) only in test files
+  - rule_id: S101
+    reason: "Assert is the standard way to write tests"
+    paths:
+      - "tests/**"           # All files under tests/
+      - "**/test_*.py"       # Any file starting with test_
+      - "**/conftest.py"     # pytest fixtures
+
+  # Ignore line length in generated code only
+  - rule_id: E501
+    paths:
+      - "generated/**"
+      - "**/*.generated.py"
+
+  # Ignore magic numbers only in constants files
+  - rule_id: PLR2004
+    paths:
+      - "**/constants.py"
+      - "**/config.py"
+
+  # Combine paths with expiry for temporary exceptions
+  - rule_id: B101
+    reason: "Temporary: assert in scripts during migration"
+    expires: 2026-06-01
+    paths:
+      - "scripts/**"
+
+  # Use negation to exclude specific subdirectories
+  - rule_id: S101
+    paths:
+      - "tests/**"
+      - "!tests/integration/**"  # But NOT in integration tests
+```
+
+### Path Pattern Syntax
+
+The `paths` field uses gitignore-style patterns (same syntax as `exclude` and `.lucidsharkignore`):
+
+| Pattern | Description | Example Match |
+|---------|-------------|---------------|
+| `*` | Match any characters except `/` | `*.py` matches `foo.py` |
+| `**` | Match any directory depth | `tests/**` matches `tests/unit/deep/test_foo.py` |
+| `**/name` | Match at any depth | `**/test_*.py` matches `src/tests/test_main.py` |
+| `!` | Negate (exclude from match) | `tests/**` + `!tests/slow/**` |
+| `/` (trailing) | Match directories only | `scripts/` matches the `scripts` directory |
+
+### Supported Fields
+
+| Field | Required | Type | Description |
+|-------|----------|------|-------------|
+| `rule_id` | yes | string | Native scanner rule ID (e.g., `E501`, `CVE-2021-3807`, `CKV_AWS_1`, `py/sql-injection`) |
+| `reason` | no | string | Why this issue is being ignored |
+| `expires` | no | date | ISO date (`YYYY-MM-DD`). After this date, the ignore stops working and a warning is emitted |
+| `paths` | no | list | Gitignore-style patterns to scope the ignore. If not specified or empty, the ignore applies globally |
+
+### Behavior Details
+
+**General:**
 - Expired ignores stop suppressing -- the issue is reported normally and a warning is emitted
 - Unmatched rule IDs produce a warning (catches typos and stale entries)
 - Works across all domains (linting, type checking, security, testing, coverage, duplication)
+
+**Path-specific:**
+- **Empty or missing `paths`** = global ignore (applies to all files)
+- **`paths` specified** = ignore only applies to files matching at least one pattern
+- **Issues without file paths** (e.g., some SCA dependency vulnerabilities) are **not** matched by path-scoped ignores. Use a global ignore for such issues.
+- Patterns are matched against paths **relative to the project root**
+- Use forward slashes (`/`) for cross-platform compatibility
+
+### Common Use Cases for Path-Scoped Ignores
+
+| Rule | Paths | Reason |
+|------|-------|--------|
+| `S101` (assert) | `tests/**`, `**/test_*.py` | Asserts are the standard way to write tests |
+| `E501` (line too long) | `generated/**`, `migrations/**` | Generated/migration code shouldn't be reformatted |
+| `B101` (assert used) | `tests/**`, `conftest.py` | Same as S101 for Bandit |
+| `PLR2004` (magic value) | `**/constants.py`, `**/config.py` | Constants files define literal values by design |
+| `E402` (module-level import) | `scripts/**`, `notebooks/**` | Scripts/notebooks have different import conventions |
+| `ARG001` (unused argument) | `**/interfaces/**`, `**/protocols/**` | Interface methods define signatures, not implementations |
+| `N802` (function name) | `tests/**` | Test functions often use non-standard names like `test_MyClass_does_thing` |
+
+### Examples
+
+**Python project with tests:**
+
+```yaml
+ignore_issues:
+  # Global ignores
+  - CVE-2021-3807  # Known issue in dependency, not exploitable
+
+  # Test-specific ignores
+  - rule_id: S101
+    reason: "Assert is standard in pytest"
+    paths: ["tests/**", "**/conftest.py"]
+
+  - rule_id: PLR2004
+    reason: "Test assertions use literal values"
+    paths: ["tests/**"]
+
+  # Generated code
+  - rule_id: E501
+    paths: ["*_pb2.py", "**/*.generated.py"]
+```
+
+**Monorepo with different standards per package:**
+
+```yaml
+ignore_issues:
+  # Legacy package has relaxed rules
+  - rule_id: E501
+    reason: "Legacy code, will refactor later"
+    expires: 2026-06-01
+    paths: ["packages/legacy/**"]
+
+  # Scripts have different conventions
+  - rule_id: E402
+    paths: ["scripts/**", "tools/**"]
+
+  # Test fixtures intentionally have issues
+  - rule_id: S608
+    reason: "SQL injection test fixtures"
+    paths: ["**/fixtures/vulnerable/**"]
+```
+
+**Infrastructure project:**
+
+```yaml
+ignore_issues:
+  # Example configs shouldn't fail CI
+  - rule_id: CKV_AWS_18
+    reason: "Example configs don't need access logging"
+    paths: ["examples/**", "docs/**"]
+
+  # Dev environment has relaxed security
+  - rule_id: CKV_AWS_19
+    paths: ["terraform/environments/dev/**"]
+```
 
 ### Choosing the Right Exclusion Mechanism
 
@@ -555,7 +690,8 @@ ignore_issues:
 | `exclude` / `.lucidsharkignore` | Files/directories | Entire files skipped by scanners | Generated code, build output, vendored dependencies |
 | Per-domain `exclude` | Files within a domain | Files skipped for that domain only | Test fixtures excluded from security, migrations excluded from linting |
 | Inline ignores (`# noqa`, `# nosemgrep`) | Single code location | Tool-native, per-line suppression | One-off exceptions at a specific line |
-| `ignore_issues` | All occurrences of a rule | Acknowledged in output, excluded from fail thresholds | Known CVEs, accepted risks, false positives, project-wide rule exceptions |
+| `ignore_issues` (global) | All occurrences of a rule | Acknowledged in output, excluded from fail thresholds | Known CVEs, accepted risks, false positives |
+| `ignore_issues` (with `paths`) | Rule in specific files | Same as global, but only for matching paths | Asserts OK in tests, line length OK in generated code |
 
 ## Domain-Specific Configuration
 

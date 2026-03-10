@@ -838,6 +838,62 @@ class TestValidateConfigIgnoreIssues:
         warnings = validate_config(data, source="test.yml")
         assert len(warnings) == 0
 
+    def test_paths_valid_list(self) -> None:
+        """Valid paths list should not produce warnings."""
+        data = {
+            "ignore_issues": [{"rule_id": "E501", "paths": ["tests/**", "scripts/*"]}]
+        }
+        warnings = validate_config(data, source="test.yml")
+        assert len(warnings) == 0
+
+    def test_paths_must_be_list(self) -> None:
+        """paths field must be a list."""
+        data = {"ignore_issues": [{"rule_id": "E501", "paths": "tests/**"}]}
+        warnings = validate_config(data, source="test.yml")
+        assert any(
+            "paths" in w.message and "must be a list" in w.message for w in warnings
+        )
+
+    def test_paths_patterns_must_be_strings(self) -> None:
+        """Each pattern in paths must be a string."""
+        data = {"ignore_issues": [{"rule_id": "E501", "paths": [123, "tests/**"]}]}
+        warnings = validate_config(data, source="test.yml")
+        assert any(
+            "paths[0]" in w.message and "must be a string" in w.message
+            for w in warnings
+        )
+
+    def test_paths_warns_on_empty_pattern(self) -> None:
+        """Empty string pattern should produce warning."""
+        data = {"ignore_issues": [{"rule_id": "E501", "paths": [""]}]}
+        warnings = validate_config(data, source="test.yml")
+        assert any(
+            "paths[0]" in w.message and "empty string" in w.message for w in warnings
+        )
+
+    def test_paths_with_all_fields(self) -> None:
+        """Entry with all fields including paths should validate."""
+        data = {
+            "ignore_issues": [
+                {
+                    "rule_id": "S101",
+                    "reason": "Tests use assert",
+                    "expires": "2026-12-31",
+                    "paths": ["tests/**"],
+                }
+            ]
+        }
+        warnings = validate_config(data, source="test.yml")
+        assert len(warnings) == 0
+
+    def test_paths_is_valid_key(self) -> None:
+        """paths should not trigger unknown key warning."""
+        data = {"ignore_issues": [{"rule_id": "E501", "paths": ["tests/**"]}]}
+        warnings = validate_config(data, source="test.yml")
+        assert not any(
+            "Unknown key" in w.message and "paths" in w.message for w in warnings
+        )
+
 
 class TestValidateConfigExclude:
     """Tests for the exclude pattern system validation."""

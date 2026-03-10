@@ -514,7 +514,9 @@ class ScanCommand(Command):
         if config.ignore_issues:
             from lucidshark.core.ignore_issues import apply_ignore_issues
 
-            ignore_warnings = apply_ignore_issues(all_issues, config.ignore_issues)
+            ignore_warnings = apply_ignore_issues(
+                all_issues, config.ignore_issues, project_root=project_root
+            )
             for w in ignore_warnings:
                 LOGGER.warning(w)
 

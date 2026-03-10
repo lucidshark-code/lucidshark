@@ -235,6 +235,36 @@ class TestIgnoreIssueEntry:
         assert entry.reason == "Accepted risk"
         assert entry.expires == "2026-12-31"
 
+    def test_paths_defaults_to_none(self) -> None:
+        entry = IgnoreIssueEntry(rule_id="E501")
+        assert entry.paths is None
+
+    def test_with_paths(self) -> None:
+        entry = IgnoreIssueEntry(
+            rule_id="S101",
+            reason="Asserts OK in tests",
+            paths=["tests/**", "**/test_*.py"],
+        )
+        assert entry.rule_id == "S101"
+        assert entry.reason == "Asserts OK in tests"
+        assert entry.paths == ["tests/**", "**/test_*.py"]
+
+    def test_with_all_fields(self) -> None:
+        entry = IgnoreIssueEntry(
+            rule_id="S101",
+            reason="Asserts OK in tests",
+            expires="2026-12-31",
+            paths=["tests/**"],
+        )
+        assert entry.rule_id == "S101"
+        assert entry.reason == "Asserts OK in tests"
+        assert entry.expires == "2026-12-31"
+        assert entry.paths == ["tests/**"]
+
+    def test_paths_empty_list(self) -> None:
+        entry = IgnoreIssueEntry(rule_id="E501", paths=[])
+        assert entry.paths == []
+
 
 class TestLucidSharkConfigIgnoreIssues:
     """Tests for ignore_issues field on LucidSharkConfig."""
