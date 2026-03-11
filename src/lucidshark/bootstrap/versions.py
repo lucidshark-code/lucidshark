@@ -29,7 +29,7 @@ _FALLBACK_VERSIONS: Dict[str, str] = {
     "checkstyle": "13.3.0",
     "spotbugs": "4.9.8",
     # Duplication detection
-    "duplo": "0.1.6",
+    "duplo": "0.1.7",
 }
 
 

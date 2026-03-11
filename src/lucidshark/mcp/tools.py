@@ -438,6 +438,7 @@ class MCPToolExecutor:
             all_issues,
             checked_domains=all_configured_domains,
             executed_domains=executed_domain_names,
+            coverage_result=context.coverage_result,
             duplication_result=context.duplication_result,
         )
 

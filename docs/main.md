@@ -838,7 +838,7 @@ pmd = "7.22.0"
 checkstyle = "13.3.0"
 spotbugs = "4.9.8"
 # Duplication detection
-duplo = "0.1.6"
+duplo = "0.1.7"
 ```
 
 **Language-specific tools** (ruff, eslint, biome, mypy, pyright, google-java-format, etc.) are **not** version-pinned by LucidShark. Install these via your package manager (pip, npm, cargo) to ensure compatibility with your project. PMD, Checkstyle, and SpotBugs are exceptions — they are managed (auto-downloaded) like security tools, since they are distributed as cross-platform JARs/zips.

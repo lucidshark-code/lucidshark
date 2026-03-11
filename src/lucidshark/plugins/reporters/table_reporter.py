@@ -108,10 +108,13 @@ class TableReporter(ReporterPlugin):
         # Duplication summary
         if result.duplication_summary:
             ds = result.duplication_summary
-            status = "PASSED" if ds.passed else "FAILED"
-            lines.append(
-                f"Duplication: {ds.duplication_percent:.1f}% (threshold: {ds.threshold}%) - {status}"
-            )
+            if ds.execution_failed:
+                lines.append("Duplication: FAILED (tool crashed)")
+            else:
+                status = "PASSED" if ds.passed else "FAILED"
+                lines.append(
+                    f"Duplication: {ds.duplication_percent:.1f}% (threshold: {ds.threshold}%) - {status}"
+                )
 
         return lines
 

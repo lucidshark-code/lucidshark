@@ -345,6 +345,7 @@ class DuplicationSummary:
     duplication_percent: float = 0.0
     threshold: float = 10.0  # Default max allowed duplication %
     passed: bool = True
+    execution_failed: bool = False  # True if tool crashed during execution
 
 
 @dataclass

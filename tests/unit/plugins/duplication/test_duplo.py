@@ -764,6 +764,14 @@ class TestDuploDetectDuplication:
                         )
                         assert isinstance(result, DuplicationResult)
                         assert result.duplicate_blocks == 0
+                        # Execution failed flag should be set
+                        assert result.execution_failed is True
+                        # passed should return False when execution failed
+                        assert result.passed is False
+                        # A skip should be recorded in context
+                        assert len(context.tool_skips) == 1
+                        assert context.tool_skips[0].tool_name == "duplo"
+                        assert context.tool_skips[0].reason.value == "execution_failed"
 
     def test_detect_subprocess_error(self) -> None:
         """Test detect_duplication handles subprocess errors."""
@@ -796,6 +804,14 @@ class TestDuploDetectDuplication:
                         )
                         assert isinstance(result, DuplicationResult)
                         assert result.duplicate_blocks == 0
+                        # Execution failed flag should be set
+                        assert result.execution_failed is True
+                        # passed should return False when execution failed
+                        assert result.passed is False
+                        # A skip should be recorded in context
+                        assert len(context.tool_skips) == 1
+                        assert context.tool_skips[0].tool_name == "duplo"
+                        assert context.tool_skips[0].reason.value == "execution_failed"
 
 
 class TestDuploDownloadBinary:
@@ -875,6 +891,30 @@ class TestDuplicationResult:
         assert d["duplicate_blocks"] == 3
         assert d["passed"] is True
         assert d["duplication_percent"] == 10.0
+
+    def test_execution_failed_causes_passed_false(self) -> None:
+        """Test that execution_failed=True causes passed to return False."""
+        # Even with 0% duplication, should fail if execution failed
+        result = DuplicationResult(
+            total_lines=100,
+            duplicate_lines=0,
+            threshold=10.0,
+            execution_failed=True,
+        )
+        assert result.duplication_percent == 0.0
+        assert result.passed is False
+
+    def test_to_summary_includes_execution_failed(self) -> None:
+        """Test that to_summary preserves execution_failed flag."""
+        result = DuplicationResult(
+            files_analyzed=0,
+            total_lines=0,
+            threshold=10.0,
+            execution_failed=True,
+        )
+        summary = result.to_summary()
+        assert summary.execution_failed is True
+        assert summary.passed is False
 
 
 class TestDuploGitMode:

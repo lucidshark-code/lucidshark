@@ -46,6 +46,7 @@ class DuplicationResult:
     threshold: float = 10.0  # Max allowed duplication %
     duplicates: List[DuplicateBlock] = field(default_factory=list)
     issues: List[UnifiedIssue] = field(default_factory=list)
+    execution_failed: bool = False  # True if tool crashed during execution
 
     @property
     def duplication_percent(self) -> float:
@@ -56,7 +57,12 @@ class DuplicationResult:
 
     @property
     def passed(self) -> bool:
-        """Whether duplication is below threshold."""
+        """Whether duplication is below threshold.
+
+        Returns False if execution failed (tool crashed).
+        """
+        if self.execution_failed:
+            return False
         return self.duplication_percent <= self.threshold
 
     def to_summary(self) -> DuplicationSummary:
@@ -73,6 +79,7 @@ class DuplicationResult:
             duplication_percent=round(self.duplication_percent, 2),
             threshold=self.threshold,
             passed=self.passed,
+            execution_failed=self.execution_failed,
         )
 
     def to_dict(self) -> Dict[str, Any]:

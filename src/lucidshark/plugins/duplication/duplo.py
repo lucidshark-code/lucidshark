@@ -28,6 +28,7 @@ from lucidshark.core.logging import get_logger
 from lucidshark.core.models import (
     ScanContext,
     Severity,
+    SkipReason,
     ToolDomain,
     UnifiedIssue,
 )
@@ -301,10 +302,22 @@ class DuploPlugin(DuplicationPlugin):
                 )
             except subprocess.TimeoutExpired:
                 LOGGER.warning("Duplo timed out after 300 seconds")
-                return DuplicationResult(threshold=threshold)
+                context.record_skip(
+                    tool_name=self.name,
+                    domain=ToolDomain.DUPLICATION,
+                    reason=SkipReason.EXECUTION_FAILED,
+                    message="Duplo timed out after 300 seconds",
+                )
+                return DuplicationResult(threshold=threshold, execution_failed=True)
             except Exception as e:
                 LOGGER.error(f"Failed to run Duplo: {e}")
-                return DuplicationResult(threshold=threshold)
+                context.record_skip(
+                    tool_name=self.name,
+                    domain=ToolDomain.DUPLICATION,
+                    reason=SkipReason.EXECUTION_FAILED,
+                    message=f"Failed to run Duplo: {e}",
+                )
+                return DuplicationResult(threshold=threshold, execution_failed=True)
 
             # Parse JSON output
             return self._parse_output(

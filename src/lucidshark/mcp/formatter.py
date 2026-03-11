@@ -9,6 +9,7 @@ from dataclasses import dataclass, asdict, field
 from typing import Any, Dict, List, Optional
 
 from lucidshark.core.models import ScanDomain, Severity, ToolDomain, UnifiedIssue
+from lucidshark.plugins.coverage.base import CoverageResult
 from lucidshark.plugins.duplication.base import DuplicationResult
 
 
@@ -64,6 +65,7 @@ class InstructionFormatter:
         issues: List[UnifiedIssue],
         checked_domains: Optional[List[str]] = None,
         executed_domains: Optional[List[str]] = None,
+        coverage_result: Optional[CoverageResult] = None,
         duplication_result: Optional[DuplicationResult] = None,
     ) -> Dict[str, Any]:
         """Format scan result as AI instructions.
@@ -74,6 +76,7 @@ class InstructionFormatter:
                 (all configured domains).
             executed_domains: List of domain names that were actually run.
                 If None, assumes all checked_domains were executed.
+            coverage_result: Optional coverage result for percentage display.
             duplication_result: Optional duplication detection result for percentage display.
 
         Returns:
@@ -133,8 +136,32 @@ class InstructionFormatter:
                     }
                     continue
 
+                # Special handling for coverage domain - show percentage
+                if domain == "coverage" and coverage_result is not None:
+                    pct = coverage_result.percentage
+                    threshold = coverage_result.threshold
+                    passed = coverage_result.passed
+                    status = "pass" if passed else "fail"
+                    status_display = (
+                        f"{pct:.1f}% coverage (threshold: {threshold:.0f}%)"
+                    )
+                    domain_status[domain] = {
+                        "status": status,
+                        "display": status_display,
+                        "coverage_percent": round(pct, 2),
+                        "threshold": threshold,
+                    }
+                    continue
+
                 # Special handling for duplication domain - show percentage
                 if domain == "duplication" and duplication_result is not None:
+                    if duplication_result.execution_failed:
+                        domain_status[domain] = {
+                            "status": "fail",
+                            "display": "Failed (tool crashed)",
+                            "execution_failed": True,
+                        }
+                        continue
                     pct = duplication_result.duplication_percent
                     threshold = duplication_result.threshold
                     passed = duplication_result.passed

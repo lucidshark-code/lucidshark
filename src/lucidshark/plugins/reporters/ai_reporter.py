@@ -15,6 +15,7 @@ from typing import IO, Any, Dict, List
 
 from lucidshark.core.models import ScanResult
 from lucidshark.mcp.formatter import InstructionFormatter
+from lucidshark.plugins.coverage.base import CoverageResult
 from lucidshark.plugins.duplication.base import DuplicationResult
 from lucidshark.plugins.reporters.base import ReporterPlugin
 
@@ -56,6 +57,18 @@ class AIReporter(ReporterPlugin):
         # Get executed domains (subset of checked that were actually run)
         executed_domains = self._get_executed_domains(result)
 
+        # Convert coverage summary to CoverageResult if present
+        coverage_result = None
+        if result.coverage_summary:
+            cov = result.coverage_summary
+            # CoverageResult computes percentage and passed as properties
+            coverage_result = CoverageResult(
+                total_lines=cov.total_lines,
+                covered_lines=cov.covered_lines,
+                missing_lines=cov.missing_lines,
+                threshold=cov.threshold,
+            )
+
         # Convert duplication summary to DuplicationResult if present
         duplication_result = None
         if result.duplication_summary:
@@ -68,6 +81,7 @@ class AIReporter(ReporterPlugin):
                 duplicate_lines=dup.duplicate_lines,
                 threshold=dup.threshold,
                 duplicates=[],  # Not needed for formatting
+                execution_failed=dup.execution_failed,
             )
 
         # Use InstructionFormatter for the main formatting
@@ -75,6 +89,7 @@ class AIReporter(ReporterPlugin):
             issues=result.issues,
             checked_domains=checked_domains,
             executed_domains=executed_domains,
+            coverage_result=coverage_result,
             duplication_result=duplication_result,
         )
 

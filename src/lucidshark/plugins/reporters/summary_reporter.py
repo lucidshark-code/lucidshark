@@ -70,12 +70,15 @@ class SummaryReporter(ReporterPlugin):
         # Duplication summary
         if result.duplication_summary:
             ds = result.duplication_summary
-            status = "PASSED" if ds.passed else "FAILED"
-            lines.append(f"\nDuplication: {ds.duplication_percent:.1f}% ({status})")
-            lines.append(f"  Threshold: {ds.threshold}%")
-            lines.append(
-                f"  Blocks: {ds.duplicate_blocks}, Lines: {ds.duplicate_lines}"
-            )
+            if ds.execution_failed:
+                lines.append("\nDuplication: FAILED (tool crashed)")
+            else:
+                status = "PASSED" if ds.passed else "FAILED"
+                lines.append(f"\nDuplication: {ds.duplication_percent:.1f}% ({status})")
+                lines.append(f"  Threshold: {ds.threshold}%")
+                lines.append(
+                    f"  Blocks: {ds.duplicate_blocks}, Lines: {ds.duplicate_lines}"
+                )
 
         # Skipped tools
         if result.tool_skips:
@@ -136,6 +139,18 @@ class SummaryReporter(ReporterPlugin):
 
             if domain not in executed_domains:
                 status = "SKIPPED"
+            elif domain == "coverage":
+                # Coverage uses summary.passed, not issue count
+                if result.coverage_summary:
+                    status = "PASS" if result.coverage_summary.passed else "FAIL"
+                else:
+                    status = "SKIPPED"
+            elif domain == "duplication":
+                # Duplication uses summary.passed, not issue count
+                if result.duplication_summary:
+                    status = "PASS" if result.duplication_summary.passed else "FAIL"
+                else:
+                    status = "SKIPPED"
             elif issue_count == 0:
                 status = "PASS"
             else:
