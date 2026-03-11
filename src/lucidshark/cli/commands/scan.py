@@ -96,6 +96,9 @@ class ScanCommand(Command):
         try:
             result = self._run_scan(args, config)
 
+            # Cache scan results for overview command
+            self._save_scan_cache(args, result)
+
             # Determine output format: CLI > config > default (json)
             if args.format:
                 output_format = args.format
@@ -684,6 +687,110 @@ class ScanCommand(Command):
                 result.summary = result.compute_summary()  # Recompute summary
 
         return result
+
+    def _save_scan_cache(self, args: Namespace, result: ScanResult) -> None:
+        """Save scan results to cache for overview command.
+
+        Args:
+            args: Parsed command-line arguments.
+            result: Scan result to cache.
+        """
+        import json
+
+        project_root = Path(args.path).resolve()
+        cache_dir = project_root / ".lucidshark"
+        cache_path = cache_dir / "last-scan.json"
+
+        try:
+            # Ensure cache directory exists
+            cache_dir.mkdir(parents=True, exist_ok=True)
+
+            # Build JSON-serializable data
+            data = {
+                "schema_version": "1.0",
+                "issues": [
+                    {
+                        "id": issue.id,
+                        "domain": issue.domain.value
+                        if hasattr(issue.domain, "value")
+                        else str(issue.domain),
+                        "source_tool": issue.source_tool,
+                        "severity": issue.severity.value,
+                        "rule_id": issue.rule_id,
+                        "title": issue.title,
+                        "description": issue.description,
+                        "file_path": str(issue.file_path) if issue.file_path else None,
+                        "line_start": issue.line_start,
+                        "ignored": issue.ignored,
+                    }
+                    for issue in result.issues
+                ],
+                "metadata": {
+                    "lucidshark_version": result.metadata.lucidshark_version
+                    if result.metadata
+                    else self._version,
+                    "scan_started_at": result.metadata.scan_started_at
+                    if result.metadata
+                    else "",
+                    "scan_finished_at": result.metadata.scan_finished_at
+                    if result.metadata
+                    else "",
+                    "duration_ms": result.metadata.duration_ms
+                    if result.metadata
+                    else 0,
+                    "project_root": result.metadata.project_root
+                    if result.metadata
+                    else str(project_root),
+                    "scanners_used": result.metadata.scanners_used
+                    if result.metadata
+                    else [],
+                    "enabled_domains": result.metadata.enabled_domains
+                    if result.metadata
+                    else [],
+                    "executed_domains": result.metadata.executed_domains
+                    if result.metadata
+                    else [],
+                    "all_files": result.metadata.all_files if result.metadata else False,
+                }
+                if result.metadata
+                else None,
+                "summary": {
+                    "total": result.summary.total,
+                    "ignored_total": result.summary.ignored_total,
+                    "by_severity": result.summary.by_severity,
+                    "by_scanner": result.summary.by_scanner,
+                }
+                if result.summary
+                else None,
+                "coverage_summary": {
+                    "coverage_percentage": result.coverage_summary.coverage_percentage,
+                    "threshold": result.coverage_summary.threshold,
+                    "total_lines": result.coverage_summary.total_lines,
+                    "covered_lines": result.coverage_summary.covered_lines,
+                    "missing_lines": result.coverage_summary.missing_lines,
+                    "passed": result.coverage_summary.passed,
+                }
+                if result.coverage_summary
+                else None,
+                "duplication_summary": {
+                    "files_analyzed": result.duplication_summary.files_analyzed,
+                    "total_lines": result.duplication_summary.total_lines,
+                    "duplicate_blocks": result.duplication_summary.duplicate_blocks,
+                    "duplicate_lines": result.duplication_summary.duplicate_lines,
+                    "duplication_percent": result.duplication_summary.duplication_percent,
+                    "threshold": result.duplication_summary.threshold,
+                    "passed": result.duplication_summary.passed,
+                }
+                if result.duplication_summary
+                else None,
+            }
+
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+
+            LOGGER.debug(f"Saved scan results to {cache_path}")
+        except (OSError, TypeError) as e:
+            LOGGER.debug(f"Could not save scan cache: {e}")
 
     def _check_domain_thresholds(
         self, result: ScanResult, config: LucidSharkConfig, args: Namespace
