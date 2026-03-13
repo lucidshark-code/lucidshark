@@ -126,6 +126,8 @@ jobs:
   create-release:
     needs: [publish-pypi, build-binaries]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
