@@ -1,8 +1,39 @@
 # LucidShark JavaScript/TypeScript Support — End-to-End Test Instructions
 
-**Purpose:** You are performing a comprehensive end-to-end test of LucidShark's JavaScript/TypeScript support. You will test both the CLI and MCP interfaces across all applicable domains, using real open-source JS/TS projects checked out from GitHub. You will test installation via both the install script and pip, run `lucidshark init`, `autoconfigure`, and exercise every scan domain and MCP tool. At the end, write a detailed test report.
+## 🚨 CRITICAL TESTING PHILOSOPHY 🚨
 
-**IMPORTANT:** Execute every step below. Do not skip steps or summarize without actually running the commands. Capture actual output, exit codes, and timings. If a step fails, document the failure in detail and continue with the next step.
+**YOU ARE A QUALITY ASSURANCE ENGINEER, NOT A CHEERLEADER.**
+
+Your job is to **FIND BUGS**, not to confirm that things work. Approach every test with skepticism and rigor.
+
+### Non-Negotiable Testing Rules
+
+1. **EXECUTE EVERY SINGLE STEP** - No exceptions. No shortcuts.
+2. **TRY TO BREAK THINGS** - Find edge cases, bugs, and failures
+3. **BE DEEPLY SKEPTICAL** - Question everything, verify everything
+4. **DOCUMENT EVERYTHING IN EXTREME DETAIL** - Other engineers must reproduce your findings
+5. **IF SOMETHING SEEMS OFF, INVESTIGATE RUTHLESSLY** - Don't make excuses
+6. **COMPARE ACTUAL VS EXPECTED** - State both explicitly
+7. **NO PARTIAL CREDIT** - Either you completed the test or you didn't
+
+**See the Python E2E test file for the complete testing philosophy and standards. The same rules apply here.**
+
+### Success Criteria
+- ✅ Every step executed and documented
+- ✅ Every bug found and reported with reproduction steps
+- ✅ Every discrepancy investigated and explained
+- ✅ Detailed test report with actual data, not summaries
+- ✅ Clear verdict: PASS (ready for production) or FAIL (blocking issues found)
+
+### Failure Criteria
+- ❌ Any step skipped without documented reason
+- ❌ Any "seems to work" or "probably correct" statements
+- ❌ Any bugs found but not thoroughly documented
+- ❌ Test report with vague summaries instead of concrete data
+
+---
+
+**Purpose:** You are performing a comprehensive end-to-end test of LucidShark's JavaScript/TypeScript support. You will test both the CLI and MCP interfaces across all applicable domains, using real open-source JS/TS projects checked out from GitHub. You will test installation via both the install script and pip, run `lucidshark init`, `autoconfigure`, and exercise every scan domain and MCP tool. At the end, write a detailed test report that another engineer could use to reproduce your findings.
 
 ---
 
@@ -3958,20 +3989,137 @@ Write the report with this structure:
 
 ---
 
-## Important Notes for the Tester
+## 🚨 CRITICAL: Testing Standards (MUST READ)
 
-1. **Execute every command.** Do not skip steps even if you think you know the outcome.
-2. **Capture actual output.** Include relevant snippets in the report, not just pass/fail.
-3. **Record exit codes** for every `lucidshark scan` command.
-4. **Measure wall-clock time** for scans on large projects (Playwright, Axios).
-5. **Compare MCP vs CLI** results for the same operation — discrepancies are bugs.
-6. **Check for regressions** against all previously reported bugs (BUG-001 through BUG-008).
-7. **Test BOTH with and without `lucidshark.yml`** to verify config-less experience.
-8. **Clean up** between tests that modify files (`git checkout -- .`).
-9. **If disk space is limited**, skip Trivy/SCA tests and note it.
-10. **If a tool is not installed** (e.g., opengrep, duplo, biome), document it — don't skip the test.
-11. **Verify node_modules resolution** — JS/TS tools must be found in local `node_modules/.bin/` first.
-12. **Test both ESLint and Biome** — they are the two supported linters, projects use one or the other.
-13. **Test Jest, Vitest, and Mocha** — they are the three main supported test runners, covering ~90% of JS/TS projects.
-14. **Pay attention to `.js` vs `.ts` handling** — LucidShark must handle both correctly.
-15. **Document Karma behavior** — Karma requires browser binaries which may not be available in CI.
+**These are ABSOLUTE REQUIREMENTS. Failure to meet them means your test is INCOMPLETE.**
+
+### JavaScript/TypeScript Specific Requirements
+
+1. **Test BOTH ESLint AND Biome** - They are mutually exclusive. Projects use one or the other.
+   - ❌ "I tested ESLint, so linting works" → NO. Test Biome separately.
+   - ✅ Test a project with ESLint, test another with Biome, compare results
+
+2. **Test ALL THREE test runners** - Jest, Vitest, Mocha (NOT just one)
+   - ❌ "I tested Jest" → INCOMPLETE
+   - ✅ Test Jest project, Vitest project, Mocha project separately
+
+3. **Verify node_modules resolution** - LucidShark must find tools in `node_modules/.bin/`
+   - Before running scan, verify: `ls node_modules/.bin/ | grep -E 'eslint|jest|tsc'`
+   - If tools not in node_modules, npm install them
+   - Scan should use project's tools, not global installations
+
+4. **Test .js AND .ts files** - Behavior may differ
+   - Create test files with both extensions
+   - Verify both are scanned correctly
+   - Verify type checking only runs on .ts files
+
+5. **Document Karma/Playwright caveats** - Browser-based tools have special requirements
+   - Karma needs headless browser binaries (may fail in Docker/CI)
+   - Playwright needs browser binaries downloaded
+   - Document failures and whether they're expected
+
+### General Requirements (Apply to ALL Tests)
+
+6. **NO EXCUSES FOR SKIPPING**:
+   - ❌ "Tool not installed" → Install it with `npm install`
+   - ❌ "SCA seems slow" → Wait for it (takes 9-12 seconds)
+   - ❌ "MCP testing later" → No. Test it NOW.
+
+7. **VERIFY EVERY RESULT**:
+   - COUNT issues found (not "found some issues")
+   - VERIFY sample issues with complete details
+   - DIFF files before/after auto-fix
+   - COMPARE MCP vs CLI issue counts
+
+8. **INVESTIGATE FAILURES**:
+   - ❌ "It failed, moving on" → NO. Debug it.
+   - ❌ "Probably a config issue" → Prove it.
+   - ✅ Read error, find root cause, document it
+
+---
+
+## 📋 Final Completion Checklist
+
+**Before submitting your test report, verify YES to EVERY question:**
+
+### Test Execution
+- [ ] Did you execute EVERY command in this document?
+- [ ] Did you test ALL installation methods (install.sh, pip, source)?
+- [ ] Did you test ALL scan domains (linting, type checking, formatting, testing, coverage, duplication, SAST, SCA)?
+- [ ] Did you test ALL MCP tools (scan, check_file, get_fix_instructions, apply_fix, get_status, autoconfigure, validate_config)?
+- [ ] Did you test BOTH ESLint AND Biome?
+- [ ] Did you test Jest, Vitest, AND Mocha?
+- [ ] Did you test with AND without lucidshark.yml?
+- [ ] Did you verify all regression bugs?
+
+### Data Quality
+- [ ] Did you COUNT actual issues found?
+- [ ] Did you VERIFY sample issues with complete details?
+- [ ] Did you RECORD actual durations, exit codes, version numbers?
+- [ ] Did you DIFF files before/after auto-fix?
+- [ ] Did you COMPARE MCP vs CLI results?
+
+### Thoroughness
+- [ ] Did you investigate EVERY failure?
+- [ ] Did you document EVERY discrepancy?
+- [ ] Did you verify metadata fields (duration_ms, scanners_used)?
+- [ ] Did you test error cases (invalid inputs, missing tools)?
+- [ ] Did you verify node_modules resolution?
+
+### Report Quality
+- [ ] Does your report contain ACTUAL DATA (numbers, counts, durations)?
+- [ ] Does your report contain ACTUAL OUTPUT (quotes, diffs, errors)?
+- [ ] Does your report have CLEAR VERDICTS (PASS/FAIL)?
+- [ ] Does your report document NEW BUGS with reproduction steps?
+- [ ] Does your report have a CLEAR RECOMMENDATION?
+
+### Honesty Check
+- [ ] Did you skip ANY steps? (If yes, document which and why)
+- [ ] Did you encounter ANY failures you didn't investigate?
+- [ ] Did you write "seems to work" anywhere? (If yes, verify it)
+- [ ] Did you make ANY assumptions instead of testing?
+- [ ] Would you trust this report for production deployment?
+
+---
+
+## ✅ Test Completion Certificate
+
+**Sign this ONLY if you can honestly answer YES to every question above:**
+
+```
+═══════════════════════════════════════════════════════════════════
+                    TEST COMPLETION CERTIFICATE
+                    JavaScript/TypeScript Support
+═══════════════════════════════════════════════════════════════════
+
+I certify that I have:
+✅ Executed every command without exception
+✅ Tested ESLint AND Biome (both linters)
+✅ Tested Jest, Vitest, AND Mocha (all three test runners)
+✅ Verified node_modules resolution for all tools
+✅ Tested .js and .ts files separately
+✅ Verified all results with actual data, not assumptions
+✅ Investigated every failure thoroughly
+✅ Documented all findings with reproduction steps
+✅ Compared MCP vs CLI results for parity
+✅ Tested all regression bugs
+✅ Provided clear production-readiness recommendation
+
+Total tests executed: _____ / _____ (must be 100%)
+ESLint tests: _____ issues found
+Biome tests: _____ issues found
+Jest tests: _____ tests run, _____ passed
+Vitest tests: _____ tests run, _____ passed
+Mocha tests: _____ tests run, _____ passed
+Total bugs found: _____
+Total bugs verified fixed: _____
+Overall verdict: PASS / FAIL
+
+Tester: [Your name/model]
+Date: [YYYY-MM-DD]
+Test duration: [Hours]
+
+═══════════════════════════════════════════════════════════════════
+```
+
+**If you cannot honestly sign this certificate, your test is INCOMPLETE.**

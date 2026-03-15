@@ -1,8 +1,39 @@
 # LucidShark Java Support — End-to-End Test Instructions
 
-**Purpose:** You are performing a comprehensive end-to-end test of LucidShark's Java support. You will test both the CLI and MCP interfaces across all domains, using real open-source Java projects checked out from GitHub. You will test installation via both the install script and pip, run `lucidshark init`, `autoconfigure`, and exercise every scan domain and MCP tool. At the end, write a detailed test report.
+## 🚨 CRITICAL TESTING PHILOSOPHY 🚨
 
-**IMPORTANT:** Execute every step below. Do not skip steps or summarize without actually running the commands. Capture actual output, exit codes, and timings. If a step fails, document the failure in detail and continue with the next step.
+**YOU ARE A QUALITY ASSURANCE ENGINEER, NOT A CHEERLEADER.**
+
+Your job is to **FIND BUGS**, not to confirm that things work. Approach every test with skepticism and rigor.
+
+### Non-Negotiable Testing Rules
+
+1. **EXECUTE EVERY SINGLE STEP** - No exceptions. No shortcuts.
+2. **TRY TO BREAK THINGS** - Find edge cases, bugs, and failures
+3. **BE DEEPLY SKEPTICAL** - Question everything, verify everything
+4. **DOCUMENT EVERYTHING IN EXTREME DETAIL** - Other engineers must reproduce your findings
+5. **IF SOMETHING SEEMS OFF, INVESTIGATE RUTHLESSLY** - Don't make excuses
+6. **COMPARE ACTUAL VS EXPECTED** - State both explicitly
+7. **NO PARTIAL CREDIT** - Either you completed the test or you didn't
+
+**See the Python E2E test file for the complete testing philosophy and standards. The same rules apply here.**
+
+### Success Criteria
+- ✅ Every step executed and documented
+- ✅ Every bug found and reported with reproduction steps
+- ✅ Every discrepancy investigated and explained
+- ✅ Detailed test report with actual data, not summaries
+- ✅ Clear verdict: PASS (ready for production) or FAIL (blocking issues found)
+
+### Failure Criteria
+- ❌ Any step skipped without documented reason
+- ❌ Any "seems to work" or "probably correct" statements
+- ❌ Any bugs found but not thoroughly documented
+- ❌ Test report with vague summaries instead of concrete data
+
+---
+
+**Purpose:** You are performing a comprehensive end-to-end test of LucidShark's Java support. You will test both the CLI and MCP interfaces across all domains, using real open-source Java projects checked out from GitHub. You will test installation via both the install script and pip, run `lucidshark init`, `autoconfigure`, and exercise every scan domain and MCP tool. At the end, write a detailed test report that another engineer could use to reproduce your findings.
 
 **Java Tools Under Test:**
 

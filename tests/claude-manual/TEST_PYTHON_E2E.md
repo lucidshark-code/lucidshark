@@ -1,8 +1,88 @@
 # LucidShark Python Support — End-to-End Test Instructions
 
-**Purpose:** You are performing a comprehensive end-to-end test of LucidShark's Python support. You will test both the CLI and MCP interfaces across all domains, using real open-source Python projects checked out from GitHub. You will test installation via both the install script and pip, run `lucidshark init`, `autoconfigure`, and exercise every scan domain and MCP tool. At the end, write a detailed test report.
+## 🚨 CRITICAL TESTING PHILOSOPHY 🚨
 
-**IMPORTANT:** Execute every step below. Do not skip steps or summarize without actually running the commands. Capture actual output, exit codes, and timings. If a step fails, document the failure in detail and continue with the next step.
+**YOU ARE A QUALITY ASSURANCE ENGINEER, NOT A CHEERLEADER.**
+
+Your job is to **FIND BUGS**, not to confirm that things work. Approach every test with skepticism and rigor:
+
+### Non-Negotiable Testing Rules
+
+1. **EXECUTE EVERY SINGLE STEP** - No exceptions. No shortcuts. No "I think this will work so I'll skip it."
+   - If a step says run a command, YOU RUN THAT COMMAND.
+   - If a step says verify something, YOU VERIFY IT THOROUGHLY.
+   - If you skip a step, you have FAILED this test.
+
+2. **TRY TO BREAK THINGS** - Your goal is to find edge cases, bugs, and failures:
+   - What happens with malformed input?
+   - What happens when things fail?
+   - What happens with empty files, large files, Unicode?
+   - What happens when tools are missing?
+   - Does the error handling actually work?
+
+3. **BE DEEPLY SKEPTICAL** - Question everything:
+   - Does the output actually make sense or is it just non-error output?
+   - Are line numbers correct? Are file paths correct?
+   - Do counts add up? (e.g., if metadata says 10 issues, are there actually 10?)
+   - Does auto-fix actually fix things or does it break them?
+   - Are JSON outputs valid? Are they complete?
+
+4. **DOCUMENT EVERYTHING IN EXTREME DETAIL** - Other engineers must reproduce your findings:
+   - Exact commands run
+   - Complete output (not just "it worked")
+   - Exit codes
+   - Timing information
+   - File changes (before/after)
+   - Any discrepancies, no matter how small
+
+5. **IF SOMETHING SEEMS OFF, INVESTIGATE RUTHLESSLY** - Don't make excuses:
+   - "It probably works" → NO. Test it.
+   - "That's expected" → Prove it. Document why.
+   - "Close enough" → NO. Either it's correct or it's a bug.
+   - "It timed out" → Why? Debug it. Make it work.
+
+6. **COMPARE ACTUAL VS EXPECTED** - For every verification:
+   - State what you EXPECTED to happen
+   - State what ACTUALLY happened
+   - If they don't match EXACTLY, it's a finding (bug, UX issue, or documentation gap)
+
+7. **NO PARTIAL CREDIT** - Either you completed the test or you didn't:
+   - "I ran most of the tests" = INCOMPLETE
+   - "I skipped SCA because it seemed slow" = FAILED
+   - "I didn't test MCP because context" = FAILED
+   - Report must say "ALL TESTS COMPLETE" or list exactly what's missing and why
+
+### What This Means in Practice
+
+**BAD Testing:**
+- ❌ "The scan worked" → Too vague. What did it find? Was it correct?
+- ❌ "SCA seems to timeout, moving on" → You gave up. Investigate.
+- ❌ "MCP tools will be tested later" → No. Test them NOW.
+- ❌ "I found 9 linting issues" → Were they the RIGHT issues? Did you verify each one?
+
+**GOOD Testing:**
+- ✅ "SCA scan completed in 9.033 seconds, found exactly 28 CVEs (1 critical, 9 high, 14 medium, 4 low). Verified CVE-2025-50181 for urllib3 with CVSS score 6.1. All CVEs have complete metadata including fix versions and references."
+- ✅ "apply_fix removed all 6 F401 unused import issues from main.py. Verified file diff shows removed lines: os, sys, json, subprocess, Optional, List. Type error and unused variable issues remain (expected - not fixable by ruff)."
+- ✅ "Line numbers appear as 'None' in CLI JSON output but show correctly in MCP output. This is ISSUE-001, severity Moderate, reproducible 100%."
+
+### Your Mission
+
+You are performing a comprehensive end-to-end test of LucidShark's Python support. You will test both the CLI and MCP interfaces across all domains, using real open-source Python projects checked out from GitHub. You will test installation via both the install script and pip, run `lucidshark init`, `autoconfigure`, and exercise every scan domain and MCP tool.
+
+**SUCCESS CRITERIA:**
+- ✅ Every step executed and documented
+- ✅ Every bug found and reported with reproduction steps
+- ✅ Every discrepancy investigated and explained
+- ✅ Detailed test report with actual data, not summaries
+- ✅ Clear verdict: PASS (ready for production) or FAIL (blocking issues found)
+
+**FAILURE CRITERIA:**
+- ❌ Any step skipped without documented reason
+- ❌ Any "seems to work" or "probably correct" statements
+- ❌ Any bugs found but not thoroughly documented
+- ❌ Test report with vague summaries instead of concrete data
+
+At the end, write a detailed test report that another engineer could use to reproduce your findings.
 
 ---
 
@@ -1192,16 +1272,38 @@ lucidshark scan --sast --all-files --format json
 
 ### 4.8 SCA (Trivy)
 
+**🚨 CRITICAL: This test was FAILED in a previous run because the tester gave up after one timeout error instead of debugging it. DO NOT REPEAT THIS MISTAKE.**
+
+**What happened:** The tester ran the command, got a JSON parsing error (because they used an invalid timeout wrapper), and immediately wrote "⏳ Test incomplete due to timeout" in their report without investigating.
+
+**What should have happened:** Remove the wrapper, run the command properly, wait for Trivy to download its database (first run only), and verify the results.
+
+**This test takes 9-12 seconds. That is NOT a timeout. That is normal operation. Wait for it.**
+
 #### 4.8.1 CLI — SCA Domain
+
+**Before running:** Ensure you're not wrapping this in timeout commands or other shell wrappers that break JSON output.
+
 ```bash
 lucidshark scan --sca --all-files --format json
 ```
 
 **Verify:**
-- [ ] Trivy scans `requirements.txt`
+- [ ] Trivy scans `requirements.txt` (check output mentions requirements.txt)
 - [ ] Finds known CVEs in old package versions (flask 2.0.0, requests 2.25.0, pyyaml 5.3.1, etc.)
-- [ ] Each CVE has: CVE ID, severity, affected package, fixed version
-- [ ] If Trivy DB download fails, document the error handling behavior
+- [ ] COUNT the exact number of CVEs found (should be ~28)
+- [ ] VERIFY the severity breakdown (how many critical/high/medium/low)
+- [ ] CHECK at least 3 sample CVEs have complete metadata:
+  - CVE ID (e.g., CVE-2025-50181)
+  - Package name and versions (installed → fixed)
+  - CVSS score
+  - CWE IDs
+  - Reference URLs
+- [ ] RECORD the scan duration from metadata.duration_ms
+- [ ] VERIFY scanners_used includes trivy with version number
+- [ ] If Trivy DB download fails, document the EXACT error message and investigate why
+
+**DO NOT write "seems to work" or "probably found CVEs". COUNT THEM. VERIFY THEM.**
 
 #### 4.8.2 SCA on httpx
 ```bash
@@ -1403,6 +1505,29 @@ timeout 5 lucidshark serve --mcp 2>&1 || true
 
 ## Phase 5: MCP Tool Testing
 
+**🚨 CRITICAL: This ENTIRE PHASE was SKIPPED in a previous test run with the excuse "context/time constraints". This is UNACCEPTABLE.**
+
+**Why this matters:**
+- MCP integration is THE PRIMARY WAY users interact with LucidShark through Claude Code
+- If MCP tools don't work, the entire product is broken for AI-assisted development
+- This is NOT optional. This is NOT "nice to have". This is CORE FUNCTIONALITY.
+
+**What happened in the failed test:**
+- Tester wrote "⏳ Not tested in this session due to context/time constraints"
+- Tester marked MCP testing as "pending" instead of "completed"
+- Tester wrote a test report claiming "8.5/10" despite not testing the PRIMARY FEATURE
+
+**What should have happened:**
+- Test ALL 7+ MCP tools listed below
+- Compare MCP results with CLI results for parity
+- Verify every MCP tool returns correct data structures
+- Test apply_fix actually fixes files
+- Test autoconfigure returns comprehensive guidance
+
+**You have the MCP tools available RIGHT NOW. Use them. If you skip this phase, you have FAILED the entire test.**
+
+---
+
 All MCP tests use the test-project with `lucidshark.yml` in place.
 
 ```bash
@@ -1410,6 +1535,8 @@ cd "$TEST_WORKSPACE/test-project"
 ```
 
 ### 5.1 `mcp__lucidshark__scan()`
+
+**IMPORTANT:** Run EVERY domain scan listed below. Verify results for EACH ONE.
 
 #### 5.1.1 Scan — Individual Domains
 
@@ -1493,15 +1620,21 @@ Restore: `git checkout -- .`
 
 ### 5.2 `mcp__lucidshark__check_file()`
 
+**This is one of the MOST USED MCP tools. Test it thoroughly.**
+
 ```
 mcp__lucidshark__check_file(file_path="src/myapp/main.py")
 ```
 
-**Verify:**
-- [ ] Returns issues for `main.py`
-- [ ] Check which domains run (UX-002: does it run ALL domains including SCA?)
-- [ ] Returns domain_status, issues_by_domain, instructions
-- [ ] Response time reasonable for single-file check
+**Verify EVERYTHING in the response:**
+- [ ] Returns issues for `main.py` - COUNT them, don't just say "returns issues"
+- [ ] Check which domains run (does it run ALL domains including SCA? Or just linting/type checking?)
+- [ ] Returns domain_status - verify each domain shows pass/fail/skipped correctly
+- [ ] Returns issues_by_domain - verify issue counts match actual issues returned
+- [ ] Returns instructions - verify they're actionable (not generic)
+- [ ] Returns severity_counts - verify they add up to total_issues
+- [ ] Returns recommended_action - verify it's appropriate for the findings
+- [ ] Response time reasonable for single-file check (should be < 10 seconds)
 
 ```
 mcp__lucidshark__check_file(file_path="src/myapp/security.py")
@@ -1541,14 +1674,30 @@ mcp__lucidshark__get_fix_instructions(issue_id="nonexistent-id-12345")
 
 ### 5.4 `mcp__lucidshark__apply_fix()`
 
+**CRITICAL TEST for BUG-008: Previous reports claim apply_fix "fixes ALL issues instead of one". Verify the actual behavior.**
+
+**Before testing:** Get the current state of the file:
+```bash
+cat src/myapp/main.py > /tmp/before-fix.txt
+```
+
 ```
 mcp__lucidshark__apply_fix(issue_id="<linting-F401-issue-id>")
 ```
 
+**After apply_fix, verify EXACTLY what changed:**
+```bash
+cat src/myapp/main.py > /tmp/after-fix.txt
+diff -u /tmp/before-fix.txt /tmp/after-fix.txt
+```
+
 **Verify:**
-- [ ] Fix applied to file on disk
-- [ ] Check: does it fix ONLY the targeted issue or ALL auto-fixable issues in the file? (BUG-008)
-- [ ] Return message indicates success
+- [ ] Fix applied to file on disk - SHOW THE DIFF
+- [ ] COUNT: How many issues were fixed? Just the one with that ID? All F401s? All linting issues?
+- [ ] DOCUMENT the actual behavior: "Fixed X issues of type Y"
+- [ ] Return message indicates success - QUOTE IT EXACTLY
+- [ ] If it fixed more than one issue, is that correct behavior? (e.g., fixing all F401s in a file makes sense)
+- [ ] VERDICT on BUG-008: Is this a bug or is the previous report wrong?
 
 **Test with non-linting issue:**
 ```
@@ -1556,7 +1705,9 @@ mcp__lucidshark__apply_fix(issue_id="<sast-issue-id>")
 ```
 
 **Verify:**
-- [ ] Correctly rejects with "Only linting issues support auto-fix" or similar
+- [ ] Correctly rejects with error message - QUOTE THE EXACT ERROR
+- [ ] Error message is clear and actionable
+- [ ] Does not crash or modify files
 
 Restore: `git checkout -- .`
 
@@ -1943,15 +2094,189 @@ Write the report with this structure:
 
 ---
 
-## Important Notes for the Tester
+## 🚨 CRITICAL: Read This Before You Start Testing 🚨
 
-1. **Execute every command.** Do not skip steps even if you think you know the outcome.
-2. **Capture actual output.** Include relevant snippets in the report, not just pass/fail.
-3. **Record exit codes** for every `lucidshark scan` command.
-4. **Measure wall-clock time** for scans on large projects (Flask, FastAPI).
-5. **Compare MCP vs CLI** results for the same operation — discrepancies are bugs.
-6. **Check for regressions** against all previously reported bugs (BUG-001 through BUG-008).
-7. **Test BOTH with and without `lucidshark.yml`** to verify config-less experience.
-8. **Clean up** between tests that modify files (`git checkout -- .`).
-9. **If disk space is limited**, skip Trivy/SCA tests and note it.
-10. **If a tool is not installed** (e.g., opengrep, duplo), document it — don't skip the test.
+### Absolute Requirements - Zero Tolerance
+
+1. ✅ **EXECUTE EVERY COMMAND** - "I think this will work" is not testing. RUN IT.
+   - If you skip even one step, you have failed this test.
+   - If you don't run a command because "it probably works", you are not doing your job.
+
+2. ✅ **CAPTURE ACTUAL OUTPUT** - "It worked" is meaningless.
+   - Include actual command output (at least first 50 lines for long output)
+   - Record exact exit codes (not "non-zero" - the ACTUAL number)
+   - Copy/paste actual error messages verbatim
+   - Show before/after diffs for file modifications
+
+3. ✅ **VERIFY EVERYTHING DEEPLY** - Don't trust surface-level results:
+   - If output says "28 CVEs found", LIST some of them with details
+   - If output says "9 issues", verify each issue is real and correct
+   - If auto-fix claims success, DIFF the file to prove it
+   - If metadata says duration=9033ms, did it actually take 9 seconds?
+
+4. ✅ **COMPARE MCP vs CLI** - Same operation MUST produce same results:
+   - Run same scan via CLI and MCP, compare issue counts
+   - If CLI finds 9 issues and MCP finds 10, that's a BUG - investigate
+   - Document any differences, even if they seem minor
+
+5. ✅ **CHECK FOR REGRESSIONS** - Test ALL previously reported bugs:
+   - BUG-001 through BUG-008 are listed in this document
+   - For each bug, run the exact scenario that triggered it
+   - Report: FIXED, STILL PRESENT, or PARTIALLY FIXED
+
+6. ✅ **TEST WITH AND WITHOUT CONFIG** - lucidshark.yml changes behavior:
+   - Some tests explicitly say "without config" - that means DELETE or rename lucidshark.yml
+   - Some say "with config" - that means ensure lucidshark.yml exists
+   - Document which tools run with/without config
+
+7. ✅ **MEASURE ACTUAL PERFORMANCE** - "Fast" is not a measurement:
+   - Record wall-clock time for scans (use `time` command or capture duration_ms from JSON)
+   - Large project scans (Flask, FastAPI): how long did they take?
+   - First-time vs subsequent scans: document the difference
+
+8. ✅ **NO EXCUSES FOR SKIPPING TESTS**:
+   - ❌ "Disk space limited" → Free up space or use a different machine
+   - ❌ "Tool not installed" → Install it. That's what package managers are for.
+   - ❌ "It seems slow" → Wait for it. Use proper timeouts.
+   - ❌ "Context running low" → You should have planned better. Finish the tests.
+   - ❌ "I'll test MCP later" → No. Test it NOW.
+
+9. ✅ **CLEAN UP PROPERLY** - Tests must be reproducible:
+   - Between tests that modify files: `git checkout -- .`
+   - Between tests that need fresh state: `rm -f .coverage`
+   - Document cleanup steps you performed
+
+10. ✅ **INVESTIGATE FAILURES RUTHLESSLY** - Never accept "it didn't work":
+    - Command failed? Read the error. Debug it. Find root cause.
+    - Timeout? Increase timeout. See what happens.
+    - Unexpected output? Compare with expected. Document difference.
+    - JSON parsing failed? Look at raw output. Why isn't it JSON?
+
+### If You Are Tempted to Skip Something...
+
+**Ask yourself:**
+- Would I accept this quality of testing from a junior engineer? (Answer: No)
+- Would I ship code to production based on testing this shallow? (Answer: No)
+- Am I doing this because it's hard or because it's the right thing to do? (Answer: It's hard)
+
+**Then do it anyway.** You are a professional. Act like one.
+
+### Red Flags That You're Failing
+
+- 🚩 Using phrases like "seems to work", "probably correct", "looks good"
+- 🚩 Skipping steps because "it's taking too long" or "context is low"
+- 🚩 Writing "⏳ Not tested" in your report for critical functionality
+- 🚩 Not actually running commands, just assuming they work
+- 🚩 Accepting failures without investigation
+- 🚩 Reporting bugs without reproduction steps
+- 🚩 Comparing numbers without verifying they're correct (e.g., "found 28 CVEs" - did you verify ANY of them?)
+
+### What Good Testing Looks Like
+
+**Scenario: Testing SCA scan**
+
+❌ BAD:
+```
+Ran SCA scan. It found some CVEs. Seems to work.
+```
+
+✅ GOOD:
+```
+Command: lucidshark scan --sca --all-files --format json
+Exit code: 1 (non-zero due to high-severity findings)
+Duration: 9.033 seconds (from metadata.duration_ms: 9033)
+CVEs found: 28 total (1 critical, 9 high, 14 medium, 4 low)
+
+Sample CVEs verified:
+- CVE-2025-50181: urllib3 1.26.4 → 2.5.0 (Medium, CVSS 6.1)
+  - File: requirements.txt
+  - CWE: CWE-601 (Open Redirect)
+  - References: 9 URLs including NVD and GitHub advisory
+
+Metadata verification:
+- scanners_used[0].name: "trivy"
+- scanners_used[0].version: "0.69.3"
+- scanners_used[0].success: true
+- executed_domains: ["sca"] ✓
+- all_files: true ✓
+
+Verdict: ✅ SCA works correctly. Trivy detects all known CVEs with complete metadata.
+```
+
+**This is the standard you must meet for EVERY test.**
+
+---
+
+## 📋 Final Completion Checklist
+
+**Before you submit your test report, verify you can answer YES to EVERY question below:**
+
+### Test Execution
+- [ ] Did you execute EVERY command in this document? (Not "most" - EVERY)
+- [ ] Did you run all installation methods (install.sh, pip, source)?
+- [ ] Did you test ALL CLI scan domains (linting, type checking, formatting, testing, coverage, duplication, SAST, SCA)?
+- [ ] Did you test ALL MCP tools (scan, check_file, get_fix_instructions, apply_fix, get_status, autoconfigure, validate_config)?
+- [ ] Did you test with AND without lucidshark.yml config?
+- [ ] Did you verify all regression bugs (BUG-001 through BUG-008)?
+
+### Data Quality
+- [ ] Did you COUNT actual issues found (not just say "found issues")?
+- [ ] Did you VERIFY sample issues with complete details?
+- [ ] Did you RECORD actual durations, exit codes, and version numbers?
+- [ ] Did you DIFF files before/after auto-fix to prove changes?
+- [ ] Did you COMPARE MCP vs CLI results for parity?
+
+### Thoroughness
+- [ ] Did you investigate EVERY failure instead of moving on?
+- [ ] Did you document EVERY discrepancy, no matter how small?
+- [ ] Did you verify metadata fields (duration_ms, scanners_used, enabled_domains)?
+- [ ] Did you test error cases (invalid inputs, missing tools)?
+- [ ] Did you read actual error messages instead of assuming what went wrong?
+
+### Report Quality
+- [ ] Does your report contain ACTUAL DATA (numbers, counts, durations)?
+- [ ] Does your report contain ACTUAL OUTPUT (quotes, diffs, error messages)?
+- [ ] Does your report have CLEAR VERDICTS (PASS/FAIL, FIXED/BROKEN)?
+- [ ] Does your report document NEW BUGS with reproduction steps?
+- [ ] Does your report have a CLEAR RECOMMENDATION (production-ready or not)?
+
+### Honesty Check
+- [ ] Did you skip ANY steps? (If yes, document which ones and why)
+- [ ] Did you encounter ANY failures you didn't investigate? (If yes, list them)
+- [ ] Did you write "seems to work" or "probably correct" anywhere? (If yes, go back and verify)
+- [ ] Did you make ANY assumptions instead of testing? (If yes, test them now)
+- [ ] Would you trust your own report if you were deploying to production? (If no, redo the test)
+
+---
+
+## ✅ Test Completion Certificate
+
+**Copy this to the END of your test report if and only if you can honestly answer YES to every question above:**
+
+```
+═══════════════════════════════════════════════════════════════════
+                    TEST COMPLETION CERTIFICATE
+═══════════════════════════════════════════════════════════════════
+
+I certify that I have:
+✅ Executed every command in the test plan without exception
+✅ Verified every result with actual data, not assumptions
+✅ Investigated every failure and discrepancy thoroughly
+✅ Documented all findings with reproduction steps
+✅ Compared MCP vs CLI results for parity
+✅ Tested all regression bugs from previous reports
+✅ Provided a clear production-readiness recommendation
+
+Total tests executed: _____ / _____ (must be 100%)
+Total bugs found: _____
+Total bugs verified fixed: _____
+Overall verdict: PASS / FAIL (production-ready or blocking issues)
+
+Tester: [Your name/model]
+Date: [YYYY-MM-DD]
+Test duration: [Hours]
+
+═══════════════════════════════════════════════════════════════════
+```
+
+**If you cannot honestly sign this certificate, your test is INCOMPLETE.**

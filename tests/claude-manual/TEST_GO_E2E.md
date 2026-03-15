@@ -4,6 +4,59 @@
 
 **IMPORTANT:** Execute every step below. Do not skip steps or summarize without actually running the commands. Capture actual output, exit codes, and timings. If a step fails, document the failure in detail and continue with the next step.
 
+---
+
+## 🚨 CRITICAL TESTING PHILOSOPHY 🚨
+
+**YOU ARE A QUALITY ASSURANCE ENGINEER, NOT A CHEERLEADER.**
+
+Your job is to **FIND BUGS**, not to confirm that things work.
+
+### Non-Negotiable Testing Rules
+
+1. **EXECUTE EVERY SINGLE STEP** — No exceptions, no shortcuts, no "I already know this works"
+2. **TRY TO BREAK THINGS** — Find edge cases, bugs, crashes, incorrect outputs
+3. **BE DEEPLY SKEPTICAL** — Question every result, assume bugs exist until proven otherwise
+4. **DOCUMENT EVERYTHING IN EXTREME DETAIL** — Raw output, exit codes, exact error messages, file diffs
+5. **IF SOMETHING SEEMS OFF, INVESTIGATE RUTHLESSLY** — "Seems to work" is not acceptable
+6. **COMPARE ACTUAL VS EXPECTED** — Don't just run commands, verify the results are correct
+7. **NO PARTIAL CREDIT** — A test either passes completely or it fails
+
+### What "Execute Every Step" Means
+
+- **COUNT issues**: "found 12 linting issues" NOT "found some issues"
+- **QUOTE errors verbatim**: Include the actual error text in your report
+- **RECORD exit codes**: Every `lucidshark scan` command must have its exit code documented
+- **MEASURE timings**: Use `time` command or record start/end timestamps
+- **VERIFY with actual data**: Read files, diff outputs, check specific line numbers
+- **No vague language**: Replace "seems to work", "probably correct", "looks good" with actual measurements
+
+### Success vs Failure
+
+**❌ FAILURE:**
+- "The scan completed successfully" (no data provided)
+- "Found some issues" (no count, no specifics)
+- "⏳ Test incomplete due to time constraints" (unacceptable excuse)
+- "Skipping this test because..." (no, run the test)
+- "Seems to work fine" (prove it with data)
+
+**✅ SUCCESS:**
+- "golangci-lint found exactly 15 issues: 8 from golint, 4 from govet, 3 from errcheck. Exit code: 1. Runtime: 3.2s"
+- "go test ran 47 tests, 45 passed, 2 failed (TestHandler and TestDB). Exit code: 1. See full output below: [paste output]"
+- "Compared MCP scan() output vs CLI scan output: IDENTICAL (0 discrepancies)"
+- "BUG FOUND: apply_fix() changed 5 files but only 3 had issues. Files X and Y were incorrectly modified."
+
+### Your Mission
+
+At the end of this test, the user should be able to:
+- **Trust that LucidShark works correctly for Go** (if your verdict is ✅ PASS)
+- **Know exactly what's broken** (if your verdict is ❌ FAIL)
+- **Reproduce any bug you found** (with exact steps and data)
+
+**If you wouldn't trust this software in production based on your testing, say so.**
+
+---
+
 **Go Tools Under Test:**
 
 | Domain | Tool | Binary |
@@ -1337,6 +1390,30 @@ lucidshark scan --duplication --all-files --format json
 - [ ] Respects `min_lines: 4` config
 - [ ] Go files properly detected as language "go" by duplo
 
+---
+
+**🚨 CRITICAL: Go Has TWO SAST Tools — You Must Test BOTH**
+
+**LucidShark supports TWO SAST scanners for Go:**
+1. **gosec** (Go-specific, finds Go security issues like G201, G204, G401)
+2. **OpenGrep** (cross-language, finds SQL injection, XSS, command injection)
+
+**YOU MUST TEST BOTH AND COMPARE THEIR RESULTS.**
+
+Do NOT test only one and skip the other. The value of LucidShark's Go support is that it runs BOTH tools and combines their findings. If you test only gosec, you're missing half the picture.
+
+**Required comparison:**
+- Run `lucidshark scan --sast` (should run BOTH gosec and OpenGrep for Go files)
+- Document how many issues gosec finds
+- Document how many issues OpenGrep finds
+- Identify overlapping issues (same vulnerability found by both tools)
+- Identify gosec-only issues (Go-specific checks)
+- Identify OpenGrep-only issues (cross-language patterns)
+
+**This comparison is NOT optional. It's a core feature of Go SAST in LucidShark.**
+
+---
+
 ### 4.7 SAST — gosec (Go-Specific)
 
 #### 4.7.1 CLI — SAST Domain (gosec should run automatically for Go projects)
@@ -1426,6 +1503,40 @@ print(f'OpenGrep SAST issues: {len(opengrep_issues)}')
 **Verify:**
 - [ ] OpenGrep finds at least some issues
 - [ ] OWASP references present where applicable
+
+---
+
+**🚨 CRITICAL: SCA (Trivy) Test — Do NOT Skip This**
+
+**This test was FAILED in a previous Python E2E run because the tester gave up after encountering a perceived "timeout" instead of actually running the command properly.**
+
+**Reality: SCA scans typically complete in 5-15 seconds, even for projects with many dependencies.**
+
+**What you must do:**
+1. Run `lucidshark scan --sca --all-files --format json` and WAIT for it to complete
+2. Record the EXACT runtime (use `time` command if needed)
+3. Record the EXACT number of CVEs found with severity breakdown
+4. If it takes longer than 30 seconds, investigate why (slow network, Trivy DB download, large project)
+5. If it fails, record the EXACT error message and debug it
+
+**Expected behavior:**
+- First run may download Trivy vulnerability database (~100MB) — this is normal, wait for it
+- Subsequent runs use cached database and are faster
+- Should find CVEs in the intentionally vulnerable dependencies in go.mod
+
+**DO NOT:**
+- ❌ Give up after one error without investigating
+- ❌ Report "timeout" without recording actual runtime
+- ❌ Skip this test because "it's taking too long"
+- ❌ Accept vague results like "found some CVEs"
+
+**DO:**
+- ✅ Record exact CVE count and severity breakdown
+- ✅ Measure actual runtime with timestamps
+- ✅ Verify CVE metadata (ID, severity, affected package, fixed version)
+- ✅ Test on BOTH test-project AND real-world project (Gin or Cobra)
+
+---
 
 ### 4.8 SCA (Trivy)
 
@@ -1647,6 +1758,40 @@ timeout 5 lucidshark serve --mcp 2>&1 || true
 ---
 
 ## Phase 5: MCP Tool Testing
+
+**🚨 CRITICAL: This ENTIRE PHASE Was SKIPPED in a Previous Test Run 🚨**
+
+**In a previous Python E2E test, this ENTIRE phase was skipped with the excuse:**
+> "⏳ Not tested in this session due to context/time constraints"
+
+**This is COMPLETELY UNACCEPTABLE.**
+
+**Why this phase is CRITICAL:**
+- **MCP integration is THE PRIMARY WAY users interact with LucidShark via Claude Code**
+- Skipping MCP testing means you didn't test the main product feature
+- MCP tools must have exact parity with CLI commands — discrepancies are critical bugs
+- Many users will NEVER use the CLI — they only use MCP through Claude Code
+
+**You MUST test ALL MCP tools listed below:**
+1. `mcp__lucidshark__scan()` — for every domain (linting, type_checking, formatting, testing, coverage, duplication, sast, sca)
+2. `mcp__lucidshark__check_file()` — verify it works on Go files
+3. `mcp__lucidshark__get_fix_instructions()` — verify it returns actionable fix instructions
+4. `mcp__lucidshark__apply_fix()` — verify it actually fixes issues (and ONLY the intended issues)
+5. `mcp__lucidshark__get_status()` — verify it returns valid status
+6. `mcp__lucidshark__get_help()` — verify it returns help text
+7. `mcp__lucidshark__autoconfigure()` — verify it detects Go project and generates correct config
+8. `mcp__lucidshark__validate_config()` — verify it validates lucidshark.yml correctly
+
+**For EACH MCP tool, you must:**
+- Execute it with valid inputs
+- Record exact output
+- Compare with equivalent CLI command (where applicable)
+- Verify exit codes/status
+- Document any discrepancies as bugs
+
+**NO SHORTCUTS. NO EXCUSES. TEST EVERYTHING.**
+
+---
 
 All MCP tests use the test-project with `lucidshark.yml` in place.
 
@@ -2280,3 +2425,143 @@ Write the report with this structure:
 10. **If a tool is not installed** (e.g., opengrep, duplo, golangci-lint), document it — don't skip the test.
 11. **Go-specific:** Ensure `go mod tidy` succeeds before running tests that need compilation.
 12. **Go-specific:** If `go test` fails due to missing dependencies, run `go mod download` first.
+
+---
+
+## 🎯 FINAL COMPLETION CHECKLIST 🎯
+
+Before you claim this test is complete, answer EVERY question below with specific data:
+
+### Installation & Setup
+- [ ] Binary install: Version installed? ________________
+- [ ] Pip install: Version installed? ________________
+- [ ] Both methods produce IDENTICAL version? (yes/no) ________________
+- [ ] `lucidshark doctor` output: Which Go tools detected? ________________
+- [ ] golangci-lint version: ________________
+- [ ] go version: ________________
+
+### Test Projects
+- [ ] Gin cloned successfully? (yes/no) Commit hash: ________________
+- [ ] Cobra cloned successfully? (yes/no) Commit hash: ________________
+- [ ] GoFiber cloned successfully? (yes/no) Commit hash: ________________
+- [ ] Hugo cloned successfully? (yes/no) Commit hash: ________________ (or "skipped due to disk space")
+- [ ] Custom test-project created? (yes/no) All 4 source files written? ________________
+- [ ] `go mod tidy` succeeded on test-project? (yes/no) ________________
+
+### CLI Scans — Custom Test Project
+- [ ] Linting (golangci-lint): How many issues? ________ Exit code? ________ Runtime? ________
+- [ ] Type checking (go vet): How many issues? ________ Exit code? ________ Runtime? ________
+- [ ] Formatting (gofmt): How many files need formatting? ________ Exit code? ________
+- [ ] Testing (go test): How many tests run? ________ Passed? ________ Failed? ________ Exit code? ________
+- [ ] Coverage: Overall coverage percentage? ________% Exit code? ________
+- [ ] Duplication: Duplicated lines found? ________ Exit code? ________
+- [ ] SAST — gosec: How many issues? ________ Exit code? ________ Runtime? ________
+- [ ] SAST — OpenGrep: How many issues? ________ Exit code? ________ Runtime? ________
+- [ ] gosec vs OpenGrep: How many overlapping issues? ________ How many gosec-only? ________ How many OpenGrep-only? ________
+- [ ] SCA (Trivy): How many CVEs? ________ (Critical/High/Medium/Low breakdown: ____/____/____/____) Exit code? ________ Runtime? ________
+
+### Real-World Projects (Pick at least 2)
+- [ ] Project 1 (________): Linting issues? ________ Type errors? ________ Test results? ________ Runtime for full scan? ________
+- [ ] Project 2 (________): Linting issues? ________ Type errors? ________ Test results? ________ Runtime for full scan? ________
+
+### MCP Tools
+- [ ] `mcp__lucidshark__scan()` on test-project: How many issues? ________ Exit code? ________ Matches CLI? (yes/no) ________
+- [ ] `mcp__lucidshark__check_file()` on `cmd/myapp/main.go`: How many issues? ________ Exit code? ________
+- [ ] `mcp__lucidshark__get_fix_instructions()` for one linting issue: Did it return fix instructions? (yes/no) ________
+- [ ] `mcp__lucidshark__apply_fix()` for one linting issue: Fixed? (yes/no) ________ Verified by re-scanning? (yes/no) ________
+- [ ] `mcp__lucidshark__get_status()`: Did it return valid status? (yes/no) ________
+- [ ] `mcp__lucidshark__get_help()`: Did it return help text? (yes/no) ________
+- [ ] `mcp__lucidshark__autoconfigure()`: Generated valid lucidshark.yml? (yes/no) ________ Detected Go correctly? (yes/no) ________
+- [ ] `mcp__lucidshark__validate_config()`: Validated config without errors? (yes/no) ________
+
+### MCP vs CLI Parity
+- [ ] Same issue count for linting? (yes/no) If no, explain: ________________
+- [ ] Same issue count for type checking? (yes/no) If no, explain: ________________
+- [ ] Same exit codes? (yes/no) If no, explain: ________________
+
+### Output Formats
+- [ ] `--format json`: Valid JSON? (yes/no) ________ Can be parsed with `jq`? (yes/no) ________
+- [ ] `--format summary`: Human-readable summary? (yes/no) ________
+- [ ] `--format table`: Table formatted correctly? (yes/no) ________
+- [ ] `--format ai`: AI-friendly format? (yes/no) ________
+- [ ] `--format sarif`: Valid SARIF? (yes/no) ________
+
+### Regression Testing
+- [ ] BUG-001: Status (✅ FIXED / ❌ STILL BROKEN / ⏭️ NOT APPLICABLE TO GO) ________
+- [ ] BUG-002: Status (✅ FIXED / ❌ STILL BROKEN / ⏭️ NOT APPLICABLE TO GO) ________
+- [ ] BUG-003: Status (✅ FIXED / ❌ STILL BROKEN / ⏭️ NOT APPLICABLE TO GO) ________
+- [ ] BUG-004: Status (✅ FIXED / ❌ STILL BROKEN / ⏭️ NOT APPLICABLE TO GO) ________
+- [ ] BUG-005: Status (✅ FIXED / ❌ STILL BROKEN / ⏭️ NOT APPLICABLE TO GO) ________
+- [ ] BUG-006: Status (✅ FIXED / ❌ STILL BROKEN / ⏭️ NOT APPLICABLE TO GO) ________
+- [ ] BUG-007: Status (✅ FIXED / ❌ STILL BROKEN / ⏭️ NOT APPLICABLE TO GO) ________
+- [ ] BUG-008: Status (✅ FIXED / ❌ STILL BROKEN / ⏭️ NOT APPLICABLE TO GO) ________
+
+### New Bugs Found
+- [ ] Total new bugs found: ________ (P0: ________, P1: ________, P2: ________)
+- [ ] Each bug has: Title, Severity, Reproducibility %, Description, Expected vs Actual, Reproduction steps? (yes/no) ________
+
+### Edge Cases
+- [ ] Empty Go file: Handled correctly? (yes/no) ________
+- [ ] Syntax error in Go file: Error message helpful? (yes/no) ________
+- [ ] Very large Go project (if Hugo tested): Scan completed? (yes/no) ________ Runtime: ________ Issues found: ________
+- [ ] Go project with no go.mod: Handled gracefully? (yes/no) ________
+- [ ] Scanning outside project root: Error message clear? (yes/no) ________
+
+### Go-Specific Verification
+- [ ] Tested BOTH gosec AND OpenGrep? (yes/no) ________
+- [ ] Compared gosec vs OpenGrep results? (yes/no) ________ Overlap count: ________
+- [ ] Verified gofmt formatting fixes? (yes/no) ________ Number of files formatted: ________
+- [ ] Verified go test runs actual tests? (yes/no) ________ Test count: ________
+- [ ] Verified go vet catches real issues? (yes/no) ________ Issue count: ________
+- [ ] Tested with vendor/ directory if present? (yes/no) ________
+
+---
+
+## 📜 TEST COMPLETION CERTIFICATE 📜
+
+**I hereby certify that I have:**
+
+✅ Executed EVERY step in this test document without shortcuts
+✅ Run ALL commands and captured actual output (not placeholders or summaries)
+✅ Tested BOTH CLI and MCP interfaces for every domain
+✅ Tested BOTH gosec (Go-specific SAST) AND OpenGrep (cross-language SAST)
+✅ Compared MCP vs CLI results for parity
+✅ Verified ALL previously reported bugs (BUG-001 through BUG-008)
+✅ Created detailed reproduction steps for every new bug found
+✅ Tested on real-world Go projects (Gin, Cobra, GoFiber, and/or Hugo)
+✅ Verified output formats (json, summary, table, ai, sarif)
+✅ Documented exit codes, timings, and exact issue counts
+✅ Investigated every failure, error, or unexpected result
+
+**Test Report Location:** ________________
+
+**Tester Name/ID:** ________________
+
+**Test Date:** ________________
+
+**LucidShark Version Tested:** ________________
+
+**Final Verdict:**
+- [ ] ✅ **APPROVED** — LucidShark Go support is production-ready (score ≥9/10)
+- [ ] ⚠️ **APPROVED WITH RESERVATIONS** — Works but has minor issues (score 7-8.9/10)
+- [ ] ❌ **NOT APPROVED** — Critical bugs found, not ready for production (score <7/10)
+
+**Overall Score: ________ / 10**
+
+**Critical Issues Found (P0):** ________ (list IDs: ________________)
+
+**Major Issues Found (P1):** ________ (list IDs: ________________)
+
+**Minor Issues Found (P2):** ________ (list IDs: ________________)
+
+**Summary Statement (1-2 sentences):**
+________________________________________________________________________________
+________________________________________________________________________________
+
+**I would/would not trust this software in production because:**
+________________________________________________________________________________
+________________________________________________________________________________
+
+---
+
+**Signature:** _________________________ **Date:** _________________________
