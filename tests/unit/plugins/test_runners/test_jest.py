@@ -158,6 +158,8 @@ class TestJestRunTests:
 
             mock_result = MagicMock()
             mock_result.stdout = "{}"
+            mock_result.stderr = ""
+            mock_result.returncode = 0
 
             with patch("subprocess.run", return_value=mock_result) as mock_run:
                 runner.run_tests(context)
@@ -180,6 +182,8 @@ class TestJestRunTests:
 
             mock_result = MagicMock()
             mock_result.stdout = "{}"
+            mock_result.stderr = ""
+            mock_result.returncode = 0
 
             with patch("subprocess.run", return_value=mock_result) as mock_run:
                 runner.run_tests(context)
@@ -215,6 +219,8 @@ class TestJestRunTests:
                         break
                 result = MagicMock()
                 result.stdout = ""
+                result.stderr = ""
+                result.returncode = 0
                 return result
 
             with patch("subprocess.run", side_effect=fake_run):
@@ -514,3 +520,185 @@ class TestJestIssueIdGeneration:
         issue_id = runner._generate_issue_id("Test > should work", "expect")
         assert issue_id.startswith("jest-")
         assert len(issue_id) == len("jest-") + 12
+
+
+class TestJestCompilationErrorDetection:
+    """Tests for TypeScript compilation error detection (BUG-NEW-004)."""
+
+    def test_detects_colon_format_ts_errors(self) -> None:
+        runner = JestRunner()
+        stderr = (
+            "src/utils.ts:12:5 - error TS2322: Type 'string' is not "
+            "assignable to type 'number'.\n"
+            "src/app.ts:44:10 - error TS2339: Property 'foo' does not "
+            "exist on type 'Bar'.\n"
+        )
+        result = runner._check_compilation_errors(
+            stderr, "", Path("/project")
+        )
+        assert result is not None
+        assert result.errors == 2
+        assert result.success is False
+        assert len(result.issues) == 2
+        assert result.issues[0].severity == Severity.HIGH
+        assert result.issues[0].rule_id == "TS2322"
+        assert result.issues[0].file_path == Path("/project/src/utils.ts")
+        assert result.issues[0].line_start == 12
+        assert result.issues[0].column_start == 5
+        assert result.issues[1].rule_id == "TS2339"
+
+    def test_detects_paren_format_ts_errors(self) -> None:
+        runner = JestRunner()
+        stderr = (
+            "src/index.tsx(8,3): error TS2345: Argument of type 'string' "
+            "is not assignable to parameter of type 'number'.\n"
+        )
+        result = runner._check_compilation_errors(
+            stderr, "", Path("/project")
+        )
+        assert result is not None
+        assert result.errors == 1
+        assert result.issues[0].rule_id == "TS2345"
+        assert result.issues[0].file_path == Path("/project/src/index.tsx")
+        assert result.issues[0].line_start == 8
+        assert result.issues[0].column_start == 3
+
+    def test_deduplicates_errors(self) -> None:
+        runner = JestRunner()
+        stderr = (
+            "src/foo.ts:10:1 - error TS2322: duplicate error\n"
+            "src/foo.ts:10:1 - error TS2322: duplicate error\n"
+        )
+        result = runner._check_compilation_errors(
+            stderr, "", Path("/project")
+        )
+        assert result is not None
+        assert result.errors == 1
+        assert len(result.issues) == 1
+
+    def test_detects_generic_ts_markers_in_stderr(self) -> None:
+        runner = JestRunner()
+        stderr = (
+            "ts-jest[ts-compiler] (diagnostics) some unstructured error\n"
+            "TypeScript diagnostics: something went wrong\n"
+        )
+        result = runner._check_compilation_errors(
+            stderr, "", Path("/project")
+        )
+        assert result is not None
+        assert result.errors == 1
+        assert result.issues[0].rule_id == "ts-compilation-error"
+        assert result.issues[0].severity == Severity.HIGH
+
+    def test_detects_error_ts_marker(self) -> None:
+        runner = JestRunner()
+        stderr = "  error TS6053: File not found.\n"
+        result = runner._check_compilation_errors(
+            stderr, "", Path("/project")
+        )
+        assert result is not None
+        assert result.errors == 1
+
+    def test_returns_none_when_no_ts_errors(self) -> None:
+        runner = JestRunner()
+        result = runner._check_compilation_errors(
+            "some random stderr", "some random stdout", Path("/project")
+        )
+        assert result is None
+
+    def test_returns_none_for_empty_output(self) -> None:
+        runner = JestRunner()
+        result = runner._check_compilation_errors("", "", Path("/project"))
+        assert result is None
+
+    def test_checks_stdout_for_ts_errors(self) -> None:
+        runner = JestRunner()
+        stdout = (
+            "src/lib.ts:5:1 - error TS1005: ';' expected.\n"
+        )
+        result = runner._check_compilation_errors("", stdout, Path("/project"))
+        assert result is not None
+        assert result.errors == 1
+        assert result.issues[0].rule_id == "TS1005"
+
+    def test_run_tests_surfaces_ts_compilation_failure(self) -> None:
+        """Integration test: Jest exits non-zero with TS errors, no report."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            node_bin = project_root / "node_modules" / ".bin"
+            node_bin.mkdir(parents=True)
+            jest_bin = node_bin / "jest"
+            jest_bin.touch()
+            jest_bin.chmod(0o755)
+
+            runner = JestRunner(project_root=project_root)
+            context = MagicMock()
+            context.project_root = project_root
+            context.paths = []
+
+            mock_result = MagicMock()
+            mock_result.returncode = 1
+            mock_result.stdout = ""
+            mock_result.stderr = (
+                "src/app.ts:10:3 - error TS2322: Type 'string' is not "
+                "assignable to type 'number'.\n"
+            )
+
+            with patch("subprocess.run", return_value=mock_result):
+                result = runner.run_tests(context)
+                assert result.success is False
+                assert result.errors == 1
+                assert len(result.issues) == 1
+                assert result.issues[0].rule_id == "TS2322"
+                assert result.issues[0].severity == Severity.HIGH
+
+    def test_run_tests_nonzero_exit_no_ts_errors_generic_failure(self) -> None:
+        """Jest exits non-zero with unknown error, no TS errors detected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            node_bin = project_root / "node_modules" / ".bin"
+            node_bin.mkdir(parents=True)
+            jest_bin = node_bin / "jest"
+            jest_bin.touch()
+            jest_bin.chmod(0o755)
+
+            runner = JestRunner(project_root=project_root)
+            context = MagicMock()
+            context.project_root = project_root
+            context.paths = []
+
+            mock_result = MagicMock()
+            mock_result.returncode = 1
+            mock_result.stdout = ""
+            mock_result.stderr = "some unknown error happened"
+
+            with patch("subprocess.run", return_value=mock_result):
+                result = runner.run_tests(context)
+                assert result.success is False
+                assert result.errors == 1
+                assert result.issues[0].rule_id == "execution-error"
+
+    def test_run_tests_zero_exit_empty_output_still_success(self) -> None:
+        """Jest exits 0 with no output — success with 0 tests."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            node_bin = project_root / "node_modules" / ".bin"
+            node_bin.mkdir(parents=True)
+            jest_bin = node_bin / "jest"
+            jest_bin.touch()
+            jest_bin.chmod(0o755)
+
+            runner = JestRunner(project_root=project_root)
+            context = MagicMock()
+            context.project_root = project_root
+            context.paths = []
+
+            mock_result = MagicMock()
+            mock_result.returncode = 0
+            mock_result.stdout = ""
+            mock_result.stderr = ""
+
+            with patch("subprocess.run", return_value=mock_result):
+                result = runner.run_tests(context)
+                assert result.success is True
+                assert result.errors == 0

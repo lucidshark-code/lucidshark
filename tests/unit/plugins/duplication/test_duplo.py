@@ -67,6 +67,12 @@ def _run_detect_with_mocks(
         duplo_output = _make_empty_duplo_output()
     mock_result = make_completed_process(0, duplo_output)
 
+    # Ensure at least one source file exists so file collection doesn't
+    # short-circuit before invoking duplo.
+    dummy_src = context.project_root / "_duplo_test_dummy.py"
+    if not any(context.project_root.glob("*.py")):
+        dummy_src.write_text("x = 1\n" * 10)
+
     with patch.object(plugin, "ensure_binary", return_value=Path("/usr/bin/duplo")):
         with patch(
             "lucidshark.plugins.duplication.duplo.is_git_repo", return_value=is_git
@@ -75,14 +81,21 @@ def _run_detect_with_mocks(
                 "lucidshark.plugins.duplication.duplo.run_with_streaming",
                 return_value=mock_result,
             ) as mock_run:
-                plugin.detect_duplication(
-                    context,
-                    use_git=use_git,
-                    use_cache=use_cache,
-                    use_baseline=use_baseline,
-                    exclude_patterns=exclude_patterns,
-                )
-                return mock_run
+                # Mock _collect_git_files_filtered to return the dummy file
+                # so that duplo is actually invoked in non-git-flag mode.
+                with patch.object(
+                    plugin,
+                    "_collect_git_files_filtered",
+                    return_value=[str(dummy_src)],
+                ):
+                    plugin.detect_duplication(
+                        context,
+                        use_git=use_git,
+                        use_cache=use_cache,
+                        use_baseline=use_baseline,
+                        exclude_patterns=exclude_patterns,
+                    )
+                    return mock_run
 
 
 def _extract_cmd(mock_run) -> list[str]:
@@ -920,19 +933,28 @@ class TestDuplicationResult:
 class TestDuploGitMode:
     """Tests for git mode file discovery."""
 
-    def test_git_flag_used_when_in_git_repo(self) -> None:
-        """Test that --git flag is used when in a git repo and use_git=True."""
+    def test_git_ls_files_used_when_in_git_repo(self) -> None:
+        """Test that git ls-files + filtering is used when in a git repo.
+
+        The raw --git flag is no longer used because it bypasses exclude
+        pattern filtering (including default excludes like node_modules).
+        Instead, git ls-files is used for file discovery with filtering applied.
+        """
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
+            (project_root / "main.py").write_text("x = 1\n" * 10)
             plugin = DuploPlugin(project_root=project_root)
             context = ScanContext(
                 project_root=project_root, paths=[project_root], enabled_domains=[]
             )
 
             mock_run = _run_detect_with_mocks(
-                plugin, context, is_git=True, use_git=True
+                plugin, context, is_git=True, use_git=True,
+                duplo_output=_make_empty_duplo_output(files_analyzed=1, total_lines=10),
             )
-            assert "--git" in _extract_cmd(mock_run)
+            cmd = _extract_cmd(mock_run)
+            # --git should NOT be in the command (we use filtered file lists now)
+            assert "--git" not in cmd
 
     def test_fallback_to_file_list_when_not_git_repo(self) -> None:
         """Test fallback to file list when not in a git repo."""

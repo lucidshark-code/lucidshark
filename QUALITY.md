@@ -1,8 +1,8 @@
 # Repository Quality Overview
 
-> **Branch:** main | **Updated:** 2026-03-14 | **Commit:** `0605f23`
+> **Branch:** main | **Updated:** 2026-03-14 | **Commit:** `5644795`
 
-## Health Score: 9.1 / 10  █████████░ ↑ +0.0
+## Health Score: 9.1 / 10  █████████░
 
 | Domain | Status | Issues | Trend |
 |--------|--------|--------|-------|
@@ -13,23 +13,23 @@
 | SCA | ✓ Pass | 0 | → |
 | SAST | ✓ Pass | 0 | → |
 | Coverage | ✓ Pass | 0 | → |
-| Duplication | ✓ Pass | 81 | → |
+| Duplication | ✓ Pass | 87 | → |
 
 ## Issues by Severity
 
 - 🔴 **Critical:** 0
 - 🟠 **High:** 0
 - 🟡 **Medium:** 0
-- 🔵 **Low:** 81
+- 🔵 **Low:** 87
 
 ## Top Files by Issues
 
 | File | Issues |
 |------|--------|
 | `src/lucidshark/plugins/linters/biome.py` | 10 |
+| `src/lucidshark/plugins/go_utils.py` | 8 |
 | `src/lucidshark/plugins/coverage/istanbul.py` | 6 |
 | `src/lucidshark/plugins/test_runners/jest.py` | 6 |
-| `src/lucidshark/plugins/go_utils.py` | 5 |
 | `src/lucidshark/plugins/linters/eslint.py` | 5 |
 
 ## Security Summary
@@ -41,13 +41,13 @@
 
 ## Test Coverage
 
-**84.0%** ████████░░ ↑ +0.5%
+**84.1%** ████████░░
 
 ## Score Trend
 
 ```
 Score: 9.1 → 9.1 → 9.1 → 9.1 → 9.1
-       03-13   03-13   03-13   03-13   03-14
+       03-13   03-13   03-14   03-14   03-14
 ```
 
 ---

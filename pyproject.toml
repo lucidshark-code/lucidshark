@@ -123,6 +123,7 @@ maven = "lucidshark.plugins.test_runners.maven:MavenTestRunner"
 cargo = "lucidshark.plugins.test_runners.cargo:CargoTestRunner"
 go_test = "lucidshark.plugins.test_runners.go_test:GoTestRunner"
 vitest = "lucidshark.plugins.test_runners.vitest:VitestRunner"
+mocha = "lucidshark.plugins.test_runners.mocha:MochaRunner"
 
 [project.entry-points."lucidshark.coverage"]
 coverage_py = "lucidshark.plugins.coverage.coverage_py:CoveragePyPlugin"

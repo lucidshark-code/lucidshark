@@ -440,6 +440,70 @@ class TestBiomeParseOutput:
         assert issues[1].severity == Severity.MEDIUM
 
 
+    def test_parse_mixed_string_and_dict_diagnostics(self) -> None:
+        """Test parsing output where diagnostics contain both strings and dicts.
+
+        Biome may include summary strings in the diagnostics array.
+        The parser should skip strings and only process dict entries.
+        Regression test for BUG-NEW-006.
+        """
+        linter = BiomeLinter()
+        output = json.dumps(
+            {
+                "diagnostics": [
+                    "Some summary or header string from Biome",
+                    {
+                        "severity": "error",
+                        "message": "Avoid using var",
+                        "category": "lint/style/noVar",
+                        "location": {
+                            "path": {"file": "src/app.js"},
+                            "lineStart": 5,
+                            "lineEnd": 5,
+                            "columnStart": 1,
+                            "columnEnd": 10,
+                        },
+                        "fixable": True,
+                    },
+                    "Another string entry",
+                    {
+                        "severity": "warning",
+                        "message": "Unexpected console statement",
+                        "category": "lint/suspicious/noConsole",
+                        "location": {
+                            "path": {"file": "src/utils.js"},
+                            "lineStart": 10,
+                            "lineEnd": 10,
+                            "columnStart": 1,
+                            "columnEnd": 20,
+                        },
+                        "fixable": False,
+                    },
+                ]
+            }
+        )
+
+        issues = linter._parse_output(output, Path("/project"))
+        assert len(issues) == 2
+        assert issues[0].rule_id == "lint/style/noVar"
+        assert issues[1].rule_id == "lint/suspicious/noConsole"
+
+    def test_parse_all_string_diagnostics(self) -> None:
+        """Test parsing output where all diagnostics are strings."""
+        linter = BiomeLinter()
+        output = json.dumps(
+            {
+                "diagnostics": [
+                    "Summary line 1",
+                    "Summary line 2",
+                ]
+            }
+        )
+
+        issues = linter._parse_output(output, Path("/project"))
+        assert issues == []
+
+
 class TestBiomeDiagnosticToIssue:
     """Tests for _diagnostic_to_issue method."""
 

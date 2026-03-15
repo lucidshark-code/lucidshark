@@ -1212,3 +1212,36 @@ class TestMandatoryToolFailures:
         exit_code = cmd.execute(args, config)
 
         assert exit_code == EXIT_SUCCESS
+
+    @patch.object(ScanCommand, "_run_scan")
+    @patch("lucidshark.cli.commands.scan.get_reporter_plugin")
+    def test_execution_failed_skip_not_mandatory_by_default(
+        self, mock_get_reporter, mock_run_scan, tmp_path: Path
+    ) -> None:
+        """EXECUTION_FAILED tool skips should not cause exit 1 by default (BUG-NEW-008).
+
+        When all executed scanners succeed with 0 issues, tool skips due to
+        execution failures (e.g., binary not found) should not cause the CLI
+        to return EXIT_ISSUES_FOUND.  Users can opt into strict behavior via
+        strict_mode or per-tool mandatory config.
+        """
+        result = ScanResult(issues=[])
+        result.tool_skips = [
+            ToolSkipInfo(
+                tool_name="eslint",
+                domain=ToolDomain.LINTING,
+                reason=SkipReason.EXECUTION_FAILED,
+                message="Failed to run ESLint: [Errno 2] No such file or directory",
+                mandatory=False,
+            )
+        ]
+        mock_run_scan.return_value = result
+        mock_get_reporter.return_value = MagicMock()
+
+        cmd = ScanCommand(version="1.0.0")
+        config = _make_config(fail_on=None)
+        args = _make_args(tmp_path)
+
+        exit_code = cmd.execute(args, config)
+
+        assert exit_code == EXIT_SUCCESS

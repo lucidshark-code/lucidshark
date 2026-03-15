@@ -322,6 +322,112 @@ class TestPrettierFormatterCheck:
                 assert "File needs formatting: b.css" in titles
 
 
+class TestPrettierLooksLikeFilePath:
+    """Tests for _looks_like_file_path — the fix for BUG-003 (ghost issues)."""
+
+    def test_valid_file_paths(self) -> None:
+        assert PrettierFormatter._looks_like_file_path("src/app.js") is True
+        assert PrettierFormatter._looks_like_file_path("test.tsx") is True
+        assert PrettierFormatter._looks_like_file_path("styles/main.css") is True
+        assert PrettierFormatter._looks_like_file_path("data.json") is True
+        assert PrettierFormatter._looks_like_file_path("docs/README.md") is True
+        assert PrettierFormatter._looks_like_file_path("/abs/path/to/file.ts") is True
+        assert PrettierFormatter._looks_like_file_path("path\\to\\file.js") is True
+
+    def test_error_messages_rejected(self) -> None:
+        """Prettier error messages must not be treated as file paths (BUG-003)."""
+        assert (
+            PrettierFormatter._looks_like_file_path(
+                "Error occurred when checking code style in the above file."
+            )
+            is False
+        )
+        assert (
+            PrettierFormatter._looks_like_file_path(
+                "SyntaxError: Unexpected token (1:0)"
+            )
+            is False
+        )
+        assert (
+            PrettierFormatter._looks_like_file_path("Unable to resolve parser") is False
+        )
+        assert (
+            PrettierFormatter._looks_like_file_path(
+                "Invalid configuration file detected"
+            )
+            is False
+        )
+
+    def test_info_summary_lines_rejected(self) -> None:
+        assert (
+            PrettierFormatter._looks_like_file_path("Checking formatting...") is False
+        )
+        assert (
+            PrettierFormatter._looks_like_file_path(
+                "All matched files use Prettier code style!"
+            )
+            is False
+        )
+        assert (
+            PrettierFormatter._looks_like_file_path(
+                "Code style issues found in 3 files."
+            )
+            is False
+        )
+
+    def test_diagnostic_prefix_lines_rejected(self) -> None:
+        assert (
+            PrettierFormatter._looks_like_file_path("[error] something went wrong")
+            is False
+        )
+        assert (
+            PrettierFormatter._looks_like_file_path("[info] Prettier 3.2.1") is False
+        )
+        assert (
+            PrettierFormatter._looks_like_file_path("[debug] Using config from .prettierrc")
+            is False
+        )
+
+    def test_empty_and_whitespace_rejected(self) -> None:
+        assert PrettierFormatter._looks_like_file_path("") is False
+        assert PrettierFormatter._looks_like_file_path("   ") is False
+
+    def test_no_extension_no_separator_rejected(self) -> None:
+        """Plain words without extension or path separator are not file paths."""
+        assert PrettierFormatter._looks_like_file_path("something") is False
+
+    def test_error_in_check_output_filtered(self) -> None:
+        """End-to-end: stderr-like error text in stdout should not create issues."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            project_root = Path(tmpdir)
+            (project_root / "test.js").write_text("const x=1;\n")
+
+            formatter = PrettierFormatter(project_root=project_root)
+            context = _make_context(project_root, [project_root / "test.js"])
+
+            # Simulate prettier output that mixes a real file path with error messages
+            stdout = (
+                "[warn] test.js\n"
+                "Error occurred when checking code style in the above file.\n"
+                "[error] Unable to resolve parser for unknown-file\n"
+                "SyntaxError: Unexpected token (3:5)\n"
+            )
+            result = make_completed_process(1, stdout)
+            with (
+                patch(
+                    "lucidshark.plugins.formatters.prettier.run_with_streaming",
+                    return_value=result,
+                ),
+                patch.object(
+                    formatter, "ensure_binary", return_value=Path("/usr/bin/prettier")
+                ),
+            ):
+                issues = formatter.check(context)
+                # Only the real file path should produce an issue
+                assert len(issues) == 1
+                assert "test.js" in issues[0].title
+
+
 class TestPrettierFormatterEnsureBinary:
     def test_ensure_binary_not_found(self) -> None:
         formatter = PrettierFormatter(project_root=Path("/nonexistent"))
