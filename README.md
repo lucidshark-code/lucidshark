@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/lucidshark)](https://pypi.org/project/lucidshark/)
 [![License](https://img.shields.io/github/license/toniantunovi/lucidshark)](https://github.com/toniantunovi/lucidshark/blob/main/LICENSE)
 
-**Unified code quality pipeline for AI-assisted development.**
+**Unified code quality and security scanner for AI-assisted development.**
 
 ```
 AI writes code → LucidShark checks → AI fixes → repeat
