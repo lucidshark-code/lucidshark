@@ -1,6 +1,6 @@
 # Repository Quality Overview
 
-> **Branch:** main | **Updated:** 2026-03-15 | **Commit:** `54040f8`
+> **Branch:** main | **Updated:** 2026-03-16 | **Commit:** `b1d13bf`
 
 ## Health Score: 9.1 / 10  █████████░
 
@@ -12,15 +12,19 @@
 | Testing | ✓ Pass | 0 | → |
 | SCA | ✓ Pass | 0 | → |
 | SAST | ✓ Pass | 0 | → |
+| Linting | ✓ Pass | 0 | → |
+| Type Checking | ✓ Pass | 0 | → |
+| Formatting | ✓ Pass | 0 | → |
+| Testing | ✓ Pass | 0 | → |
 | Coverage | ✓ Pass | 0 | → |
-| Duplication | ✓ Pass | 50 | → |
+| Duplication | ✓ Pass | 53 | ↓ +3.0 |
 
 ## Issues by Severity
 
 - 🔴 **Critical:** 0
 - 🟠 **High:** 0
 - 🟡 **Medium:** 0
-- 🔵 **Low:** 50
+- 🔵 **Low:** 53
 
 ## Top Files by Issues
 
@@ -41,7 +45,7 @@
 
 ## Test Coverage
 
-**84.3%** ████████░░
+**84.1%** ████████░░ ↓ -0.2%
 
 ## Score Trend
 
