@@ -56,14 +56,15 @@ VALID_TOP_LEVEL_KEYS: Set[str] = {
     "version",
     "project",
     "fail_on",
-    "ignore",
-    "exclude",  # Alias for ignore
+    "exclude",  # Global file/directory exclude patterns
     "ignore_issues",
     "output",
     "scanners",
     "enrichers",
     "pipeline",
     "ai",
+    "overview",
+    "settings",
 }
 
 # Valid keys under output section
@@ -257,8 +258,9 @@ def validate_config(
     for key in data.keys():
         if key not in VALID_TOP_LEVEL_KEYS:
             suggestion = _suggest_key(key, VALID_TOP_LEVEL_KEYS)
+            valid_keys_list = _format_valid_keys(VALID_TOP_LEVEL_KEYS)
             warning = ConfigValidationWarning(
-                message=f"Unknown top-level key '{key}'",
+                message=f"Unknown top-level key '{key}'. Supported keys: {valid_keys_list}",
                 source=source,
                 key=key,
                 suggestion=suggestion,
@@ -286,8 +288,9 @@ def validate_config(
             for domain, value in fail_on.items():
                 if domain not in VALID_FAIL_ON_DOMAINS:
                     suggestion = _suggest_key(domain, VALID_FAIL_ON_DOMAINS)
+                    valid_domains_list = _format_valid_keys(VALID_FAIL_ON_DOMAINS)
                     warning = ConfigValidationWarning(
-                        message=f"Unknown domain '{domain}' in 'fail_on'",
+                        message=f"Unknown domain '{domain}' in 'fail_on'. Supported domains: {valid_domains_list}",
                         source=source,
                         key=f"fail_on.{domain}",
                         suggestion=suggestion,
@@ -322,19 +325,7 @@ def validate_config(
                 )
             )
 
-    # Validate ignore
-    ignore = data.get("ignore")
-    if ignore is not None:
-        if not isinstance(ignore, list):
-            warnings.append(
-                ConfigValidationWarning(
-                    message=f"'ignore' must be a list, got {type(ignore).__name__}",
-                    source=source,
-                    key="ignore",
-                )
-            )
-
-    # Validate exclude (alias for ignore)
+    # Validate exclude
     exclude = data.get("exclude")
     if exclude is not None:
         if not isinstance(exclude, list):
@@ -483,8 +474,9 @@ def validate_config(
             for key in output.keys():
                 if key not in VALID_OUTPUT_KEYS:
                     suggestion = _suggest_key(key, VALID_OUTPUT_KEYS)
+                    valid_keys_list = _format_valid_keys(VALID_OUTPUT_KEYS)
                     warning = ConfigValidationWarning(
-                        message=f"Unknown key 'output.{key}'",
+                        message=f"Unknown key 'output.{key}'. Supported keys: {valid_keys_list}",
                         source=source,
                         key=f"output.{key}",
                         suggestion=suggestion,
@@ -508,8 +500,9 @@ def validate_config(
                 # Warn on unknown domains (but allow them)
                 if domain not in VALID_DOMAINS:
                     suggestion = _suggest_key(domain, VALID_DOMAINS)
+                    valid_domains_list = _format_valid_keys(VALID_DOMAINS)
                     warning = ConfigValidationWarning(
-                        message=f"Unknown scanner domain '{domain}'",
+                        message=f"Unknown scanner domain '{domain}'. Supported domains: {valid_domains_list}",
                         source=source,
                         key=f"scanners.{domain}",
                         suggestion=suggestion,
@@ -557,8 +550,9 @@ def validate_config(
             for key in pipeline.keys():
                 if key not in VALID_PIPELINE_KEYS:
                     suggestion = _suggest_key(key, VALID_PIPELINE_KEYS)
+                    valid_keys_list = _format_valid_keys(VALID_PIPELINE_KEYS)
                     warning = ConfigValidationWarning(
-                        message=f"Unknown key 'pipeline.{key}'",
+                        message=f"Unknown key 'pipeline.{key}'. Supported keys: {valid_keys_list}",
                         source=source,
                         key=f"pipeline.{key}",
                         suggestion=suggestion,
@@ -606,8 +600,9 @@ def validate_config(
                     for key in domain_config.keys():
                         if key not in valid_keys:
                             suggestion = _suggest_key(key, valid_keys)
+                            valid_keys_list = _format_valid_keys(valid_keys)
                             warning = ConfigValidationWarning(
-                                message=f"Unknown key 'pipeline.{domain}.{key}'",
+                                message=f"Unknown key 'pipeline.{domain}.{key}'. Supported keys: {valid_keys_list}",
                                 source=source,
                                 key=f"pipeline.{domain}.{key}",
                                 suggestion=suggestion,
@@ -694,8 +689,11 @@ def validate_config(
                 for key in security_config.keys():
                     if key not in VALID_PIPELINE_SECURITY_KEYS:
                         suggestion = _suggest_key(key, VALID_PIPELINE_SECURITY_KEYS)
+                        valid_keys_list = _format_valid_keys(
+                            VALID_PIPELINE_SECURITY_KEYS
+                        )
                         warning = ConfigValidationWarning(
-                            message=f"Unknown key 'pipeline.security.{key}'",
+                            message=f"Unknown key 'pipeline.security.{key}'. Supported keys: {valid_keys_list}",
                             source=source,
                             key=f"pipeline.security.{key}",
                             suggestion=suggestion,
@@ -743,8 +741,11 @@ def validate_config(
                 for key in duplication_config.keys():
                     if key not in VALID_PIPELINE_DUPLICATION_KEYS:
                         suggestion = _suggest_key(key, VALID_PIPELINE_DUPLICATION_KEYS)
+                        valid_keys_list = _format_valid_keys(
+                            VALID_PIPELINE_DUPLICATION_KEYS
+                        )
                         warning = ConfigValidationWarning(
-                            message=f"Unknown key 'pipeline.duplication.{key}'",
+                            message=f"Unknown key 'pipeline.duplication.{key}'. Supported keys: {valid_keys_list}",
                             source=source,
                             key=f"pipeline.duplication.{key}",
                             suggestion=suggestion,
@@ -817,8 +818,9 @@ def validate_config(
             for key in ai.keys():
                 if key not in VALID_AI_KEYS:
                     suggestion = _suggest_key(key, VALID_AI_KEYS)
+                    valid_keys_list = _format_valid_keys(VALID_AI_KEYS)
                     warning = ConfigValidationWarning(
-                        message=f"Unknown key 'ai.{key}'",
+                        message=f"Unknown key 'ai.{key}'. Supported keys: {valid_keys_list}",
                         source=source,
                         key=f"ai.{key}",
                         suggestion=suggestion,
@@ -850,8 +852,9 @@ def validate_config(
                     )
                 elif provider.lower() not in VALID_AI_PROVIDERS:
                     suggestion = _suggest_key(provider.lower(), VALID_AI_PROVIDERS)
+                    valid_providers_list = _format_valid_keys(VALID_AI_PROVIDERS)
                     warning = ConfigValidationWarning(
-                        message=f"Unknown AI provider '{provider}'",
+                        message=f"Unknown AI provider '{provider}'. Supported providers: {valid_providers_list}",
                         source=source,
                         key="ai.provider",
                         suggestion=suggestion,
@@ -918,6 +921,18 @@ def _suggest_key(invalid_key: str, valid_keys: Set[str]) -> Optional[str]:
     """
     matches = get_close_matches(invalid_key, list(valid_keys), n=1, cutoff=0.6)
     return matches[0] if matches else None
+
+
+def _format_valid_keys(valid_keys: Set[str]) -> str:
+    """Format a set of valid keys for display in error messages.
+
+    Args:
+        valid_keys: Set of valid keys.
+
+    Returns:
+        Comma-separated list of valid keys, sorted alphabetically.
+    """
+    return ", ".join(sorted(valid_keys))
 
 
 def _log_warning(warning: ConfigValidationWarning) -> None:

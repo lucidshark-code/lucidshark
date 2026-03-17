@@ -266,54 +266,27 @@ class TestConfigLoaderDomainExcludes:
 
 
 class TestTopLevelExcludeKey:
-    """Tests for the top-level 'exclude' key (alias for 'ignore')."""
+    """Tests for the top-level 'exclude' key."""
 
-    def test_exclude_key_maps_to_ignore(self) -> None:
-        """Test that top-level 'exclude' key populates config.ignore."""
+    def test_exclude_key_populates_config(self) -> None:
+        """Test that top-level 'exclude' key populates config.exclude."""
         data: Dict[str, Any] = {
             "exclude": ["**/.venv/**", "**/dist/**"],
         }
         config = dict_to_config(data)
-        assert config.ignore == ["**/.venv/**", "**/dist/**"]
+        assert config.exclude == ["**/.venv/**", "**/dist/**"]
 
-    def test_ignore_key_still_works(self) -> None:
-        """Test backward compatibility: 'ignore' key still works."""
-        data: Dict[str, Any] = {
-            "ignore": ["**/.venv/**"],
-        }
-        config = dict_to_config(data)
-        assert config.ignore == ["**/.venv/**"]
-
-    def test_exclude_takes_precedence_over_ignore(self) -> None:
-        """Test that 'exclude' takes precedence when both are specified."""
-        data: Dict[str, Any] = {
-            "ignore": ["old_pattern/**"],
-            "exclude": ["new_pattern/**"],
-        }
-        config = dict_to_config(data)
-        # dict_to_config uses: data.get("exclude", data.get("ignore", []))
-        # When "exclude" is present, it wins.
-        assert config.ignore == ["new_pattern/**"]
-
-    def test_neither_key_defaults_to_empty(self) -> None:
-        """Test that config.ignore is empty when neither key is present."""
+    def test_no_exclude_key_defaults_to_empty(self) -> None:
+        """Test that config.exclude is empty when key is not present."""
         data: Dict[str, Any] = {}
         config = dict_to_config(data)
-        assert config.ignore == []
+        assert config.exclude == []
 
     def test_exclude_key_with_empty_list(self) -> None:
         """Test that empty exclude list is preserved."""
         data: Dict[str, Any] = {"exclude": []}
         config = dict_to_config(data)
-        assert config.ignore == []
-
-    def test_ignore_fallback_when_exclude_absent(self) -> None:
-        """Test that ignore is used as fallback when exclude is absent."""
-        data: Dict[str, Any] = {
-            "ignore": ["fallback_pattern/**"],
-        }
-        config = dict_to_config(data)
-        assert config.ignore == ["fallback_pattern/**"]
+        assert config.exclude == []
 
 
 class TestConfigValidationExcludes:
@@ -598,7 +571,7 @@ class TestDomainRunnerExcludePatterns:
         """Test that _context_with_domain_excludes merges domain patterns with global."""
         from lucidshark.core.domain_runner import DomainRunner
 
-        config = LucidSharkConfig(ignore=["**/.venv/**"])
+        config = LucidSharkConfig(exclude=["**/.venv/**"])
         runner = DomainRunner(Path("/project"), config)
 
         global_ignore = IgnorePatterns(["**/.venv/**"], source="global")
@@ -778,8 +751,8 @@ class TestCombiningGlobalAndDomainExcludes:
         }
         config = dict_to_config(data)
 
-        # Global excludes go to config.ignore
-        assert config.ignore == ["**/node_modules/**"]
+        # Global excludes go to config.exclude
+        assert config.exclude == ["**/node_modules/**"]
 
         # Domain excludes are on their respective configs
         assert config.pipeline.linting is not None
@@ -864,7 +837,7 @@ class TestCombiningGlobalAndDomainExcludes:
 
         runner = DomainRunner(Path("/project"), config)
 
-        global_ignore = IgnorePatterns(config.ignore, source="config")
+        global_ignore = IgnorePatterns(config.exclude, source="config")
         context = ScanContext(
             project_root=Path("/project"),
             paths=[],

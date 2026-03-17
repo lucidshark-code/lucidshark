@@ -52,7 +52,7 @@ def _make_config(**overrides: object) -> LucidSharkConfig:
         pipeline=PipelineConfig(),
         scanners={},
         fail_on=None,
-        ignore=[],
+        exclude=[],
     )
     defaults.update(overrides)
     return LucidSharkConfig(**defaults)  # type: ignore[arg-type]

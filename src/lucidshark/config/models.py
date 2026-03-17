@@ -319,7 +319,7 @@ class LucidSharkConfig:
 
     Example .lucidshark.yml:
         fail_on: high
-        ignore:
+        exclude:
           - "tests/**"
         scanners:
           sca:
@@ -334,7 +334,7 @@ class LucidSharkConfig:
     # Core config (validated)
     # fail_on can be a string (legacy) or FailOnConfig (per-domain thresholds)
     fail_on: Optional[Union[str, FailOnConfig]] = None
-    ignore: List[str] = field(default_factory=list)
+    exclude: List[str] = field(default_factory=list)  # Global exclude patterns
     ignore_issues: List[IgnoreIssueEntry] = field(default_factory=list)
     output: OutputConfig = field(default_factory=OutputConfig)
 

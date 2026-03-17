@@ -289,7 +289,7 @@ class ScanContext:
 
         paths = determine_scan_paths(project_root, files, all_files)
         paths, ignore_patterns = filter_paths_with_ignore(
-            paths, project_root, config.ignore
+            paths, project_root, config.exclude
         )
 
         return cls(

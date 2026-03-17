@@ -48,7 +48,7 @@ class TestValidateConfig:
         data = {
             "version": 1,
             "fail_on": "high",
-            "ignore": ["tests/**"],
+            "exclude": ["tests/**"],
             "output": {"format": "json"},
             "scanners": {
                 "sca": {"enabled": True},
@@ -84,8 +84,8 @@ class TestValidateConfig:
         assert len(warnings) == 1
         assert "must be a string" in warnings[0].message
 
-    def test_warns_on_invalid_ignore_type(self) -> None:
-        data = {"version": 1, "ignore": "should-be-list"}  # should be list
+    def test_warns_on_invalid_exclude_type(self) -> None:
+        data = {"version": 1, "exclude": "should-be-list"}  # should be list
         warnings = validate_config(data, source="test.yml")
         assert len(warnings) == 1
         assert "must be a list" in warnings[0].message
@@ -187,7 +187,7 @@ class TestValidateConfigFile:
 
     def test_valid_config_returns_valid(self, tmp_path: Path) -> None:
         config_file = tmp_path / "lucidshark.yml"
-        config_file.write_text("version: 1\nfail_on: high\nignore:\n  - tests/**\n")
+        config_file.write_text("version: 1\nfail_on: high\nexclude:\n  - tests/**\n")
 
         is_valid, issues = validate_config_file(config_file)
 
@@ -1055,9 +1055,9 @@ class TestValidateConfigExclude:
             for w in warnings
         )
 
-    def test_both_ignore_and_exclude_are_valid_top_level_keys(self) -> None:
-        """Both 'ignore' and 'exclude' should be accepted as top-level keys."""
-        data = {"version": 1, "ignore": ["a/**"], "exclude": ["b/**"]}
+    def test_exclude_is_valid_top_level_key(self) -> None:
+        """'exclude' should be accepted as a top-level key."""
+        data = {"version": 1, "exclude": ["b/**"]}
         warnings = validate_config(data, source="test.yml")
         assert not any("Unknown" in w.message for w in warnings)
 
@@ -1238,16 +1238,16 @@ class TestValidateConfigAliasKeys:
         unknown_warnings = [w for w in warnings if "Unknown top-level key" in w.message]
         assert any("exclude_patterns" in w.message for w in unknown_warnings)
 
-    def test_top_level_settings_triggers_warning(self) -> None:
-        """Top-level 'settings' should trigger unknown key warning."""
+    def test_top_level_settings_is_valid(self) -> None:
+        """Top-level 'settings' should be accepted as a valid key."""
         data = {"version": 1, "settings": {"strict_mode": True}}
         warnings = validate_config(data, source="test.yml")
         unknown_warnings = [w for w in warnings if "Unknown top-level key" in w.message]
-        assert any("settings" in w.message for w in unknown_warnings)
+        assert not any("settings" in w.message for w in unknown_warnings)
 
-    def test_top_level_overview_triggers_warning(self) -> None:
-        """Top-level 'overview' should trigger unknown key warning."""
+    def test_top_level_overview_is_valid(self) -> None:
+        """Top-level 'overview' should be accepted as a valid key."""
         data = {"version": 1, "overview": {"enabled": True}}
         warnings = validate_config(data, source="test.yml")
         unknown_warnings = [w for w in warnings if "Unknown top-level key" in w.message]
-        assert any("overview" in w.message for w in unknown_warnings)
+        assert not any("overview" in w.message for w in unknown_warnings)

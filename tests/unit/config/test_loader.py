@@ -125,7 +125,7 @@ class TestDictToConfig:
     def test_empty_dict_returns_default_config(self) -> None:
         config = dict_to_config({})
         assert config.fail_on is None
-        assert config.ignore == []
+        assert config.exclude == []
         assert config.output.format == "json"
         assert config.scanners == {}
 
@@ -133,9 +133,9 @@ class TestDictToConfig:
         config = dict_to_config({"fail_on": "high"})
         assert config.fail_on == "high"
 
-    def test_parses_ignore_patterns(self) -> None:
-        config = dict_to_config({"ignore": ["tests/**", "*.md"]})
-        assert config.ignore == ["tests/**", "*.md"]
+    def test_parses_exclude_patterns(self) -> None:
+        config = dict_to_config({"exclude": ["tests/**", "*.md"]})
+        assert config.exclude == ["tests/**", "*.md"]
 
     def test_parses_output_format(self) -> None:
         config = dict_to_config({"output": {"format": "table"}})
@@ -162,25 +162,10 @@ class TestDictToConfig:
         config = dict_to_config(data)
         assert config.enrichers == {"ai": {"enabled": False}}
 
-    def test_top_level_exclude_maps_to_ignore(self) -> None:
-        """Top-level 'exclude' key should be stored in the 'ignore' field."""
+    def test_top_level_exclude_populates_config(self) -> None:
+        """Top-level 'exclude' key should be stored in config.exclude."""
         config = dict_to_config({"exclude": ["vendor/**", "*.pb.go"]})
-        assert config.ignore == ["vendor/**", "*.pb.go"]
-
-    def test_top_level_exclude_takes_precedence_over_ignore(self) -> None:
-        """When both 'exclude' and 'ignore' are present, 'exclude' wins."""
-        config = dict_to_config(
-            {
-                "ignore": ["old_pattern/**"],
-                "exclude": ["new_pattern/**"],
-            }
-        )
-        assert config.ignore == ["new_pattern/**"]
-
-    def test_top_level_ignore_still_works_without_exclude(self) -> None:
-        """Backward compat: 'ignore' still works when 'exclude' is absent."""
-        config = dict_to_config({"ignore": ["tests/**"]})
-        assert config.ignore == ["tests/**"]
+        assert config.exclude == ["vendor/**", "*.pb.go"]
 
     def test_parses_domain_pipeline_exclude(self) -> None:
         """Domain pipeline configs should parse the 'exclude' field."""

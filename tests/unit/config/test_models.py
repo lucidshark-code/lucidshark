@@ -75,9 +75,9 @@ class TestLucidSharkConfig:
         config = LucidSharkConfig()
         assert config.fail_on is None
 
-    def test_default_ignore_is_empty_list(self) -> None:
+    def test_default_exclude_is_empty_list(self) -> None:
         config = LucidSharkConfig()
-        assert config.ignore == []
+        assert config.exclude == []
 
     def test_default_output_is_json(self) -> None:
         config = LucidSharkConfig()
@@ -94,11 +94,11 @@ class TestLucidSharkConfig:
     def test_custom_values(self) -> None:
         config = LucidSharkConfig(
             fail_on="high",
-            ignore=["tests/**"],
+            exclude=["tests/**"],
             output=OutputConfig(format="table"),
         )
         assert config.fail_on == "high"
-        assert config.ignore == ["tests/**"]
+        assert config.exclude == ["tests/**"]
         assert config.output.format == "table"
 
 

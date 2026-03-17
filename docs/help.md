@@ -892,7 +892,7 @@ pipeline:
 
   linting:
     enabled: true
-    exclude:          # Patterns to exclude from linting
+    exclude:          # Domain-level: exclude from linting only (still type-checked, tested, etc.)
       - "migrations/**"
       - "generated/**"
     tools:
@@ -907,7 +907,7 @@ pipeline:
 
   type_checking:
     enabled: true
-    exclude:          # Patterns to exclude from type checking
+    exclude:          # Domain-level: exclude from type checking only (still linted, tested, etc.)
       - "**/*_pb2.py"
     tools:
       - name: mypy
@@ -928,7 +928,7 @@ pipeline:
 
   security:
     enabled: true
-    exclude:          # Patterns to exclude from security scanning
+    exclude:          # Domain-level: exclude from security only (still linted and type-checked)
       - "tests/**"
       - "examples/**"
     tools:
@@ -943,7 +943,7 @@ pipeline:
     enabled: true
     command: "npm test"             # Optional: custom shell command overrides plugin-based runner
     post_command: "npm run cleanup" # Optional: runs after command completes
-    exclude:          # Patterns to exclude from test execution
+    exclude:          # Domain-level: exclude from test execution only (still linted/type-checked)
       - "tests/integration/**"
     tools:
       - name: pytest      # Python unit tests
@@ -958,7 +958,7 @@ pipeline:
   # Testing produces the coverage files that coverage analysis reads
   coverage:
     enabled: true
-    exclude:          # Patterns to exclude from coverage analysis
+    exclude:          # Domain-level: exclude from coverage analysis only
       - "scripts/**"
     tools: [coverage_py]  # coverage_py for Python, istanbul/vitest_coverage for JS/TS, jacoco for Java, tarpaulin for Rust, go_cover for Go
     threshold: 80  # Fail if coverage below this
@@ -969,7 +969,7 @@ pipeline:
     threshold: 10.0  # Max allowed duplication percentage
     min_lines: 4     # Minimum lines for a duplicate block
     min_chars: 3     # Minimum characters per line
-    exclude:         # Patterns to exclude from duplication scan
+    exclude:         # Domain-level: exclude from duplication scan only
       - "htmlcov/**"
       - "generated/**"
 
@@ -1680,22 +1680,129 @@ Per-domain failure thresholds:
 - `below_threshold` (coverage): Fail if coverage percentage is below `pipeline.coverage.threshold`
 - `above_threshold` (duplication): Fail if duplication percentage exceeds `pipeline.duplication.threshold`
 
+#### Understanding `exclude` vs `ignore_issues`
+
+LucidShark provides two distinct mechanisms for filtering unwanted results. It's important to understand when to use each:
+
+**`exclude` - File/Directory Level Filtering**
+- **What it does**: Prevents files and directories from being scanned at all
+- **When to use**: For build artifacts, dependencies, generated code, cache directories - anything that shouldn't be analyzed
+- **Behavior**: Files matching exclude patterns are completely skipped by all scanners
+- **Performance**: Improves scan speed by reducing files to analyze
+- **Example use cases**:
+  - `node_modules/`, `.venv/`, `dist/`, `build/` - dependencies and build outputs
+  - `**/__pycache__/**`, `**/.mypy_cache/**` - cache directories
+  - `migrations/`, `*.min.js` - generated or minified code
+
+**`ignore_issues` - Issue Level Filtering**
+- **What it does**: Files are scanned normally, but specific rule violations are acknowledged and suppressed
+- **When to use**: When a specific rule doesn't apply to your project or you've accepted a particular issue
+- **Behavior**: Issues are still detected and appear in output (tagged as "ignored"), but don't cause failures
+- **Performance**: No performance benefit - files are still fully scanned
+- **Example use cases**:
+  - `E501` - Line length rule that doesn't match your team's style
+  - `CVE-2021-3807` - Known vulnerability that's not exploitable in your context
+  - `S101` - Assert usage that's acceptable in test files
+
+**Quick Decision Guide**:
+- Don't want to scan certain files? → Use `exclude`
+- Want to scan files but suppress specific rules? → Use `ignore_issues`
+
+---
+
+#### Understanding Global vs Domain-Level `exclude`
+
+Within the `exclude` mechanism, you can specify patterns at two levels:
+
+**Global `exclude` (Top-Level Configuration)**
+- **What it does**: Excludes files/directories from ALL domains (linting, type checking, security, testing, coverage, duplication)
+- **When to use**: For files that should NEVER be scanned by any tool
+- **Scope**: Applies universally across the entire pipeline
+- **Example use cases**:
+  - Build outputs: `**/dist/**`, `**/build/**`, `**/target/**`
+  - Dependencies: `**/node_modules/**`, `**/.venv/**`, `**/vendor/**`
+  - Caches: `**/__pycache__/**`, `**/.mypy_cache/**`, `**/.ruff_cache/**`
+  - Version control: `**/.git/**`
+
+**Domain-Level `exclude` (Pipeline Section Configuration)**
+- **What it does**: Excludes files/directories from ONLY that specific domain
+- **When to use**: For files that should be scanned by some domains but not others
+- **Scope**: Applies only to the specific pipeline section (e.g., `pipeline.linting.exclude`)
+- **Example use cases**:
+  - `pipeline.linting.exclude: ["migrations/**"]` - Don't lint migrations, but still type-check and test them
+  - `pipeline.type_checking.exclude: ["**/*_pb2.py"]` - Don't type-check generated protobuf files, but still lint them
+  - `pipeline.testing.exclude: ["tests/integration/**"]` - Skip integration tests, but still lint/type-check the test code
+  - `pipeline.security.exclude: ["tests/**", "examples/**"]` - Don't run security scans on test/example code
+
+**How They Combine**:
+The effective exclusions for any domain are the **union** of:
+1. Global `exclude` patterns
+2. `.lucidsharkignore` file patterns
+3. Domain-specific `exclude` patterns
+
+**Example Configuration**:
+```yaml
+# Global: Never scan these files in any domain
+exclude:
+  - "**/.git/**"
+  - "**/node_modules/**"
+  - "**/__pycache__/**"
+  - "**/dist/**"
+  - "**/build/**"
+
+pipeline:
+  linting:
+    exclude:
+      - "migrations/**"        # Don't lint migrations
+      - "generated/**"          # Don't lint generated code
+
+  type_checking:
+    exclude:
+      - "**/*_pb2.py"          # Don't type-check protobuf files
+      - "**/*_pb2.pyi"
+
+  security:
+    exclude:
+      - "tests/**"             # Don't run security scans on tests
+      - "examples/**"
+```
+
+In this example:
+- `dist/`, `node_modules/`, etc. are excluded from **all domains**
+- `migrations/` is excluded from **linting only** (still type-checked, tested, scanned for security)
+- Protobuf files are excluded from **type checking only** (still linted)
+- Tests/examples are excluded from **security scanning only** (still linted and type-checked)
+
+**Quick Decision Guide**:
+- Should this file NEVER be scanned by anything? → Use global `exclude`
+- Should this file be excluded from only specific checks? → Use domain-level `exclude`
+
 #### `exclude`
 
-Global array of glob patterns for files/directories to exclude from all domains:
+Global array of glob patterns for files/directories to exclude from **all domains**. **Files matching these patterns are not scanned at all.**
 
 ```yaml
 exclude:
   - "**/node_modules/**"
   - "**/.venv/**"
-  - "**/test_*.py"
+  - "**/dist/**"
+  - "**/__pycache__/**"
 ```
 
-Per-domain `exclude` patterns can be set in each pipeline section for domain-specific exclusions. The effective excludes for any domain are the union of global `exclude`, `.lucidsharkignore`, and the domain's own `exclude` patterns. See [Exclude Patterns](exclude-patterns.md) for the full reference.
+Domain-specific `exclude` patterns can be set in each pipeline section (e.g., `pipeline.linting.exclude`) to exclude files from only that domain. The effective exclusions for any domain are the **union** of:
+1. Global `exclude` patterns (this section)
+2. `.lucidsharkignore` file patterns
+3. Domain-specific `exclude` patterns
+
+See [Understanding Global vs Domain-Level `exclude`](#understanding-global-vs-domain-level-exclude) above for when to use each, and [Exclude Patterns](exclude-patterns.md) for the full reference.
+
+**Note**: To suppress specific rule violations while still scanning files, use `ignore_issues` instead. See [Understanding `exclude` vs `ignore_issues`](#understanding-exclude-vs-ignore_issues) above.
 
 #### `ignore_issues`
 
 Ignore specific issues by rule ID. Ignored issues are **acknowledged** -- they still appear in output (tagged as ignored) but are excluded from `fail_on` threshold checks and do not affect the exit code.
+
+**IMPORTANT**: `ignore_issues` suppresses specific rule violations but files are still scanned. To skip scanning files entirely (e.g., build artifacts, dependencies), use `exclude` instead. See [Understanding `exclude` vs `ignore_issues`](#understanding-exclude-vs-ignore_issues) above.
 
 Supports both simple strings and structured objects:
 

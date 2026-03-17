@@ -2,7 +2,7 @@
 
 Handles loading and matching of ignore patterns from:
 - .lucidsharkignore file (gitignore syntax)
-- config.ignore list (gitignore syntax)
+- config.exclude list (gitignore syntax)
 
 Uses pathspec library for full gitignore compliance including:
 - ** recursive globbing
@@ -157,11 +157,11 @@ def load_ignore_patterns(
 
     Loads patterns from:
     1. .lucidsharkignore file (if present)
-    2. config.ignore list from .lucidshark.yml
+    2. config.exclude list from .lucidshark.yml
 
     Args:
         project_root: Project root directory.
-        config_patterns: Patterns from config.ignore.
+        config_patterns: Patterns from config.exclude.
 
     Returns:
         Merged IgnorePatterns instance.
@@ -171,14 +171,14 @@ def load_ignore_patterns(
     file_patterns = IgnorePatterns.from_file(ignore_file) if ignore_file else None
 
     # Load from config
-    config_ignore = (
-        IgnorePatterns(config_patterns, source="config.ignore")
+    config_exclude = (
+        IgnorePatterns(config_patterns, source="config.exclude")
         if config_patterns
         else None
     )
 
     # Merge (file patterns first, then config)
-    return IgnorePatterns.merge(file_patterns, config_ignore)
+    return IgnorePatterns.merge(file_patterns, config_exclude)
 
 
 def filter_paths_with_ignore(
@@ -195,7 +195,7 @@ def filter_paths_with_ignore(
     Args:
         paths: List of paths to filter.
         project_root: Project root directory.
-        config_patterns: Patterns from config.ignore.
+        config_patterns: Patterns from config.exclude.
 
     Returns:
         Tuple of (filtered_paths, ignore_patterns).

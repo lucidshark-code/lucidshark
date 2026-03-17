@@ -565,7 +565,7 @@ def dict_to_config(data: Dict[str, Any]) -> LucidSharkConfig:
     return LucidSharkConfig(
         project=project,
         fail_on=fail_on,
-        ignore=data.get("exclude", data.get("ignore", [])),
+        exclude=data.get("exclude", []),
         ignore_issues=ignore_issues,
         output=output,
         scanners=scanners,
