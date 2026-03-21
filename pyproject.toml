@@ -2,6 +2,78 @@
 # This file is used for development tooling configuration only.
 # LucidShark is distributed as a standalone binary via install.sh
 
+# Minimal project config for development (pip install -e .)
+[project]
+name = "lucidshark"
+version = "0.0.0-dev"
+requires-python = ">=3.10"
+
+# Entry points for plugin discovery
+[project.entry-points."lucidshark.linters"]
+ruff = "lucidshark.plugins.linters.ruff:RuffLinter"
+eslint = "lucidshark.plugins.linters.eslint:ESLintLinter"
+biome = "lucidshark.plugins.linters.biome:BiomeLinter"
+clippy = "lucidshark.plugins.linters.clippy:ClippyLinter"
+golangci_lint = "lucidshark.plugins.linters.golangci_lint:GoLangCILintLinter"
+checkstyle = "lucidshark.plugins.linters.checkstyle:CheckstyleLinter"
+pmd = "lucidshark.plugins.linters.pmd:PmdLinter"
+
+[project.entry-points."lucidshark.scanners"]
+trivy = "lucidshark.plugins.scanners.trivy:TrivyScanner"
+opengrep = "lucidshark.plugins.scanners.opengrep:OpenGrepScanner"
+checkov = "lucidshark.plugins.scanners.checkov:CheckovScanner"
+gosec = "lucidshark.plugins.scanners.gosec:GosecScanner"
+
+[project.entry-points."lucidshark.reporters"]
+ai = "lucidshark.plugins.reporters.ai_reporter:AIReporter"
+json = "lucidshark.plugins.reporters.json_reporter:JSONReporter"
+sarif = "lucidshark.plugins.reporters.sarif_reporter:SARIFReporter"
+summary = "lucidshark.plugins.reporters.summary_reporter:SummaryReporter"
+table = "lucidshark.plugins.reporters.table_reporter:TableReporter"
+
+[project.entry-points."lucidshark.type_checkers"]
+mypy = "lucidshark.plugins.type_checkers.mypy:MypyChecker"
+pyright = "lucidshark.plugins.type_checkers.pyright:PyrightChecker"
+typescript = "lucidshark.plugins.type_checkers.typescript:TypeScriptChecker"
+spotbugs = "lucidshark.plugins.type_checkers.spotbugs:SpotBugsChecker"
+cargo_check = "lucidshark.plugins.type_checkers.cargo_check:CargoCheckChecker"
+go_vet = "lucidshark.plugins.type_checkers.go_vet:GoVetChecker"
+
+[project.entry-points."lucidshark.test_runners"]
+pytest = "lucidshark.plugins.test_runners.pytest:PytestRunner"
+jest = "lucidshark.plugins.test_runners.jest:JestRunner"
+karma = "lucidshark.plugins.test_runners.karma:KarmaRunner"
+playwright = "lucidshark.plugins.test_runners.playwright:PlaywrightRunner"
+maven = "lucidshark.plugins.test_runners.maven:MavenTestRunner"
+cargo = "lucidshark.plugins.test_runners.cargo:CargoTestRunner"
+go_test = "lucidshark.plugins.test_runners.go_test:GoTestRunner"
+vitest = "lucidshark.plugins.test_runners.vitest:VitestRunner"
+mocha = "lucidshark.plugins.test_runners.mocha:MochaRunner"
+
+[project.entry-points."lucidshark.coverage"]
+coverage_py = "lucidshark.plugins.coverage.coverage_py:CoveragePyPlugin"
+istanbul = "lucidshark.plugins.coverage.istanbul:IstanbulPlugin"
+jacoco = "lucidshark.plugins.coverage.jacoco:JaCoCoPlugin"
+tarpaulin = "lucidshark.plugins.coverage.tarpaulin:TarpaulinPlugin"
+go_cover = "lucidshark.plugins.coverage.go_cover:GoCoverPlugin"
+vitest_coverage = "lucidshark.plugins.coverage.vitest:VitestCoveragePlugin"
+
+[project.entry-points."lucidshark.duplication"]
+duplo = "lucidshark.plugins.duplication.duplo:DuploPlugin"
+
+[project.entry-points."lucidshark.formatters"]
+ruff_format = "lucidshark.plugins.formatters.ruff_format:RuffFormatter"
+prettier = "lucidshark.plugins.formatters.prettier:PrettierFormatter"
+rustfmt = "lucidshark.plugins.formatters.rustfmt:RustfmtFormatter"
+gofmt = "lucidshark.plugins.formatters.gofmt:GofmtFormatter"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 # Pytest configuration
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

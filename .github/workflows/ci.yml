@@ -84,21 +84,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-          # Add src to PYTHONPATH so lucidshark module can be imported
-          echo "PYTHONPATH=$PWD/src:$PYTHONPATH" >> $GITHUB_ENV
-
-      - name: Debug - Check tool availability
-        run: |
-          echo "Checking which tools:"
-          which ruff || echo "ruff not in PATH"
-          which mypy || echo "mypy not in PATH"
-          which pytest || echo "pytest not in PATH"
-          which coverage || echo "coverage not in PATH"
-          echo "PATH: $PATH"
-          echo "Testing shutil.which in Python:"
-          python -c "import shutil, os; print(f'PATH={os.environ.get(\"PATH\")}'); print(f'ruff: {shutil.which(\"ruff\")}'); print(f'mypy: {shutil.which(\"mypy\")}'); print(f'pytest: {shutil.which(\"pytest\")}'); print(f'coverage: {shutil.which(\"coverage\")}')"
-          echo "Checking for .venv directory:"
-          ls -la .venv/bin/ 2>/dev/null || echo "No .venv directory"
+          # Install lucidshark in editable mode to register entry points
+          pip install -e .
 
       - name: Run LucidShark (full scan)
         run: |
@@ -149,8 +136,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
-          # Add src to PYTHONPATH so lucidshark module can be imported
-          echo "PYTHONPATH=$PWD/src:$PYTHONPATH" >> $GITHUB_ENV
+          # Install lucidshark in editable mode to register entry points
+          pip install -e .
 
       - name: Download scan results
         uses: actions/download-artifact@v8
