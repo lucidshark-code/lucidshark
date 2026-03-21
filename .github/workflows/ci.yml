@@ -97,6 +97,8 @@ jobs:
           echo "PATH: $PATH"
           echo "Testing shutil.which in Python:"
           python -c "import shutil, os; print(f'PATH={os.environ.get(\"PATH\")}'); print(f'ruff: {shutil.which(\"ruff\")}'); print(f'mypy: {shutil.which(\"mypy\")}'); print(f'pytest: {shutil.which(\"pytest\")}'); print(f'coverage: {shutil.which(\"coverage\")}')"
+          echo "Checking for .venv directory:"
+          ls -la .venv/bin/ 2>/dev/null || echo "No .venv directory"
 
       - name: Run LucidShark (full scan)
         run: |

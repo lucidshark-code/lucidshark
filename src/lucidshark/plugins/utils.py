@@ -168,17 +168,27 @@ def ensure_python_binary(
     Raises:
         FileNotFoundError: If the binary is not installed.
     """
+    import os
+    # DEBUG: Print environment
+    print(f"[DEBUG] ensure_python_binary: binary_name={binary_name}, project_root={project_root}")
+    print(f"[DEBUG] PATH={os.environ.get('PATH')}")
+
     # Check project venv first
     if project_root:
         venv_binary = project_root / ".venv" / "bin" / binary_name
+        print(f"[DEBUG] Checking venv_binary: {venv_binary}, exists={venv_binary.exists()}")
         if venv_binary.exists() and _is_binary_executable(venv_binary):
+            print(f"[DEBUG] Found in venv: {venv_binary}")
             return venv_binary
 
     # Check system PATH
     system_binary = shutil.which(binary_name)
+    print(f"[DEBUG] shutil.which({binary_name}) = {system_binary}")
     if system_binary:
+        print(f"[DEBUG] Found in PATH: {system_binary}")
         return Path(system_binary)
 
+    print(f"[DEBUG] Not found! Raising FileNotFoundError")
     raise FileNotFoundError(install_instructions)
 
 
