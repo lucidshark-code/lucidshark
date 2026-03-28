@@ -1,6 +1,6 @@
 """clang-tidy linter plugin.
 
-clang-tidy is a clang-based C++ linter that provides diagnostics and
+clang-tidy is a clang-based C/C++ linter that provides diagnostics and
 fixes for typical programming errors, style violations, and
 interface misuse.
 https://clang.llvm.org/extra/clang-tidy/
@@ -79,7 +79,7 @@ _DIAG_RE = re.compile(
 
 
 class ClangTidyLinter(LinterPlugin):
-    """clang-tidy linter plugin for C++ code analysis."""
+    """clang-tidy linter plugin for C/C++ code analysis."""
 
     def __init__(self, project_root: Optional[Path] = None, **kwargs) -> None:
         self._project_root = project_root
@@ -90,7 +90,7 @@ class ClangTidyLinter(LinterPlugin):
 
     @property
     def languages(self) -> List[str]:
-        return ["c++"]
+        return ["c", "c++"]
 
     @property
     def supports_fix(self) -> bool:
@@ -117,10 +117,10 @@ class ClangTidyLinter(LinterPlugin):
             LOGGER.warning(str(e))
             return []
 
-        # Collect C++ source files
+        # Collect C/C++ source files
         files = self._collect_files(context)
         if not files:
-            LOGGER.debug("No C++ files to lint")
+            LOGGER.debug("No C/C++ files to lint")
             return []
 
         cmd = [str(binary)]
@@ -220,7 +220,7 @@ class ClangTidyLinter(LinterPlugin):
         return self._calculate_fix_stats(pre_issues, post_issues)
 
     def _collect_files(self, context: ScanContext) -> List[str]:
-        """Collect C++ files to lint.
+        """Collect C/C++ files to lint.
 
         Args:
             context: Scan context.
@@ -245,7 +245,7 @@ class ClangTidyLinter(LinterPlugin):
                     files.append(str(path))
             return files
 
-        # Default: find all C++ files in project
+        # Default: find all C/C++ files in project
         files = []
         for ext in CPP_EXTENSIONS:
             for f in context.project_root.rglob(f"*{ext}"):

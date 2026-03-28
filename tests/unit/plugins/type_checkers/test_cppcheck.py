@@ -43,7 +43,7 @@ class TestCppcheckProperties:
 
     def test_languages(self) -> None:
         checker = CppcheckChecker()
-        assert checker.languages == ["c++"]
+        assert checker.languages == ["c", "c++"]
 
     def test_domain(self) -> None:
         checker = CppcheckChecker()

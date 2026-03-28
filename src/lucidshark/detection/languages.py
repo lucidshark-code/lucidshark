@@ -88,6 +88,7 @@ MARKER_FILES = {
     "scala": ["build.sbt"],
     "ruby": ["Gemfile"],
     "php": ["composer.json"],
+    "c": ["CMakeLists.txt", "Makefile", "makefile", "GNUmakefile", "meson.build"],
     "cpp": ["CMakeLists.txt"],
     "swift": ["Package.swift"],
 }

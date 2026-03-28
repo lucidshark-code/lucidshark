@@ -41,7 +41,7 @@ class TestCTestProperties:
 
     def test_languages(self) -> None:
         runner = CTestRunner()
-        assert runner.languages == ["c++"]
+        assert runner.languages == ["c", "c++"]
 
     def test_domain(self) -> None:
         runner = CTestRunner()

@@ -51,7 +51,7 @@ _TEXT_RE = re.compile(r"^\[(.+?):(\d+)\]:\s+\((\w+)\)\s+(.+)$")
 
 
 class CppcheckChecker(TypeCheckerPlugin):
-    """Cppcheck static analysis plugin for C++ code."""
+    """Cppcheck static analysis plugin for C/C++ code."""
 
     def __init__(self, project_root: Optional[Path] = None, **kwargs) -> None:
         self._project_root = project_root
@@ -62,7 +62,7 @@ class CppcheckChecker(TypeCheckerPlugin):
 
     @property
     def languages(self) -> List[str]:
-        return ["c++"]
+        return ["c", "c++"]
 
     @property
     def supports_strict_mode(self) -> bool:
@@ -92,7 +92,7 @@ class CppcheckChecker(TypeCheckerPlugin):
         # Determine target paths
         targets = self._get_targets(context)
         if not targets:
-            LOGGER.debug("No C++ files to check")
+            LOGGER.debug("No C/C++ files to check")
             return []
 
         cmd = [

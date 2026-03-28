@@ -104,6 +104,7 @@ def _get_frozen_plugins(group: str) -> Dict[str, Type]:
             ('tarpaulin', 'lucidshark.plugins.coverage.tarpaulin', 'TarpaulinPlugin'),
             ('go_cover', 'lucidshark.plugins.coverage.go_cover', 'GoCoverPlugin'),
             ('vitest_coverage', 'lucidshark.plugins.coverage.vitest', 'VitestCoveragePlugin'),
+            ('gcov', 'lucidshark.plugins.coverage.gcov', 'GcovPlugin'),
             ('lcov', 'lucidshark.plugins.coverage.lcov', 'LcovPlugin'),
             ('scoverage', 'lucidshark.plugins.coverage.scoverage', 'ScoveragePlugin'),
             ('swift_coverage', 'lucidshark.plugins.coverage.swift_coverage', 'SwiftCoveragePlugin'),

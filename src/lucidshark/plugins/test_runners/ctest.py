@@ -36,7 +36,7 @@ LOGGER = get_logger(__name__)
 
 
 class CTestRunner(TestRunnerPlugin):
-    """CTest test runner plugin for C++ test execution."""
+    """CTest test runner plugin for C/C++ test execution."""
 
     def __init__(self, project_root: Optional[Path] = None, **kwargs) -> None:
         self._project_root = project_root
@@ -47,7 +47,7 @@ class CTestRunner(TestRunnerPlugin):
 
     @property
     def languages(self) -> List[str]:
-        return ["c++"]
+        return ["c", "c++"]
 
     def get_version(self) -> str:
         return get_tool_version(find_ctest)
@@ -464,10 +464,10 @@ class CTestRunner(TestRunnerPlugin):
         if not output:
             return None, None
 
-        # Match C++ file patterns like "test_main.cpp:42:" or "test_main.cpp(42):"
+        # Match C/C++ file patterns like "test_main.cpp:42:" or "test_main.cpp(42):"
         patterns = [
-            re.compile(r"(\S+\.(?:cpp|cc|cxx|hpp|h)):(\d+):"),
-            re.compile(r"(\S+\.(?:cpp|cc|cxx|hpp|h))\((\d+)\)"),
+            re.compile(r"(\S+\.(?:cpp|cc|cxx|hpp|h|c)):(\d+):"),
+            re.compile(r"(\S+\.(?:cpp|cc|cxx|hpp|h|c))\((\d+)\)"),
         ]
 
         for line in output.splitlines():

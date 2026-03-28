@@ -1,6 +1,6 @@
 """clang-format formatter plugin.
 
-Wraps `clang-format` for C++ code formatting.
+Wraps `clang-format` for C/C++ code formatting.
 https://clang.llvm.org/docs/ClangFormat.html
 """
 
@@ -33,7 +33,7 @@ LOGGER = get_logger(__name__)
 
 
 class ClangFormatFormatter(FormatterPlugin):
-    """clang-format formatter plugin for C++ code formatting."""
+    """clang-format formatter plugin for C/C++ code formatting."""
 
     @property
     def name(self) -> str:
@@ -41,7 +41,7 @@ class ClangFormatFormatter(FormatterPlugin):
 
     @property
     def languages(self) -> List[str]:
-        return ["c++"]
+        return ["c", "c++"]
 
     def get_version(self) -> str:
         return get_tool_version(find_clang_format)
@@ -68,7 +68,7 @@ class ClangFormatFormatter(FormatterPlugin):
 
         paths = self._resolve_paths(context, CPP_EXTENSIONS, fallback_to_cwd=False)
         if not paths:
-            LOGGER.debug("No C++ files to format-check")
+            LOGGER.debug("No C/C++ files to format-check")
             return []
 
         cmd = [str(binary), "--dry-run", "--Werror"] + paths
@@ -180,7 +180,7 @@ class ClangFormatFormatter(FormatterPlugin):
 
         # Pattern matches clang-format warning lines
         warning_re = re.compile(
-            r"^(.+\.(?:cpp|cc|cxx|hpp|h|hh|hxx)):(\d+):\d+:\s+warning:"
+            r"^(.+\.(?:cpp|cc|cxx|hpp|h|hh|hxx|c)):(\d+):\d+:\s+warning:"
         )
 
         for line in output.splitlines():

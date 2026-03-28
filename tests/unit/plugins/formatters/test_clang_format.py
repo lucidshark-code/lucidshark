@@ -21,7 +21,7 @@ class TestClangFormatProperties:
 
     def test_languages(self) -> None:
         formatter = ClangFormatFormatter()
-        assert formatter.languages == ["c++"]
+        assert formatter.languages == ["c", "c++"]
 
     def test_supports_fix(self) -> None:
         formatter = ClangFormatFormatter()

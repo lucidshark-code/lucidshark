@@ -25,7 +25,7 @@ class TestClangTidyProperties:
 
     def test_languages(self) -> None:
         linter = ClangTidyLinter()
-        assert linter.languages == ["c++"]
+        assert linter.languages == ["c", "c++"]
 
     def test_supports_fix(self) -> None:
         linter = ClangTidyLinter()
