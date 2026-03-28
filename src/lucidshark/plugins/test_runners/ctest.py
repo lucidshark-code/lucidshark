@@ -8,7 +8,6 @@ https://cmake.org/cmake/help/latest/manual/ctest.1.html
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from pathlib import Path
 from typing import List, Optional
@@ -165,7 +164,7 @@ class CTestRunner(TestRunnerPlugin):
         Returns:
             TestResult with parsed data.
         """
-        import xml.etree.ElementTree as ET
+        import defusedxml.ElementTree as ET  # type: ignore[import-untyped]
 
         result = TestResult(tool="ctest")
 
@@ -179,7 +178,7 @@ class CTestRunner(TestRunnerPlugin):
         for test_elem in root.iter("Test"):
             status = test_elem.get("Status", "")
             name_elem = test_elem.find("Name")
-            test_name = name_elem.text if name_elem is not None else "unknown"
+            test_name = (name_elem.text or "unknown") if name_elem is not None else "unknown"
 
             if status == "passed":
                 result.passed += 1

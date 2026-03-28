@@ -7,12 +7,11 @@ cppcheck, ctest, gcov) to avoid code duplication.
 from __future__ import annotations
 
 import hashlib
-import os
 import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 from lucidshark.core.logging import get_logger
 
