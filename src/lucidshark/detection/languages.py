@@ -352,9 +352,7 @@ def _detect_swift_version(project_root: Path) -> Optional[str]:
     if package_swift.exists():
         try:
             content = package_swift.read_text()
-            match = re.search(
-                r"swift-tools-version:\s*(\d+\.\d+)", content
-            )
+            match = re.search(r"swift-tools-version:\s*(\d+\.\d+)", content)
             if match:
                 return match.group(1)
         except Exception:

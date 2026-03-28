@@ -12,7 +12,6 @@ import pytest
 
 from lucidshark.core.models import ScanContext, Severity, ToolDomain
 from lucidshark.plugins.coverage.swift_coverage import SwiftCoveragePlugin
-from lucidshark.plugins.coverage.base import CoverageResult, FileCoverage
 
 
 def _make_context(
@@ -126,7 +125,7 @@ class TestSwiftCoverageMeasure:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             (project_root / "Package.swift").write_text(
-                '// swift-tools-version:5.9\nimport PackageDescription\n'
+                "// swift-tools-version:5.9\nimport PackageDescription\n"
             )
 
             plugin = SwiftCoveragePlugin(project_root=project_root)
@@ -144,25 +143,33 @@ class TestSwiftCoverageMeasure:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             (project_root / "Package.swift").write_text(
-                '// swift-tools-version:5.9\nimport PackageDescription\n'
+                "// swift-tools-version:5.9\nimport PackageDescription\n"
             )
 
             coverage_data = {
-                "data": [{
-                    "totals": {
-                        "lines": {"count": 100, "covered": 80, "percent": 80.0}
-                    },
-                    "files": [{
-                        "filename": "Sources/MyLib/Calculator.swift",
-                        "summary": {
-                            "lines": {"count": 50, "covered": 40, "percent": 80.0}
+                "data": [
+                    {
+                        "totals": {
+                            "lines": {"count": 100, "covered": 80, "percent": 80.0}
                         },
-                        "segments": [
-                            [1, 1, 1, True, True],
-                            [10, 1, 0, True, False],
+                        "files": [
+                            {
+                                "filename": "Sources/MyLib/Calculator.swift",
+                                "summary": {
+                                    "lines": {
+                                        "count": 50,
+                                        "covered": 40,
+                                        "percent": 80.0,
+                                    }
+                                },
+                                "segments": [
+                                    [1, 1, 1, True, True],
+                                    [10, 1, 0, True, False],
+                                ],
+                            }
                         ],
-                    }],
-                }],
+                    }
+                ],
             }
 
             plugin = SwiftCoveragePlugin(project_root=project_root)
@@ -181,16 +188,18 @@ class TestSwiftCoverageMeasure:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             (project_root / "Package.swift").write_text(
-                '// swift-tools-version:5.9\nimport PackageDescription\n'
+                "// swift-tools-version:5.9\nimport PackageDescription\n"
             )
 
             coverage_data = {
-                "data": [{
-                    "totals": {
-                        "lines": {"count": 100, "covered": 50, "percent": 50.0}
-                    },
-                    "files": [],
-                }],
+                "data": [
+                    {
+                        "totals": {
+                            "lines": {"count": 100, "covered": 50, "percent": 50.0}
+                        },
+                        "files": [],
+                    }
+                ],
             }
 
             plugin = SwiftCoveragePlugin(project_root=project_root)
@@ -211,31 +220,41 @@ class TestSwiftCoverageMeasure:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             (project_root / "Package.swift").write_text(
-                '// swift-tools-version:5.9\nimport PackageDescription\n'
+                "// swift-tools-version:5.9\nimport PackageDescription\n"
             )
 
             coverage_data = {
-                "data": [{
-                    "totals": {
-                        "lines": {"count": 200, "covered": 180, "percent": 90.0}
-                    },
-                    "files": [
-                        {
-                            "filename": "Sources/App/Main.swift",
-                            "summary": {
-                                "lines": {"count": 100, "covered": 90, "percent": 90.0}
-                            },
-                            "segments": [],
+                "data": [
+                    {
+                        "totals": {
+                            "lines": {"count": 200, "covered": 180, "percent": 90.0}
                         },
-                        {
-                            "filename": "Sources/App/Utils.swift",
-                            "summary": {
-                                "lines": {"count": 100, "covered": 90, "percent": 90.0}
+                        "files": [
+                            {
+                                "filename": "Sources/App/Main.swift",
+                                "summary": {
+                                    "lines": {
+                                        "count": 100,
+                                        "covered": 90,
+                                        "percent": 90.0,
+                                    }
+                                },
+                                "segments": [],
                             },
-                            "segments": [],
-                        },
-                    ],
-                }],
+                            {
+                                "filename": "Sources/App/Utils.swift",
+                                "summary": {
+                                    "lines": {
+                                        "count": 100,
+                                        "covered": 90,
+                                        "percent": 90.0,
+                                    }
+                                },
+                                "segments": [],
+                            },
+                        ],
+                    }
+                ],
             }
 
             plugin = SwiftCoveragePlugin(project_root=project_root)
@@ -265,10 +284,12 @@ class TestSwiftCoverageExportCoverage:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             codecov_json = {
-                "data": [{
-                    "totals": {"lines": {"count": 10, "covered": 8}},
-                    "files": [],
-                }]
+                "data": [
+                    {
+                        "totals": {"lines": {"count": 10, "covered": 8}},
+                        "files": [],
+                    }
+                ]
             }
 
             # Create the codecov file
@@ -330,21 +351,23 @@ class TestSwiftCoverageParseLlvmCovExport:
         """Test parsing full llvm-cov JSON export."""
         plugin = SwiftCoveragePlugin()
         data = {
-            "data": [{
-                "totals": {
-                    "lines": {"count": 100, "covered": 80, "percent": 80.0}
-                },
-                "files": [{
-                    "filename": "Sources/MyLib/Calculator.swift",
-                    "summary": {
-                        "lines": {"count": 50, "covered": 40, "percent": 80.0}
-                    },
-                    "segments": [
-                        [1, 1, 1, True, True],
-                        [10, 1, 0, True, False],
+            "data": [
+                {
+                    "totals": {"lines": {"count": 100, "covered": 80, "percent": 80.0}},
+                    "files": [
+                        {
+                            "filename": "Sources/MyLib/Calculator.swift",
+                            "summary": {
+                                "lines": {"count": 50, "covered": 40, "percent": 80.0}
+                            },
+                            "segments": [
+                                [1, 1, 1, True, True],
+                                [10, 1, 0, True, False],
+                            ],
+                        }
                     ],
-                }],
-            }],
+                }
+            ],
         }
 
         result = plugin._parse_llvm_cov_export(data, Path("/project"), 80.0)
@@ -358,12 +381,12 @@ class TestSwiftCoverageParseLlvmCovExport:
         """Test that coverage below threshold creates an issue."""
         plugin = SwiftCoveragePlugin()
         data = {
-            "data": [{
-                "totals": {
-                    "lines": {"count": 100, "covered": 60, "percent": 60.0}
-                },
-                "files": [],
-            }],
+            "data": [
+                {
+                    "totals": {"lines": {"count": 100, "covered": 60, "percent": 60.0}},
+                    "files": [],
+                }
+            ],
         }
 
         result = plugin._parse_llvm_cov_export(data, Path("/project"), 80.0)
@@ -381,10 +404,10 @@ class TestSwiftCoverageExtractMissingLines:
         plugin = SwiftCoveragePlugin()
         file_entry = {
             "segments": [
-                [1, 1, 1, True, True],    # line 1: covered
-                [5, 1, 0, True, False],    # line 5: not covered
-                [10, 1, 0, True, False],   # line 10: not covered
-                [15, 1, 3, True, True],    # line 15: covered
+                [1, 1, 1, True, True],  # line 1: covered
+                [5, 1, 0, True, False],  # line 5: not covered
+                [10, 1, 0, True, False],  # line 10: not covered
+                [15, 1, 3, True, True],  # line 15: covered
             ]
         }
         missing = plugin._extract_missing_lines(file_entry)

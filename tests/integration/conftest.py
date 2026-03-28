@@ -865,14 +865,14 @@ def _can_swift_build() -> bool:
 
             # Create minimal Package.swift
             (tmpdir_path / "Package.swift").write_text(
-                '// swift-tools-version: 5.9\n'
-                'import PackageDescription\n'
-                'let package = Package(\n'
+                "// swift-tools-version: 5.9\n"
+                "import PackageDescription\n"
+                "let package = Package(\n"
                 '    name: "Test",\n'
-                '    targets: [\n'
+                "    targets: [\n"
                 '        .executableTarget(name: "Test")\n'
-                '    ]\n'
-                ')\n'
+                "    ]\n"
+                ")\n"
             )
 
             # Create minimal source

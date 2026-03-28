@@ -5,13 +5,12 @@ from __future__ import annotations
 import subprocess
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from lucidshark.core.models import ScanContext, Severity, ToolDomain
 from lucidshark.plugins.test_runners.swift_test import SwiftTestRunner
-from lucidshark.plugins.test_runners.base import TestResult
 
 
 def make_completed_process(
@@ -120,7 +119,7 @@ class TestSwiftTestRunTests:
     def _setup_swift_project(self, project_root: Path) -> None:
         """Write a minimal Package.swift so the project is detected."""
         (project_root / "Package.swift").write_text(
-            '// swift-tools-version:5.9\nimport PackageDescription\n'
+            "// swift-tools-version:5.9\nimport PackageDescription\n"
         )
 
     def test_no_package_swift(self) -> None:
@@ -243,9 +242,7 @@ class TestSwiftTestRunTests:
                 enabled_domains=[ToolDomain.TESTING, ToolDomain.COVERAGE],
             )
 
-            stdout = (
-                "     Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.002) seconds\n"
-            )
+            stdout = "     Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.002) seconds\n"
             mock_result = make_completed_process(0, stdout)
             with (
                 patch(
@@ -276,9 +273,7 @@ class TestSwiftTestRunTests:
                 enabled_domains=[ToolDomain.TESTING],
             )
 
-            stdout = (
-                "     Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.002) seconds\n"
-            )
+            stdout = "     Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.002) seconds\n"
             mock_result = make_completed_process(0, stdout)
             with (
                 patch(
@@ -382,9 +377,7 @@ class TestExtractFailedTests:
     def test_extracts_xctest_failures(self) -> None:
         """Test extracting XCTest-style test failures."""
         runner = SwiftTestRunner()
-        output = (
-            "Test Case '-[MyTests.CalculatorTests testDivide]' failed (0.002 seconds).\n"
-        )
+        output = "Test Case '-[MyTests.CalculatorTests testDivide]' failed (0.002 seconds).\n"
         failures = runner._extract_failed_tests(output)
         assert len(failures) == 1
         assert "MyTests.CalculatorTests testDivide" in failures[0][0]
@@ -415,7 +408,7 @@ class TestFailureToIssue:
         runner = SwiftTestRunner()
         issue = runner._failure_to_issue(
             "MyTests.CalculatorTests testDivide",
-            "XCTAssertEqual failed: (\"1\") is not equal to (\"0\")",
+            'XCTAssertEqual failed: ("1") is not equal to ("0")',
             Path("/project"),
         )
         assert issue is not None

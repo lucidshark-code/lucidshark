@@ -6,7 +6,7 @@ import json
 import subprocess
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -199,16 +199,18 @@ class TestSwiftLintLint:
             linter = SwiftLintLinter(project_root=project_root)
             context = _make_context(project_root, [swift_file])
 
-            violations = json.dumps([
-                {
-                    "file": str(swift_file),
-                    "line": 10,
-                    "character": 5,
-                    "severity": "warning",
-                    "rule_id": "line_length",
-                    "reason": "Line should be 120 characters or less",
-                }
-            ])
+            violations = json.dumps(
+                [
+                    {
+                        "file": str(swift_file),
+                        "line": 10,
+                        "character": 5,
+                        "severity": "warning",
+                        "rule_id": "line_length",
+                        "reason": "Line should be 120 characters or less",
+                    }
+                ]
+            )
             result = make_completed_process(1, violations)
             with (
                 patch(
@@ -237,24 +239,26 @@ class TestSwiftLintLint:
             linter = SwiftLintLinter(project_root=project_root)
             context = _make_context(project_root, [swift_file])
 
-            violations = json.dumps([
-                {
-                    "file": str(swift_file),
-                    "line": 1,
-                    "character": 1,
-                    "severity": "error",
-                    "rule_id": "force_cast",
-                    "reason": "Force casts should be avoided",
-                },
-                {
-                    "file": str(swift_file),
-                    "line": 5,
-                    "character": 10,
-                    "severity": "warning",
-                    "rule_id": "trailing_whitespace",
-                    "reason": "Lines should not have trailing whitespace",
-                },
-            ])
+            violations = json.dumps(
+                [
+                    {
+                        "file": str(swift_file),
+                        "line": 1,
+                        "character": 1,
+                        "severity": "error",
+                        "rule_id": "force_cast",
+                        "reason": "Force casts should be avoided",
+                    },
+                    {
+                        "file": str(swift_file),
+                        "line": 5,
+                        "character": 10,
+                        "severity": "warning",
+                        "rule_id": "trailing_whitespace",
+                        "reason": "Lines should not have trailing whitespace",
+                    },
+                ]
+            )
             result = make_completed_process(1, violations)
             with (
                 patch(
@@ -291,9 +295,7 @@ class TestSwiftLintLint:
             with (
                 patch(
                     "lucidshark.plugins.linters.swiftlint.run_with_streaming",
-                    side_effect=subprocess.TimeoutExpired(
-                        cmd="swiftlint", timeout=300
-                    ),
+                    side_effect=subprocess.TimeoutExpired(cmd="swiftlint", timeout=300),
                 ),
                 patch.object(linter, "ensure_binary", return_value=FAKE_BINARY),
             ):
@@ -370,16 +372,18 @@ class TestSwiftLintFix:
             context = _make_context(project_root, [swift_file])
 
             # Pre-fix: 1 issue
-            pre_output = json.dumps([
-                {
-                    "file": str(swift_file),
-                    "line": 1,
-                    "character": 1,
-                    "severity": "warning",
-                    "rule_id": "trailing_whitespace",
-                    "reason": "Lines should not have trailing whitespace",
-                }
-            ])
+            pre_output = json.dumps(
+                [
+                    {
+                        "file": str(swift_file),
+                        "line": 1,
+                        "character": 1,
+                        "severity": "warning",
+                        "rule_id": "trailing_whitespace",
+                        "reason": "Lines should not have trailing whitespace",
+                    }
+                ]
+            )
             # Post-fix: 0 issues
             post_output = json.dumps([])
             fix_result = make_completed_process(0, "")
@@ -465,16 +469,18 @@ class TestSwiftLintParseOutput:
     def test_parse_single_violation(self) -> None:
         """Test parsing single violation."""
         linter = SwiftLintLinter()
-        output = json.dumps([
-            {
-                "file": "/project/File.swift",
-                "line": 10,
-                "character": 5,
-                "severity": "warning",
-                "rule_id": "line_length",
-                "reason": "Line should be 120 characters or less",
-            }
-        ])
+        output = json.dumps(
+            [
+                {
+                    "file": "/project/File.swift",
+                    "line": 10,
+                    "character": 5,
+                    "severity": "warning",
+                    "rule_id": "line_length",
+                    "reason": "Line should be 120 characters or less",
+                }
+            ]
+        )
 
         issues = linter._parse_output(output, Path("/project"))
         assert len(issues) == 1
@@ -604,7 +610,10 @@ class TestSwiftLintViolationToIssue:
 
         issue = linter._violation_to_issue(violation, Path("/project"))
         assert issue is not None
-        assert issue.documentation_url == "https://realm.github.io/SwiftLint/line_length.html"
+        assert (
+            issue.documentation_url
+            == "https://realm.github.io/SwiftLint/line_length.html"
+        )
 
 
 class TestSwiftLintIssueIdGeneration:

@@ -182,7 +182,7 @@ class TestSwiftCompilerCheck:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             (project_root / "Package.swift").write_text(
-                '// swift-tools-version:5.9\nimport PackageDescription\n'
+                "// swift-tools-version:5.9\nimport PackageDescription\n"
             )
 
             checker = SwiftCompilerChecker(project_root=project_root)
@@ -204,7 +204,7 @@ class TestSwiftCompilerCheck:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             (project_root / "Package.swift").write_text(
-                '// swift-tools-version:5.9\nimport PackageDescription\n'
+                "// swift-tools-version:5.9\nimport PackageDescription\n"
             )
 
             checker = SwiftCompilerChecker(project_root=project_root)
@@ -264,7 +264,7 @@ class TestSwiftCompilerCheck:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             (project_root / "Package.swift").write_text(
-                '// swift-tools-version:5.9\nimport PackageDescription\n'
+                "// swift-tools-version:5.9\nimport PackageDescription\n"
             )
 
             checker = SwiftCompilerChecker(project_root=project_root)
@@ -287,7 +287,7 @@ class TestSwiftCompilerCheck:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             (project_root / "Package.swift").write_text(
-                '// swift-tools-version:5.9\nimport PackageDescription\n'
+                "// swift-tools-version:5.9\nimport PackageDescription\n"
             )
 
             checker = SwiftCompilerChecker(project_root=project_root)
@@ -315,7 +315,7 @@ class TestSwiftCompilerCheck:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             (project_root / "Package.swift").write_text(
-                '// swift-tools-version:5.9\nimport PackageDescription\n'
+                "// swift-tools-version:5.9\nimport PackageDescription\n"
             )
 
             checker = SwiftCompilerChecker(project_root=project_root)
@@ -341,7 +341,7 @@ class TestSwiftCompilerCheck:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
             (project_root / "Package.swift").write_text(
-                '// swift-tools-version:5.9\nimport PackageDescription\n'
+                "// swift-tools-version:5.9\nimport PackageDescription\n"
             )
 
             checker = SwiftCompilerChecker(project_root=project_root)

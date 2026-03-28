@@ -16,7 +16,6 @@ from tests.integration.projects.conftest import (
     run_lucidshark,
     swift_available,
     swiftlint_available,
-    swiftformat_available,
 )
 
 

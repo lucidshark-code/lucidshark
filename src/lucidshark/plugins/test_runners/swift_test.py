@@ -129,9 +129,7 @@ class SwiftTestRunner(TestRunnerPlugin):
 
         # Parse summary line for more accurate counts:
         # "Executed N tests, with M failure(s) (K unexpected) in X (Y) seconds"
-        summary_pattern = (
-            r"Executed (\d+) tests?, with (\d+) failures?"
-        )
+        summary_pattern = r"Executed (\d+) tests?, with (\d+) failures?"
         match = re.search(summary_pattern, output)
         if match:
             total = int(match.group(1))
@@ -237,9 +235,7 @@ class SwiftTestRunner(TestRunnerPlugin):
             LOGGER.warning(f"Failed to parse test failure: {e}")
             return None
 
-    def _resolve_test_file(
-        self, test_name: str, project_root: Path
-    ) -> Optional[Path]:
+    def _resolve_test_file(self, test_name: str, project_root: Path) -> Optional[Path]:
         """Resolve test file path from test name."""
         # test_name format: "Module.TestClass testMethod"
         parts = test_name.split(".")
