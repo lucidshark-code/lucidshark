@@ -1,30 +1,30 @@
 # Repository Quality Overview
 
-> **Branch:** main | **Updated:** 2026-03-28 | **Commit:** `bc70c3b`
+> **Branch:** main | **Updated:** 2026-03-28 | **Commit:** `bdf544c`
 
-## Health Score: 7.3 / 10  ███████░░░
+## Health Score: 7.1 / 10  ███████░░░ ↓ -0.2
 
 | Domain | Status | Issues | Trend |
 |--------|--------|--------|-------|
-| Linting | ⚠ Warn | 6 | → |
+| Linting | ⚠ Warn | 10 | ↓ +4.0 |
 | Type Checking | ✓ Pass | 0 | → |
-| Formatting | ⚠ Warn | 11 | ↑ -2.0 |
+| Formatting | ⚠ Warn | 11 | → |
 | Testing | ✓ Pass | 0 | → |
 | SCA | ✓ Pass | 0 | → |
 | SAST | ✓ Pass | 0 | → |
-| Linting | ⚠ Warn | 6 | → |
+| Linting | ⚠ Warn | 10 | ↓ +4.0 |
 | Type Checking | ✓ Pass | 0 | → |
-| Formatting | ⚠ Warn | 11 | ↑ -2.0 |
+| Formatting | ⚠ Warn | 11 | → |
 | Testing | ✓ Pass | 0 | → |
 | Coverage | ✓ Pass | 0 | → |
-| Duplication | ✓ Pass | 57 | ↓ +2.0 |
+| Duplication | ✓ Pass | 58 | ↓ +1.0 |
 
 ## Issues by Severity
 
 - 🔴 **Critical:** 0
 - 🟠 **High:** 0
-- 🟡 **Medium:** 6
-- 🔵 **Low:** 68
+- 🟡 **Medium:** 10
+- 🔵 **Low:** 69
 
 ## Top Files by Issues
 
@@ -45,12 +45,12 @@
 
 ## Test Coverage
 
-**83.5%** ████████░░ ↑ +0.3%
+**83.6%** ████████░░ ↑ +0.1%
 
 ## Score Trend
 
 ```
-Score: 9.1 → 9.1 → 9.1 → 8.2 → 7.3
+Score: 9.1 → 9.1 → 8.2 → 7.3 → 7.3
        03-28   03-28   03-28   03-28   03-28
 ```
 
