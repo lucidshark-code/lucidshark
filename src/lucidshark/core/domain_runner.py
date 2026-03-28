@@ -32,6 +32,7 @@ PLUGIN_LANGUAGES: Dict[str, List[str]] = {
     "pmd": ["java"],
     "dotnet_format": ["csharp"],
     "clang_tidy": ["c", "c++"],
+    "rubocop": ["ruby"],
     # Type checkers
     "mypy": ["python"],
     "pyright": ["python"],
@@ -41,6 +42,7 @@ PLUGIN_LANGUAGES: Dict[str, List[str]] = {
     "go_vet": ["go"],
     "dotnet_build": ["csharp"],
     "cppcheck": ["c", "c++"],
+    "sorbet": ["ruby"],
     # Test runners
     "pytest": ["python"],
     "jest": ["javascript", "typescript"],
@@ -52,6 +54,7 @@ PLUGIN_LANGUAGES: Dict[str, List[str]] = {
     "go_test": ["go"],
     "dotnet_test": ["csharp"],
     "ctest": ["c", "c++"],
+    "rspec": ["ruby"],
     # Coverage
     "coverage_py": ["python"],
     "istanbul": ["javascript", "typescript"],
@@ -62,6 +65,7 @@ PLUGIN_LANGUAGES: Dict[str, List[str]] = {
     "dotnet_coverage": ["csharp"],
     "gcov": ["c"],
     "lcov": ["c++"],
+    "simplecov": ["ruby"],
     # Duplication detection
     "duplo": [
         "python",
@@ -83,6 +87,7 @@ PLUGIN_LANGUAGES: Dict[str, List[str]] = {
     "gofmt": ["go"],
     "dotnet_format_whitespace": ["csharp"],
     "clang_format": ["c", "c++"],
+    "rubocop_format": ["ruby"],
 }
 
 # File extension to language mapping

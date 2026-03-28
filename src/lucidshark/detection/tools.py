@@ -96,6 +96,18 @@ TOOL_CONFIGS: Dict[str, Dict[str, Any]] = {
     "scalafix": {
         "files": [".scalafix.conf"],
     },
+    # Ruby linters
+    "rubocop": {
+        "files": [".rubocop.yml", ".rubocop.yaml"],
+    },
+    # Ruby type checkers
+    "sorbet": {
+        "files": ["sorbet/config"],
+    },
+    # Ruby test runners
+    "rspec": {
+        "files": [".rspec", "spec/spec_helper.rb"],
+    },
     # Go linters
     "golangci_lint": {
         "files": [

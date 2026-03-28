@@ -86,7 +86,7 @@ MARKER_FILES = {
     "rust": ["Cargo.toml"],
     "java": ["pom.xml", "build.gradle", "build.gradle.kts"],
     "scala": ["build.sbt"],
-    "ruby": ["Gemfile"],
+    "ruby": ["Gemfile", "Rakefile"],
     "php": ["composer.json"],
     "c": ["CMakeLists.txt", "Makefile", "makefile", "GNUmakefile", "meson.build"],
     "cpp": ["CMakeLists.txt"],
@@ -221,6 +221,8 @@ def _detect_version(language: str, project_root: Path) -> Optional[str]:
         return _detect_scala_version(project_root)
     elif language == "swift":
         return _detect_swift_version(project_root)
+    elif language == "ruby":
+        return _detect_ruby_version(project_root)
     return None
 
 
@@ -473,6 +475,38 @@ def _detect_swift_version(project_root: Path) -> Optional[str]:
             match = re.match(r"(\d+\.\d+)", version)
             if match:
                 return match.group(1)
+        except Exception:
+            pass
+
+    return None
+
+
+def _detect_ruby_version(project_root: Path) -> Optional[str]:
+    """Detect Ruby version from .ruby-version or Gemfile."""
+    # Check .ruby-version file (used by rbenv, rvm, asdf)
+    ruby_version_file = project_root / ".ruby-version"
+    if ruby_version_file.exists():
+        try:
+            version = ruby_version_file.read_text().strip()
+            # Extract version (e.g., "3.3.0" -> "3.3", "ruby-3.3.0" -> "3.3")
+            match = re.search(r"(\d+\.\d+)", version)
+            if match:
+                return match.group(1)
+        except Exception:
+            pass
+
+    # Check Gemfile for ruby version constraint
+    gemfile = project_root / "Gemfile"
+    if gemfile.exists():
+        try:
+            content = gemfile.read_text()
+            # Look for: ruby "3.3.0" or ruby '~> 3.3'
+            match = re.search(r"""ruby\s+['"]([^'"]+)['"]""", content)
+            if match:
+                version_spec = match.group(1)
+                version_match = re.search(r"(\d+\.\d+)", version_spec)
+                if version_match:
+                    return version_match.group(1)
         except Exception:
             pass
 
