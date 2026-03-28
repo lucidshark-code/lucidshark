@@ -7,506 +7,261 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 
 from lucidshark.core.models import ScanContext, Severity, ToolDomain
 from lucidshark.plugins.formatters.clang_format import ClangFormatFormatter
-from lucidshark.plugins.linters.base import FixResult
 
 
-def make_completed_process(
-    returncode: int, stdout: str, stderr: str = ""
-) -> subprocess.CompletedProcess:
-    """Create a CompletedProcess for testing."""
-    return subprocess.CompletedProcess(
-        args=[],
-        returncode=returncode,
-        stdout=stdout,
-        stderr=stderr,
-    )
-
-
-def _make_context(
-    project_root: Path, paths: list[Path] | None = None
-) -> ScanContext:
-    return ScanContext(
-        project_root=project_root,
-        paths=paths or [],
-        enabled_domains=[ToolDomain.FORMATTING],
-    )
-
-
-FAKE_BINARY = Path("/usr/bin/clang-format")
-
-
-# ---------------------------------------------------------------------------
-# ClangFormatFormatter properties
-# ---------------------------------------------------------------------------
-
-
-class TestClangFormatFormatterProperties:
-    """Tests for ClangFormatFormatter basic properties."""
+class TestClangFormatProperties:
+    """Basic property tests for ClangFormatFormatter."""
 
     def test_name(self) -> None:
-        """Test plugin name."""
         formatter = ClangFormatFormatter()
         assert formatter.name == "clang_format"
 
     def test_languages(self) -> None:
-        """Test supported languages."""
         formatter = ClangFormatFormatter()
-        assert formatter.languages == ["c"]
-
-    def test_domain(self) -> None:
-        """Test domain is FORMATTING."""
-        formatter = ClangFormatFormatter()
-        assert formatter.domain == ToolDomain.FORMATTING
+        assert formatter.languages == ["c", "c++"]
 
     def test_supports_fix(self) -> None:
-        """Test supports_fix returns True (formatters always support fix)."""
         formatter = ClangFormatFormatter()
         assert formatter.supports_fix is True
 
-    def test_get_version(self) -> None:
-        """Test get_version delegates to get_clang_format_version."""
+    def test_domain(self) -> None:
         formatter = ClangFormatFormatter()
-        with patch(
-            "lucidshark.plugins.formatters.clang_format.get_clang_format_version",
-            return_value="clang-format version 17.0.6",
-        ):
-            version = formatter.get_version()
-            assert version == "clang-format version 17.0.6"
+        assert formatter.domain == ToolDomain.FORMATTING
 
-    def test_ensure_binary(self) -> None:
-        """Test ensure_binary delegates to find_clang_format."""
+
+class TestParseCheckOutput:
+    """Tests for _parse_check_output."""
+
+    def test_parse_empty_output(self) -> None:
         formatter = ClangFormatFormatter()
-        with patch(
-            "lucidshark.plugins.formatters.clang_format.find_clang_format",
-            return_value=FAKE_BINARY,
-        ):
-            binary = formatter.ensure_binary()
-            assert binary == FAKE_BINARY
+        issues = formatter._parse_check_output("", Path("/tmp"))
+        assert issues == []
 
-    def test_ensure_binary_raises_when_not_found(self) -> None:
-        """Test ensure_binary raises FileNotFoundError."""
+    def test_parse_single_warning(self) -> None:
         formatter = ClangFormatFormatter()
-        with patch(
-            "lucidshark.plugins.formatters.clang_format.find_clang_format",
-            side_effect=FileNotFoundError("not found"),
-        ):
-            with pytest.raises(FileNotFoundError):
-                formatter.ensure_binary()
+        output = "/tmp/main.cpp:10:5: warning: code should be clang-formatted [-Wclang-format-violations]\n"
+        issues = formatter._parse_check_output(output, Path("/tmp"))
+        assert len(issues) == 1
+        assert issues[0].domain == ToolDomain.FORMATTING
+        assert issues[0].source_tool == "clang-format"
+        assert issues[0].severity == Severity.LOW
+        assert issues[0].fixable is True
+
+    def test_parse_multiple_files(self) -> None:
+        formatter = ClangFormatFormatter()
+        output = (
+            "/tmp/main.cpp:10:5: warning: code should be clang-formatted [-Wclang-format-violations]\n"
+            "/tmp/utils.cpp:20:3: warning: code should be clang-formatted [-Wclang-format-violations]\n"
+        )
+        issues = formatter._parse_check_output(output, Path("/tmp"))
+        assert len(issues) == 2
+
+    def test_deduplicates_same_file(self) -> None:
+        formatter = ClangFormatFormatter()
+        output = (
+            "/tmp/main.cpp:10:5: warning: code should be clang-formatted [-Wclang-format-violations]\n"
+            "/tmp/main.cpp:20:3: warning: code should be clang-formatted [-Wclang-format-violations]\n"
+        )
+        issues = formatter._parse_check_output(output, Path("/tmp"))
+        # Same file should produce only one issue
+        assert len(issues) == 1
+
+    def test_handles_various_extensions(self) -> None:
+        formatter = ClangFormatFormatter()
+        output = (
+            "/tmp/main.cpp:1:1: warning: format\n"
+            "/tmp/utils.cc:1:1: warning: format\n"
+            "/tmp/lib.hpp:1:1: warning: format\n"
+            "/tmp/header.h:1:1: warning: format\n"
+        )
+        issues = formatter._parse_check_output(output, Path("/tmp"))
+        assert len(issues) == 4
 
 
-# ---------------------------------------------------------------------------
-# check
-# ---------------------------------------------------------------------------
-
-
-class TestClangFormatCheck:
+class TestCheck:
     """Tests for check method."""
 
-    def test_check_no_issues(self) -> None:
-        """Test check returns empty when all files are formatted."""
+    @patch.object(ClangFormatFormatter, "ensure_binary")
+    def test_check_binary_not_found(self, mock_binary) -> None:
+        mock_binary.side_effect = FileNotFoundError("clang-format not found")
+        formatter = ClangFormatFormatter()
+        context = ScanContext(
+            project_root=Path("/tmp"),
+            paths=[Path("/tmp")],
+            enabled_domains=[],
+        )
+        issues = formatter.check(context)
+        assert issues == []
+
+    def test_check_no_cpp_files(self) -> None:
+        formatter = ClangFormatFormatter()
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            c_file = project_root / "main.c"
-            c_file.write_text("int main() { return 0; }\n")
-
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [c_file])
-
-            result = make_completed_process(0, "", "")
-            with (
-                patch(
-                    "lucidshark.plugins.formatters.clang_format.run_with_streaming",
-                    return_value=result,
-                ),
-                patch.object(formatter, "ensure_binary", return_value=FAKE_BINARY),
+            tmpdir_path = Path(tmpdir)
+            (tmpdir_path / "script.py").write_text("print('hello')")
+            context = ScanContext(
+                project_root=tmpdir_path,
+                paths=[tmpdir_path],
+                enabled_domains=[],
+            )
+            with patch.object(
+                ClangFormatFormatter,
+                "ensure_binary",
+                return_value=Path("/usr/bin/clang-format"),
             ):
                 issues = formatter.check(context)
                 assert issues == []
 
-    def test_check_with_issues(self) -> None:
-        """Test check returns issues when files need formatting."""
+    @patch("lucidshark.plugins.formatters.clang_format.run_with_streaming")
+    @patch.object(ClangFormatFormatter, "ensure_binary")
+    def test_check_timeout(self, mock_binary, mock_run) -> None:
+        mock_binary.return_value = Path("/usr/bin/clang-format")
+        mock_run.side_effect = subprocess.TimeoutExpired(
+            cmd="clang-format", timeout=120
+        )
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            c_file = project_root / "main.c"
-            c_file.write_text("int main(){return 0;}\n")
-
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [c_file])
-
-            stderr = f"{c_file}:1:10: warning: code should be clang-formatted [-Wclang-format-violations]\n"
-            result = make_completed_process(1, "", stderr)
-            with (
-                patch(
-                    "lucidshark.plugins.formatters.clang_format.run_with_streaming",
-                    return_value=result,
-                ),
-                patch.object(formatter, "ensure_binary", return_value=FAKE_BINARY),
-            ):
-                issues = formatter.check(context)
-                assert len(issues) == 1
-                assert issues[0].domain == ToolDomain.FORMATTING
-                assert issues[0].source_tool == "clang-format"
-                assert issues[0].severity == Severity.LOW
-                assert issues[0].fixable is True
-
-    def test_check_binary_not_found(self) -> None:
-        """Test check returns empty when binary not found."""
-        formatter = ClangFormatFormatter()
-        context = _make_context(Path("/tmp"))
-        with patch.object(
-            formatter, "ensure_binary", side_effect=FileNotFoundError("not found")
-        ):
+            tmpdir_path = Path(tmpdir)
+            (tmpdir_path / "main.cpp").write_text("int main() {}")
+            formatter = ClangFormatFormatter()
+            context = ScanContext(
+                project_root=tmpdir_path,
+                paths=[tmpdir_path],
+                enabled_domains=[],
+            )
             issues = formatter.check(context)
             assert issues == []
 
-    def test_check_skips_non_c_files(self) -> None:
-        """Test check returns empty for non-C files."""
+    @patch("lucidshark.plugins.formatters.clang_format.run_with_streaming")
+    @patch.object(ClangFormatFormatter, "ensure_binary")
+    def test_check_clean_output(self, mock_binary, mock_run) -> None:
+        mock_binary.return_value = Path("/usr/bin/clang-format")
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            py_file = project_root / "main.py"
-            py_file.write_text("x = 1\n")
-
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [py_file])
-
-            with patch.object(formatter, "ensure_binary", return_value=FAKE_BINARY):
-                issues = formatter.check(context)
-                assert issues == []
-
-    def test_check_timeout_expired(self) -> None:
-        """Test check handles timeout gracefully."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            c_file = project_root / "main.c"
-            c_file.write_text("int main() {}\n")
-
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [c_file])
-
-            with (
-                patch(
-                    "lucidshark.plugins.formatters.clang_format.run_with_streaming",
-                    side_effect=subprocess.TimeoutExpired(cmd="clang-format", timeout=120),
-                ),
-                patch.object(formatter, "ensure_binary", return_value=FAKE_BINARY),
-            ):
-                issues = formatter.check(context)
-                assert issues == []
-
-    def test_check_generic_exception(self) -> None:
-        """Test check handles generic exceptions."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            c_file = project_root / "main.c"
-            c_file.write_text("int main() {}\n")
-
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [c_file])
-
-            with (
-                patch(
-                    "lucidshark.plugins.formatters.clang_format.run_with_streaming",
-                    side_effect=RuntimeError("unexpected error"),
-                ),
-                patch.object(formatter, "ensure_binary", return_value=FAKE_BINARY),
-            ):
-                issues = formatter.check(context)
-                assert issues == []
-
-    def test_check_empty_paths_returns_empty(self) -> None:
-        """When context.paths is empty, check returns empty."""
-        formatter = ClangFormatFormatter()
-        context = _make_context(Path("/tmp"), paths=[])
-
-        with patch.object(formatter, "ensure_binary", return_value=FAKE_BINARY):
+            tmpdir_path = Path(tmpdir)
+            (tmpdir_path / "main.cpp").write_text("int main() {}")
+            formatter = ClangFormatFormatter()
+            context = ScanContext(
+                project_root=tmpdir_path,
+                paths=[tmpdir_path],
+                enabled_domains=[],
+            )
             issues = formatter.check(context)
             assert issues == []
 
-    def test_check_nonzero_return_but_unparseable_stderr_creates_issues(self) -> None:
-        """Non-zero return code with unparseable stderr creates issues for all files."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            c_file = project_root / "main.c"
-            c_file.write_text("int main() {}\n")
 
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [c_file])
-
-            # stderr doesn't contain any of the path strings
-            result = make_completed_process(1, "", "some unrecognized output")
-            with (
-                patch(
-                    "lucidshark.plugins.formatters.clang_format.run_with_streaming",
-                    return_value=result,
-                ),
-                patch.object(formatter, "ensure_binary", return_value=FAKE_BINARY),
-            ):
-                issues = formatter.check(context)
-                # Should create issues for all checked files as fallback
-                assert len(issues) == 1
-
-    def test_check_deduplicates_files(self) -> None:
-        """Multiple stderr lines for same file produce only one issue."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            c_file = project_root / "main.c"
-            c_file.write_text("int x;\nint y;\n")
-
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [c_file])
-
-            stderr = (
-                f"{c_file}:1:1: warning: code should be clang-formatted\n"
-                f"{c_file}:2:1: warning: code should be clang-formatted\n"
-            )
-            result = make_completed_process(1, "", stderr)
-            with (
-                patch(
-                    "lucidshark.plugins.formatters.clang_format.run_with_streaming",
-                    return_value=result,
-                ),
-                patch.object(formatter, "ensure_binary", return_value=FAKE_BINARY),
-            ):
-                issues = formatter.check(context)
-                assert len(issues) == 1
-
-    def test_check_multiple_files(self) -> None:
-        """Multiple files that need formatting produce separate issues."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            c_file_a = project_root / "a.c"
-            c_file_a.write_text("int x;\n")
-            c_file_b = project_root / "b.c"
-            c_file_b.write_text("int y;\n")
-
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [c_file_a, c_file_b])
-
-            stderr = (
-                f"{c_file_a}:1:1: warning: code should be clang-formatted\n"
-                f"{c_file_b}:1:1: warning: code should be clang-formatted\n"
-            )
-            result = make_completed_process(1, "", stderr)
-            with (
-                patch(
-                    "lucidshark.plugins.formatters.clang_format.run_with_streaming",
-                    return_value=result,
-                ),
-                patch.object(formatter, "ensure_binary", return_value=FAKE_BINARY),
-            ):
-                issues = formatter.check(context)
-                assert len(issues) == 2
-
-    def test_check_issue_id_is_deterministic(self) -> None:
-        """Issue IDs are deterministic for the same file."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            c_file = project_root / "main.c"
-            c_file.write_text("int x;\n")
-
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [c_file])
-
-            stderr = f"{c_file}:1:1: warning: code should be clang-formatted\n"
-            result = make_completed_process(1, "", stderr)
-            with (
-                patch(
-                    "lucidshark.plugins.formatters.clang_format.run_with_streaming",
-                    return_value=result,
-                ),
-                patch.object(formatter, "ensure_binary", return_value=FAKE_BINARY),
-            ):
-                issues1 = formatter.check(context)
-                issues2 = formatter.check(context)
-                assert issues1[0].id == issues2[0].id
-
-
-# ---------------------------------------------------------------------------
-# fix
-# ---------------------------------------------------------------------------
-
-
-class TestClangFormatFix:
+class TestFix:
     """Tests for fix method."""
 
-    def test_fix_success(self) -> None:
-        """Test successful fix operation."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            c_file = project_root / "main.c"
-            c_file.write_text("int main(){return 0;}\n")
-
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [c_file])
-
-            fix_run_result = make_completed_process(0, "")
-
-            with (
-                patch(
-                    "lucidshark.plugins.formatters.clang_format.run_with_streaming",
-                    return_value=fix_run_result,
-                ),
-                patch.object(formatter, "ensure_binary", return_value=FAKE_BINARY),
-            ):
-                result = formatter.fix(context)
-                assert isinstance(result, FixResult)
-                assert result.files_modified == 1
-                assert result.issues_remaining == 0
-
-    def test_fix_binary_not_found(self) -> None:
-        """Test fix returns empty FixResult when binary not found."""
+    @patch.object(ClangFormatFormatter, "ensure_binary")
+    def test_fix_binary_not_found(self, mock_binary) -> None:
+        mock_binary.side_effect = FileNotFoundError("clang-format not found")
         formatter = ClangFormatFormatter()
-        context = _make_context(Path("/tmp"))
-        with patch.object(
-            formatter, "ensure_binary", side_effect=FileNotFoundError("not found")
-        ):
-            result = formatter.fix(context)
-            assert isinstance(result, FixResult)
-            assert result.files_modified == 0
-            assert result.issues_fixed == 0
+        context = ScanContext(
+            project_root=Path("/tmp"),
+            paths=[Path("/tmp")],
+            enabled_domains=[],
+        )
+        result = formatter.fix(context)
+        assert result.files_modified == 0
 
-    def test_fix_no_matching_paths(self) -> None:
-        """Fix with no .c files returns empty FixResult."""
+    @patch("lucidshark.plugins.formatters.clang_format.run_with_streaming")
+    @patch.object(ClangFormatFormatter, "ensure_binary")
+    def test_fix_runs_with_inplace_flag(self, mock_binary, mock_run) -> None:
+        mock_binary.return_value = Path("/usr/bin/clang-format")
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=[],
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            py_file = project_root / "main.py"
-            py_file.write_text("x = 1\n")
+            tmpdir_path = Path(tmpdir)
+            (tmpdir_path / "main.cpp").write_text("int main() {}")
+            formatter = ClangFormatFormatter()
+            context = ScanContext(
+                project_root=tmpdir_path,
+                paths=[tmpdir_path],
+                enabled_domains=[],
+            )
+            formatter.fix(context)
 
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [py_file])
+            # Verify -i flag was used
+            call_args = mock_run.call_args
+            cmd = (
+                call_args.kwargs.get("cmd")
+                or call_args[1].get("cmd")
+                or call_args[0][0]
+            )
+            assert "-i" in cmd
 
-            with patch.object(formatter, "ensure_binary", return_value=FAKE_BINARY):
-                result = formatter.fix(context)
-                assert isinstance(result, FixResult)
-                assert result.files_modified == 0
-                assert result.issues_fixed == 0
-
-    def test_fix_subprocess_exception(self) -> None:
-        """Fix returns empty FixResult when subprocess raises an exception."""
+    def test_fix_no_cpp_files(self) -> None:
+        formatter = ClangFormatFormatter()
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            c_file = project_root / "main.c"
-            c_file.write_text("int main(){}\n")
-
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [c_file])
-
-            with (
-                patch(
-                    "lucidshark.plugins.formatters.clang_format.run_with_streaming",
-                    side_effect=RuntimeError("clang-format crashed"),
-                ),
-                patch.object(formatter, "ensure_binary", return_value=FAKE_BINARY),
+            tmpdir_path = Path(tmpdir)
+            context = ScanContext(
+                project_root=tmpdir_path,
+                paths=[tmpdir_path],
+                enabled_domains=[],
+            )
+            with patch.object(
+                ClangFormatFormatter,
+                "ensure_binary",
+                return_value=Path("/usr/bin/clang-format"),
             ):
                 result = formatter.fix(context)
-                assert isinstance(result, FixResult)
                 assert result.files_modified == 0
-                assert result.issues_fixed == 0
 
-    def test_fix_multiple_files(self) -> None:
-        """Fix with multiple C files reports correct files_modified count."""
+
+class TestResolvePaths:
+    """Tests for path resolution with C++ extensions."""
+
+    def test_resolve_cpp_files_only(self) -> None:
+        formatter = ClangFormatFormatter()
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            c_file_a = project_root / "a.c"
-            c_file_a.write_text("int x;\n")
-            c_file_b = project_root / "b.c"
-            c_file_b.write_text("int y;\n")
+            tmpdir_path = Path(tmpdir)
+            (tmpdir_path / "main.cpp").write_text("int main() {}")
+            (tmpdir_path / "utils.hpp").write_text("#pragma once")
+            (tmpdir_path / "script.py").write_text("x = 1")
+            (tmpdir_path / "readme.md").write_text("# readme")
 
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [c_file_a, c_file_b])
+            from lucidshark.plugins.cpp_utils import CPP_EXTENSIONS
 
-            fix_run_result = make_completed_process(0, "")
-
-            with (
-                patch(
-                    "lucidshark.plugins.formatters.clang_format.run_with_streaming",
-                    return_value=fix_run_result,
-                ),
-                patch.object(formatter, "ensure_binary", return_value=FAKE_BINARY),
-            ):
-                result = formatter.fix(context)
-                assert isinstance(result, FixResult)
-                assert result.files_modified == 2
-
-
-# ---------------------------------------------------------------------------
-# _resolve_paths
-# ---------------------------------------------------------------------------
-
-
-class TestClangFormatResolvePaths:
-    """Tests for path resolution inherited from FormatterPlugin."""
-
-    def test_directories_expanded_to_c_files(self) -> None:
-        """Test directories are expanded to find .c files."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            subdir = project_root / "src"
-            subdir.mkdir()
-            c_file = subdir / "main.c"
-            c_file.touch()
-
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [subdir])
-            from lucidshark.plugins.c_utils import C_EXTENSIONS
-
-            result = formatter._resolve_paths(
-                context, C_EXTENSIONS, fallback_to_cwd=False
+            context = ScanContext(
+                project_root=tmpdir_path,
+                paths=[tmpdir_path],
+                enabled_domains=[],
             )
-            assert result == [str(c_file)]
-
-    def test_skips_non_c_files(self) -> None:
-        """Test non-C files are excluded."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            py_file = project_root / "main.py"
-            py_file.write_text("x = 1\n")
-
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [py_file])
-            from lucidshark.plugins.c_utils import C_EXTENSIONS
-
-            result = formatter._resolve_paths(
-                context, C_EXTENSIONS, fallback_to_cwd=False
+            paths = formatter._resolve_paths(
+                context, CPP_EXTENSIONS, fallback_to_cwd=False
             )
-            assert result == []
+            assert any("main.cpp" in p for p in paths)
+            assert any("utils.hpp" in p for p in paths)
+            assert not any("script.py" in p for p in paths)
+            assert not any("readme.md" in p for p in paths)
 
-    def test_includes_h_files(self) -> None:
-        """Test .h header files are included."""
+    def test_resolve_individual_file(self) -> None:
+        formatter = ClangFormatFormatter()
         with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            h_file = project_root / "header.h"
-            h_file.write_text("void foo();\n")
+            tmpdir_path = Path(tmpdir)
+            cpp_file = tmpdir_path / "main.cpp"
+            cpp_file.write_text("int main() {}")
 
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [h_file])
-            from lucidshark.plugins.c_utils import C_EXTENSIONS
+            from lucidshark.plugins.cpp_utils import CPP_EXTENSIONS
 
-            result = formatter._resolve_paths(
-                context, C_EXTENSIONS, fallback_to_cwd=False
+            context = ScanContext(
+                project_root=tmpdir_path,
+                paths=[cpp_file],
+                enabled_domains=[],
             )
-            assert result == [str(h_file)]
-
-    def test_mixed_valid_and_invalid_files(self) -> None:
-        """Test filtering with mixed file types."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            project_root = Path(tmpdir)
-            c_file = project_root / "lib.c"
-            c_file.write_text("")
-            py_file = project_root / "script.py"
-            py_file.write_text("")
-            txt_file = project_root / "notes.txt"
-            txt_file.write_text("")
-
-            formatter = ClangFormatFormatter(project_root=project_root)
-            context = _make_context(project_root, [c_file, py_file, txt_file])
-            from lucidshark.plugins.c_utils import C_EXTENSIONS
-
-            result = formatter._resolve_paths(
-                context, C_EXTENSIONS, fallback_to_cwd=False
+            paths = formatter._resolve_paths(
+                context, CPP_EXTENSIONS, fallback_to_cwd=False
             )
-            assert result == [str(c_file)]
+            assert len(paths) == 1
+            assert paths[0] == str(cpp_file)

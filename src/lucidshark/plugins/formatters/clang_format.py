@@ -1,6 +1,6 @@
 """clang-format formatter plugin.
 
-Wraps `clang-format` for C code formatting.
+Wraps `clang-format` for C/C++ code formatting.
 https://clang.llvm.org/docs/ClangFormat.html
 """
 
@@ -19,8 +19,13 @@ from lucidshark.core.models import (
     ToolDomain,
     UnifiedIssue,
 )
-from lucidshark.core.subprocess_runner import run_with_streaming
-from lucidshark.plugins.c_utils import C_EXTENSIONS, find_clang_format, get_clang_format_version
+from lucidshark.core.subprocess_runner import run_with_streaming, temporary_env
+from lucidshark.plugins.cpp_utils import (
+    CPP_EXTENSIONS,
+    ensure_cpp_tools_in_path,
+    find_clang_format,
+    get_tool_version,
+)
 from lucidshark.plugins.formatters.base import FormatterPlugin
 from lucidshark.plugins.linters.base import FixResult
 
@@ -28,7 +33,7 @@ LOGGER = get_logger(__name__)
 
 
 class ClangFormatFormatter(FormatterPlugin):
-    """clang-format formatter plugin for C code formatting."""
+    """clang-format formatter plugin for C/C++ code formatting."""
 
     @property
     def name(self) -> str:
@@ -36,37 +41,49 @@ class ClangFormatFormatter(FormatterPlugin):
 
     @property
     def languages(self) -> List[str]:
-        return ["c"]
+        return ["c", "c++"]
 
     def get_version(self) -> str:
-        return get_clang_format_version()
+        return get_tool_version(find_clang_format)
 
     def ensure_binary(self) -> Path:
         return find_clang_format()
 
     def check(self, context: ScanContext) -> List[UnifiedIssue]:
+        """Check formatting without modifying files.
+
+        Uses clang-format --dry-run --Werror to detect formatting violations.
+
+        Args:
+            context: Scan context with paths and configuration.
+
+        Returns:
+            List of formatting issues.
+        """
         try:
             binary = self.ensure_binary()
         except FileNotFoundError as e:
             LOGGER.warning(str(e))
             return []
 
-        paths = self._resolve_paths(context, C_EXTENSIONS, fallback_to_cwd=False)
+        paths = self._resolve_paths(context, CPP_EXTENSIONS, fallback_to_cwd=False)
         if not paths:
-            LOGGER.debug("No C files to format-check")
+            LOGGER.debug("No C/C++ files to format-check")
             return []
 
-        # clang-format --dry-run --Werror returns non-zero if formatting needed
         cmd = [str(binary), "--dry-run", "--Werror"] + paths
 
+        env_vars = ensure_cpp_tools_in_path()
+
         try:
-            result = run_with_streaming(
-                cmd=cmd,
-                cwd=context.project_root,
-                tool_name="clang-format",
-                stream_handler=context.stream_handler,
-                timeout=120,
-            )
+            with temporary_env(env_vars):
+                result = run_with_streaming(
+                    cmd=cmd,
+                    cwd=context.project_root,
+                    tool_name="clang-format",
+                    stream_handler=context.stream_handler,
+                    timeout=120,
+                )
         except subprocess.TimeoutExpired:
             LOGGER.warning("clang-format check timed out after 120 seconds")
             context.record_skip(
@@ -87,96 +104,47 @@ class ClangFormatFormatter(FormatterPlugin):
             return []
 
         # clang-format --dry-run --Werror outputs warnings to stderr
-        # for files that need reformatting
+        # for files that would be reformatted
         stderr = result.stderr or ""
-        if not stderr.strip() and result.returncode == 0:
-            return []
+        stdout = result.stdout or ""
+        combined = stderr + "\n" + stdout
 
-        # Parse filenames from stderr warnings
-        issues = []
-        seen_files: set = set()
-        for line in stderr.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            # Match lines like: path/file.c:10:5: warning: code should be clang-formatted
-            # or simpler: just extract unique file paths from diagnostic lines
-            for path_str in paths:
-                if path_str in line and path_str not in seen_files:
-                    seen_files.add(path_str)
-
-                    file_path = Path(path_str)
-                    if not file_path.is_absolute():
-                        file_path = context.project_root / file_path
-
-                    content = f"clang-format:{path_str}"
-                    hash_val = hashlib.sha256(content.encode()).hexdigest()[:12]
-
-                    issues.append(
-                        UnifiedIssue(
-                            id=f"clang-format-{hash_val}",
-                            domain=ToolDomain.FORMATTING,
-                            source_tool="clang-format",
-                            severity=Severity.LOW,
-                            rule_id="format",
-                            title=f"File needs formatting: {path_str}",
-                            description=f"File {path_str} does not match clang-format style.",
-                            file_path=file_path,
-                            fixable=True,
-                            suggested_fix="Run clang-format to fix formatting.",
-                        )
-                    )
-
-        # If we got a non-zero exit but couldn't parse specific files,
-        # create issues for all checked files
-        if not issues and result.returncode != 0:
-            for path_str in paths:
-                file_path = Path(path_str)
-                if not file_path.is_absolute():
-                    file_path = context.project_root / file_path
-
-                content = f"clang-format:{path_str}"
-                hash_val = hashlib.sha256(content.encode()).hexdigest()[:12]
-
-                issues.append(
-                    UnifiedIssue(
-                        id=f"clang-format-{hash_val}",
-                        domain=ToolDomain.FORMATTING,
-                        source_tool="clang-format",
-                        severity=Severity.LOW,
-                        rule_id="format",
-                        title=f"File needs formatting: {path_str}",
-                        description=f"File {path_str} does not match clang-format style.",
-                        file_path=file_path,
-                        fixable=True,
-                        suggested_fix="Run clang-format to fix formatting.",
-                    )
-                )
-
+        issues = self._parse_check_output(combined, context.project_root)
         LOGGER.info(f"clang-format found {len(issues)} issues")
         return issues
 
     def fix(self, context: ScanContext) -> FixResult:
+        """Apply formatting fixes.
+
+        Args:
+            context: Scan context with paths and configuration.
+
+        Returns:
+            FixResult with statistics.
+        """
         try:
             binary = self.ensure_binary()
         except FileNotFoundError as e:
             LOGGER.warning(str(e))
             return FixResult()
 
-        paths = self._resolve_paths(context, C_EXTENSIONS, fallback_to_cwd=False)
+        paths = self._resolve_paths(context, CPP_EXTENSIONS, fallback_to_cwd=False)
         if not paths:
             return FixResult()
 
         cmd = [str(binary), "-i"] + paths
 
+        env_vars = ensure_cpp_tools_in_path()
+
         try:
-            run_with_streaming(
-                cmd=cmd,
-                cwd=context.project_root,
-                tool_name="clang-format-fix",
-                stream_handler=context.stream_handler,
-                timeout=120,
-            )
+            with temporary_env(env_vars):
+                run_with_streaming(
+                    cmd=cmd,
+                    cwd=context.project_root,
+                    tool_name="clang-format-fix",
+                    stream_handler=context.stream_handler,
+                    timeout=120,
+                )
         except Exception as e:
             LOGGER.error(f"Failed to run clang-format: {e}")
             return FixResult()
@@ -186,3 +154,69 @@ class ClangFormatFormatter(FormatterPlugin):
             issues_fixed=0,
             issues_remaining=0,
         )
+
+    def _parse_check_output(
+        self, output: str, project_root: Path
+    ) -> List[UnifiedIssue]:
+        """Parse clang-format --dry-run --Werror output.
+
+        clang-format outputs lines like:
+            /path/to/file.cpp:42:15: warning: code should be clang-formatted [-Wclang-format-violations]
+
+        Args:
+            output: Combined stderr/stdout from clang-format.
+            project_root: Project root directory.
+
+        Returns:
+            List of UnifiedIssue objects.
+        """
+        if not output.strip():
+            return []
+
+        issues = []
+        seen_files = set()
+
+        import re
+
+        # Pattern matches clang-format warning lines
+        warning_re = re.compile(
+            r"^(.+\.(?:cpp|cc|cxx|hpp|h|hh|hxx|c)):(\d+):\d+:\s+warning:"
+        )
+
+        for line in output.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+
+            match = warning_re.match(line)
+            if match:
+                file_str = match.group(1)
+
+                # Only create one issue per file
+                if file_str in seen_files:
+                    continue
+                seen_files.add(file_str)
+
+                file_path = Path(file_str)
+                if not file_path.is_absolute():
+                    file_path = project_root / file_path
+
+                content = f"clang-format:{file_str}"
+                hash_val = hashlib.sha256(content.encode()).hexdigest()[:12]
+
+                issues.append(
+                    UnifiedIssue(
+                        id=f"clang-format-{hash_val}",
+                        domain=ToolDomain.FORMATTING,
+                        source_tool="clang-format",
+                        severity=Severity.LOW,
+                        rule_id="format",
+                        title=f"File needs formatting: {file_str}",
+                        description=f"File {file_str} does not match clang-format style.",
+                        file_path=file_path,
+                        fixable=True,
+                        suggested_fix="Run clang-format to fix formatting.",
+                    )
+                )
+
+        return issues
