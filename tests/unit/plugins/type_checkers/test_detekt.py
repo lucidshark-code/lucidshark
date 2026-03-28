@@ -86,9 +86,7 @@ class TestDetektEnsureBinary:
             version = "1.23.7"
 
             # Create the expected JAR file in the cache directory
-            jar_dir = (
-                project_root / ".lucidshark" / "bin" / "detekt" / version
-            )
+            jar_dir = project_root / ".lucidshark" / "bin" / "detekt" / version
             jar_dir.mkdir(parents=True)
             jar_path = jar_dir / f"detekt-cli-{version}-all.jar"
             jar_path.touch()
@@ -112,13 +110,7 @@ class TestDetektEnsureBinary:
             ):
                 with patch.object(checker, "_download_binary") as mock_download:
                     # After _download_binary, simulate the JAR being present
-                    jar_dir = (
-                        project_root
-                        / ".lucidshark"
-                        / "bin"
-                        / "detekt"
-                        / version
-                    )
+                    jar_dir = project_root / ".lucidshark" / "bin" / "detekt" / version
 
                     def create_jar(dest_dir: Path) -> None:
                         dest_dir.mkdir(parents=True, exist_ok=True)
@@ -488,9 +480,7 @@ class TestDetektCheck:
                                 report_spec = cmd[i + 1]
                                 # Format is "xml:/path/to/report.xml"
                                 report_path = report_spec.split(":", 1)[1]
-                                Path(report_path).write_text(
-                                    CHECKSTYLE_XML_WITH_ERRORS
-                                )
+                                Path(report_path).write_text(CHECKSTYLE_XML_WITH_ERRORS)
                                 break
 
                     mock_run.side_effect = write_report
@@ -689,9 +679,7 @@ class TestDetektXmlParsing:
         """Test parsing checkstyle XML with multiple errors."""
         checker = DetektChecker()
 
-        issues = checker._parse_output(
-            CHECKSTYLE_XML_WITH_ERRORS, Path("/project")
-        )
+        issues = checker._parse_output(CHECKSTYLE_XML_WITH_ERRORS, Path("/project"))
 
         assert len(issues) == 3
 
@@ -741,9 +729,7 @@ class TestDetektXmlParsing:
     def test_parse_invalid_xml(self) -> None:
         """Test parsing invalid XML returns empty list."""
         checker = DetektChecker()
-        issues = checker._parse_output(
-            "this is not valid xml <<<<", Path("/project")
-        )
+        issues = checker._parse_output("this is not valid xml <<<<", Path("/project"))
         assert issues == []
 
     def test_parse_xml_with_no_source_attribute(self) -> None:
@@ -952,9 +938,7 @@ class TestDetektIssueIdGeneration:
         """Test ID format starts with 'detekt-{rule}-'."""
         checker = DetektChecker()
 
-        issue_id = checker._generate_issue_id(
-            "LongMethod", "App.kt", 10, 1, "Issue"
-        )
+        issue_id = checker._generate_issue_id("LongMethod", "App.kt", 10, 1, "Issue")
 
         assert issue_id.startswith("detekt-LongMethod-")
 

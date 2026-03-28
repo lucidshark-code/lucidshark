@@ -46,6 +46,7 @@ a = Analysis(
         'lucidshark.plugins.linters.clippy',
         'lucidshark.plugins.linters.pmd',
         'lucidshark.plugins.linters.golangci_lint',
+        'lucidshark.plugins.linters.ktlint',
         # Plugin entry points - scanners
         'lucidshark.plugins.scanners.trivy',
         'lucidshark.plugins.scanners.opengrep',
@@ -63,6 +64,7 @@ a = Analysis(
         'lucidshark.plugins.type_checkers.spotbugs',
         'lucidshark.plugins.type_checkers.cargo_check',
         'lucidshark.plugins.type_checkers.go_vet',
+        'lucidshark.plugins.type_checkers.detekt',
         # Plugin entry points - test runners
         'lucidshark.plugins.test_runners.pytest',
         'lucidshark.plugins.test_runners.jest',
@@ -87,6 +89,7 @@ a = Analysis(
         'lucidshark.plugins.formatters.prettier',
         'lucidshark.plugins.formatters.rustfmt',
         'lucidshark.plugins.formatters.gofmt',
+        'lucidshark.plugins.formatters.ktlint_format',
         # Dependencies that may need explicit import
         'yaml',
         'pathspec',

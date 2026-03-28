@@ -10,7 +10,10 @@ from unittest.mock import patch
 import pytest
 
 from lucidshark.core.models import ScanContext, Severity, ToolDomain
-from lucidshark.plugins.formatters.ktlint_format import KtlintFormatter, KOTLIN_EXTENSIONS
+from lucidshark.plugins.formatters.ktlint_format import (
+    KtlintFormatter,
+    KOTLIN_EXTENSIONS,
+)
 from lucidshark.plugins.linters.base import FixResult
 
 
@@ -118,7 +121,7 @@ class TestKtlintFormatterCheck:
 
             stdout = (
                 "src/Main.kt:1:1: Unexpected indentation (standard:indent)\n"
-                "src/Main.kt:5:10: Missing newline before \")\" (standard:parameter-list-wrapping)\n"
+                'src/Main.kt:5:10: Missing newline before ")" (standard:parameter-list-wrapping)\n'
             )
             result = make_completed_process(1, stdout)
             with (

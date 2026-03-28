@@ -38,7 +38,7 @@ SAMPLE_KTLINT_OUTPUT = json.dumps(
                 {
                     "line": 5,
                     "column": 1,
-                    "message": "Unexpected blank line(s) before \"}\"",
+                    "message": 'Unexpected blank line(s) before "}"',
                     "rule": "no-blank-line-before-rbrace",
                     "severity": "error",
                 }
@@ -1070,10 +1070,10 @@ class TestKtlintIssueIdGeneration:
         assert issue_id.startswith("ktlint-")
         assert "ktlint--" not in issue_id
 
-    def test_id_handles_none_values(self) -> None:
-        """Test ID handles None line/column."""
+    def test_id_handles_zero_values(self) -> None:
+        """Test ID handles zero line/column (missing values)."""
         linter = KtlintLinter()
-        issue_id = linter._generate_issue_id("rule", "file.kt", None, None, "msg")
+        issue_id = linter._generate_issue_id("rule", "file.kt", 0, 0, "msg")
         assert issue_id.startswith("ktlint-rule-")
 
     def test_different_lines_different_ids(self) -> None:
