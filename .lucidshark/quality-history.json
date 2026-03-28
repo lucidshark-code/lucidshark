@@ -2,6 +2,99 @@
   "version": "1",
   "snapshots": [
     {
+      "date": "2026-03-28T23:23:31.425468+00:00",
+      "commit": "5e34858",
+      "branch": "main",
+      "score": 7.280249999999999,
+      "issues": {
+        "critical": 0,
+        "high": 0,
+        "medium": 6,
+        "low": 68,
+        "info": 0
+      },
+      "coverage": 83.21,
+      "duplication": 3.29,
+      "domains": [
+        {
+          "domain": "linting",
+          "status": "warn",
+          "issue_count": 6,
+          "details": {}
+        },
+        {
+          "domain": "type_checking",
+          "status": "pass",
+          "issue_count": 0,
+          "details": {}
+        },
+        {
+          "domain": "formatting",
+          "status": "warn",
+          "issue_count": 13,
+          "details": {}
+        },
+        {
+          "domain": "testing",
+          "status": "pass",
+          "issue_count": 0,
+          "details": {}
+        },
+        {
+          "domain": "sca",
+          "status": "pass",
+          "issue_count": 0,
+          "details": {}
+        },
+        {
+          "domain": "sast",
+          "status": "pass",
+          "issue_count": 0,
+          "details": {}
+        },
+        {
+          "domain": "linting",
+          "status": "warn",
+          "issue_count": 6,
+          "details": {}
+        },
+        {
+          "domain": "type_checking",
+          "status": "pass",
+          "issue_count": 0,
+          "details": {}
+        },
+        {
+          "domain": "formatting",
+          "status": "warn",
+          "issue_count": 13,
+          "details": {}
+        },
+        {
+          "domain": "testing",
+          "status": "pass",
+          "issue_count": 0,
+          "details": {}
+        },
+        {
+          "domain": "coverage",
+          "status": "pass",
+          "issue_count": 0,
+          "details": {
+            "percentage": 83.21
+          }
+        },
+        {
+          "domain": "duplication",
+          "status": "pass",
+          "issue_count": 55,
+          "details": {
+            "percentage": 3.29
+          }
+        }
+      ]
+    },
+    {
       "date": "2026-03-28T23:09:00.039002+00:00",
       "commit": "25fa30f",
       "branch": "main",
