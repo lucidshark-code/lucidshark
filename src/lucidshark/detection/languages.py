@@ -86,6 +86,7 @@ MARKER_FILES = {
     "java": ["pom.xml", "build.gradle", "build.gradle.kts"],
     "ruby": ["Gemfile"],
     "php": ["composer.json"],
+    "cpp": ["CMakeLists.txt"],
 }
 
 
