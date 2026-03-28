@@ -416,7 +416,7 @@ class TestSwiftCoverageExtractMissingLines:
     def test_no_segments(self) -> None:
         """Test with no segments."""
         plugin = SwiftCoveragePlugin()
-        file_entry = {"segments": []}
+        file_entry: dict = {"segments": []}
         missing = plugin._extract_missing_lines(file_entry)
         assert missing == []
 
