@@ -59,6 +59,7 @@ def _get_frozen_plugins(group: str) -> Dict[str, Type]:
             ('clang_tidy', 'lucidshark.plugins.linters.clang_tidy', 'ClangTidyLinter'),
             ('scalafix', 'lucidshark.plugins.linters.scalafix', 'ScalafixLinter'),
             ('swiftlint', 'lucidshark.plugins.linters.swiftlint', 'SwiftLintLinter'),
+            ('rubocop', 'lucidshark.plugins.linters.rubocop', 'RubocopLinter'),
         ],
         SCANNER_ENTRY_POINT_GROUP: [
             ('trivy', 'lucidshark.plugins.scanners.trivy', 'TrivyScanner'),
@@ -84,6 +85,7 @@ def _get_frozen_plugins(group: str) -> Dict[str, Type]:
             ('cppcheck', 'lucidshark.plugins.type_checkers.cppcheck', 'CppcheckChecker'),
             ('scala_compile', 'lucidshark.plugins.type_checkers.scala_compile', 'ScalaCompileChecker'),
             ('swift_compiler', 'lucidshark.plugins.type_checkers.swift_compiler', 'SwiftCompilerChecker'),
+            ('sorbet', 'lucidshark.plugins.type_checkers.sorbet', 'SorbetChecker'),
         ],
         TEST_RUNNER_ENTRY_POINT_GROUP: [
             ('pytest', 'lucidshark.plugins.test_runners.pytest', 'PytestRunner'),
@@ -99,6 +101,7 @@ def _get_frozen_plugins(group: str) -> Dict[str, Type]:
             ('ctest', 'lucidshark.plugins.test_runners.ctest', 'CTestRunner'),
             ('sbt', 'lucidshark.plugins.test_runners.sbt', 'SbtTestRunner'),
             ('swift_test', 'lucidshark.plugins.test_runners.swift_test', 'SwiftTestRunner'),
+            ('rspec', 'lucidshark.plugins.test_runners.rspec', 'RspecRunner'),
         ],
         COVERAGE_ENTRY_POINT_GROUP: [
             ('coverage_py', 'lucidshark.plugins.coverage.coverage_py', 'CoveragePyPlugin'),
@@ -112,6 +115,7 @@ def _get_frozen_plugins(group: str) -> Dict[str, Type]:
             ('lcov', 'lucidshark.plugins.coverage.lcov', 'LcovPlugin'),
             ('scoverage', 'lucidshark.plugins.coverage.scoverage', 'ScoveragePlugin'),
             ('swift_coverage', 'lucidshark.plugins.coverage.swift_coverage', 'SwiftCoveragePlugin'),
+            ('simplecov', 'lucidshark.plugins.coverage.simplecov', 'SimpleCovPlugin'),
         ],
         DUPLICATION_ENTRY_POINT_GROUP: [
             ('duplo', 'lucidshark.plugins.duplication.duplo', 'DuploPlugin'),
@@ -125,6 +129,7 @@ def _get_frozen_plugins(group: str) -> Dict[str, Type]:
             ('clang_format', 'lucidshark.plugins.formatters.clang_format', 'ClangFormatFormatter'),
             ('scalafmt', 'lucidshark.plugins.formatters.scalafmt', 'ScalafmtFormatter'),
             ('swiftformat', 'lucidshark.plugins.formatters.swiftformat', 'SwiftFormatFormatter'),
+            ('rubocop_format', 'lucidshark.plugins.formatters.rubocop_format', 'RubocopFormatter'),
         ],
     }
 
