@@ -765,6 +765,7 @@ class MCPToolExecutor:
                         ".coveragerc",
                         "jest.config.js",
                         "jest.config.ts",
+                        "vitest.config.ts",
                         "karma.conf.js",
                         "playwright.config.ts",
                         ".nycrc",
@@ -788,6 +789,174 @@ class MCPToolExecutor:
                         "MUST also enable testing in the generated config. The scan will fail if "
                         "coverage is enabled without testing."
                     ),
+                    "coverage_file_paths": (
+                        "CRITICAL: Coverage plugins look for data files at SPECIFIC paths relative to the "
+                        "project root. If the test runner writes coverage data to a non-default location, "
+                        "coverage analysis will fail with 'no_coverage_data'. Verify that the test runner "
+                        "configuration produces files at the expected locations:\n"
+                        "  - Python (coverage_py): .coverage (at project root)\n"
+                        "  - JS/TS Jest (istanbul): coverage/coverage-summary.json or coverage/coverage-final.json\n"
+                        "  - JS/TS Vitest (vitest_coverage): coverage/coverage-summary.json\n"
+                        "  - Java Maven (jacoco): target/site/jacoco/jacoco.xml\n"
+                        "  - Java Gradle (jacoco): build/reports/jacoco/test/jacocoTestReport.xml\n"
+                        "  - Rust (tarpaulin): target/tarpaulin/tarpaulin-report.json\n"
+                        "  - Go (go_cover): coverage.out (at project root)\n"
+                        "  - C (gcov): coverage.info or lcov.info (at project root or build dir)"
+                    ),
+                    "test_runner_coverage_setup": {
+                        "description": (
+                            "Each test runner must be configured to produce coverage data in the correct "
+                            "format. LucidShark's built-in test runners handle this automatically, but you "
+                            "must verify that any existing project-level configuration doesn't override the "
+                            "expected output paths."
+                        ),
+                        "python": {
+                            "auto_behavior": (
+                                "LucidShark's pytest runner wraps with 'coverage run -m pytest' automatically. "
+                                "If coverage binary is not found, pytest runs without coverage."
+                            ),
+                            "verify_config": (
+                                "Check pyproject.toml for [tool.coverage.run] source setting, or .coveragerc. "
+                                "If source is not set, LucidShark auto-detects src/ or the package directory. "
+                                "Explicit source config is recommended for reliable results."
+                            ),
+                            "example_pyproject_toml": (
+                                "[tool.coverage.run]\n"
+                                "source = [\"src\"]\n"
+                                "omit = [\"tests/*\", \"*/migrations/*\"]\n"
+                            ),
+                            "required_packages": "pip install coverage pytest-cov",
+                        },
+                        "javascript_jest": {
+                            "auto_behavior": (
+                                "LucidShark's Jest runner adds --coverage automatically, producing Istanbul "
+                                "reports in coverage/ directory."
+                            ),
+                            "verify_config": (
+                                "Check jest.config.js or package.json 'jest' section. "
+                                "CRITICAL: coverageDirectory must be 'coverage' (the default). "
+                                "CRITICAL: coverageReporters must include 'json-summary'. "
+                                "If coverageDirectory is set to a custom path, istanbul plugin won't find it."
+                            ),
+                            "example_jest_config": (
+                                "// jest.config.js\n"
+                                "module.exports = {\n"
+                                "  coverageDirectory: 'coverage',\n"
+                                "  coverageReporters: ['json-summary', 'text'],\n"
+                                "  collectCoverageFrom: ['src/**/*.{js,ts,jsx,tsx}', '!src/**/*.d.ts'],\n"
+                                "};"
+                            ),
+                        },
+                        "javascript_vitest": {
+                            "auto_behavior": (
+                                "LucidShark's Vitest runner adds --coverage --coverage.reporter=json-summary."
+                            ),
+                            "verify_config": (
+                                "Check vitest.config.ts coverage section. "
+                                "CRITICAL: reportsDirectory must be './coverage' (the default). "
+                                "CRITICAL: A coverage provider must be installed: "
+                                "@vitest/coverage-v8 or @vitest/coverage-istanbul."
+                            ),
+                            "example_vitest_config": (
+                                "// vitest.config.ts\n"
+                                "export default defineConfig({\n"
+                                "  test: {\n"
+                                "    coverage: {\n"
+                                "      provider: 'v8',\n"
+                                "      reporter: ['json-summary', 'text'],\n"
+                                "      reportsDirectory: './coverage',\n"
+                                "      include: ['src/**/*.{js,ts,jsx,tsx}'],\n"
+                                "    },\n"
+                                "  },\n"
+                                "});"
+                            ),
+                            "required_packages": "npm install @vitest/coverage-v8 --save-dev",
+                        },
+                        "java_maven": {
+                            "auto_behavior": (
+                                "LucidShark's Maven runner runs 'mvn test jacoco:report'. "
+                                "The JaCoCo Maven plugin MUST be configured in pom.xml."
+                            ),
+                            "verify_config": (
+                                "Check pom.xml for jacoco-maven-plugin. If not present, coverage will NOT "
+                                "be generated even though tests run. The plugin must declare both "
+                                "prepare-agent and report goals."
+                            ),
+                            "example_pom_xml": (
+                                "<plugin>\n"
+                                "  <groupId>org.jacoco</groupId>\n"
+                                "  <artifactId>jacoco-maven-plugin</artifactId>\n"
+                                "  <version>0.8.12</version>\n"
+                                "  <executions>\n"
+                                "    <execution><goals><goal>prepare-agent</goal></goals></execution>\n"
+                                "    <execution>\n"
+                                "      <id>report</id><phase>test</phase>\n"
+                                "      <goals><goal>report</goal></goals>\n"
+                                "    </execution>\n"
+                                "  </executions>\n"
+                                "</plugin>"
+                            ),
+                        },
+                        "java_gradle": {
+                            "auto_behavior": (
+                                "LucidShark's Gradle runner runs 'gradle test jacocoTestReport'."
+                            ),
+                            "verify_config": (
+                                "Check build.gradle for jacoco plugin and jacocoTestReport task. "
+                                "XML reports must be enabled (xml.required = true)."
+                            ),
+                            "example_build_gradle": (
+                                "plugins { id 'jacoco' }\n\n"
+                                "jacocoTestReport {\n"
+                                "  reports {\n"
+                                "    xml.required = true  // REQUIRED for LucidShark\n"
+                                "  }\n"
+                                "}\n\n"
+                                "test { finalizedBy jacocoTestReport }"
+                            ),
+                        },
+                        "go": {
+                            "auto_behavior": (
+                                "LucidShark's go_test runner adds -coverprofile=coverage.out when coverage "
+                                "domain is enabled. The file is written to the project root."
+                            ),
+                            "verify_config": (
+                                "If using a custom test command, ensure it includes "
+                                "-coverprofile=coverage.out and outputs to the project root."
+                            ),
+                        },
+                        "rust": {
+                            "auto_behavior": (
+                                "LucidShark's cargo runner uses 'cargo tarpaulin --out json --output-dir "
+                                "target/tarpaulin' when coverage domain is enabled. This replaces cargo test."
+                            ),
+                            "verify_config": (
+                                "Tarpaulin must be installed: cargo install cargo-tarpaulin. "
+                                "If using a custom command, ensure it writes to target/tarpaulin/tarpaulin-report.json."
+                            ),
+                        },
+                        "c": {
+                            "auto_behavior": (
+                                "LucidShark's ctest runner runs CTest. Coverage requires compiling with "
+                                "--coverage flag and generating lcov info files separately."
+                            ),
+                            "verify_config": (
+                                "Check CMakeLists.txt for --coverage flags. "
+                                "A post_command may be needed to run lcov --capture after tests."
+                            ),
+                            "example_config": (
+                                "pipeline:\n"
+                                "  testing:\n"
+                                "    enabled: true\n"
+                                "    tools: [ctest]\n"
+                                "    post_command: \"lcov --capture --directory build --output-file coverage.info "
+                                "&& lcov --remove coverage.info '/usr/*' --output-file coverage.info\"\n"
+                                "  coverage:\n"
+                                "    enabled: true\n"
+                                "    tools: [gcov]"
+                            ),
+                        },
+                    },
                 },
                 {
                     "step": 4,
@@ -1220,7 +1389,13 @@ class MCPToolExecutor:
                 "always_use_defaults": {
                     "security": "Always enable security scanning (trivy + opengrep). Fail on 'high' severity.",
                     "testing": "Enable if tests detected. Always fail on test failures. MUST be enabled if coverage is enabled.",
-                    "coverage": "Enable if coverage tool detected. REQUIRES testing to be enabled (testing produces coverage files).",
+                    "coverage": (
+                        "Enable if coverage tool detected. REQUIRES testing to be enabled (testing produces coverage files). "
+                        "IMPORTANT: Verify the test runner is configured to produce coverage data in the expected format and path. "
+                        "Check the 'test_runner_coverage_setup' guidance in step 3 for per-language details. "
+                        "Common issues: missing JaCoCo plugin in pom.xml, missing @vitest/coverage-v8 package, "
+                        "custom coverageDirectory in jest.config.js, missing [tool.coverage.run] source in pyproject.toml."
+                    ),
                     "linting": "Enable with detected tool. Use strictness setting for fail_on.",
                     "type_checking": "Enable if tool detected. Use strictness setting for fail_on.",
                     "duplication": "Always enable duplication detection (duplo). Threshold 5%, min_lines 7.",
@@ -1240,6 +1415,21 @@ class MCPToolExecutor:
                 "For legacy codebases: start with fail_on: none, fix issues gradually",
                 "Check current coverage with 'pytest --cov' before setting threshold",
                 "For Java with integration tests: use extra_args to skip tests requiring Docker",
+                (
+                    "COVERAGE: Verify the test runner is configured to produce coverage data. "
+                    "Coverage plugins only PARSE files — they never run tests. Common failures: "
+                    "(1) Python: coverage package not installed, so pytest runs without coverage instrumentation. "
+                    "(2) JS/TS Jest: coverageDirectory in jest.config.js set to non-default path — must be 'coverage'. "
+                    "(3) JS/TS Vitest: @vitest/coverage-v8 not installed — --coverage silently produces nothing. "
+                    "(4) Java: JaCoCo plugin not declared in pom.xml/build.gradle — tests run but no report generated. "
+                    "(5) Go: custom test script missing -coverprofile=coverage.out flag. "
+                    "(6) Rust: cargo-tarpaulin not installed."
+                ),
+                (
+                    "COVERAGE PATHS: Each coverage plugin expects data at a specific path relative to project root. "
+                    "If the test runner uses a non-default output directory, coverage analysis will fail with "
+                    "'no_coverage_data'. Check the 'coverage_file_paths' section in step 3 for expected paths."
+                ),
             ],
             "common_exclusions": {
                 "description": (

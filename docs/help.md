@@ -2308,6 +2308,341 @@ pipeline:
     enabled: true
 ```
 
+### Configuring Test Runners to Produce Coverage Reports
+
+Coverage plugins **only parse existing data files** — they never run tests. Your test runner must be configured to produce coverage output in the format and location that the corresponding coverage plugin expects. LucidShark's built-in test runners handle this automatically for most languages, but if you use custom test commands or have non-default output paths, you must ensure the coverage data lands in the right place.
+
+#### Python (coverage_py)
+
+**Expected file:** `.coverage` (binary SQLite file at project root)
+
+LucidShark's pytest runner automatically wraps pytest with `coverage run -m pytest`, which produces the `.coverage` file. If you use a custom test command, you must ensure coverage data is generated:
+
+```yaml
+# Option A: Use the built-in pytest runner (recommended, automatic coverage)
+pipeline:
+  testing:
+    enabled: true
+    tools: [pytest]
+  coverage:
+    enabled: true
+    tools: [coverage_py]
+```
+
+If using a custom command, ensure it generates the `.coverage` file:
+
+```yaml
+# Option B: Custom test command that produces .coverage
+pipeline:
+  testing:
+    enabled: true
+    command: "coverage run -m pytest tests/"
+  coverage:
+    enabled: true
+    tools: [coverage_py]
+```
+
+**Test runner configuration (pyproject.toml):**
+
+```toml
+[tool.coverage.run]
+source = ["src"]          # IMPORTANT: Set this to your source directory
+omit = ["tests/*", "*/migrations/*"]
+
+[tool.coverage.report]
+fail_under = 80
+```
+
+Or via `.coveragerc`:
+
+```ini
+[run]
+source = src
+omit =
+    tests/*
+    */migrations/*
+```
+
+**Common pitfall:** If `source` is not configured in `.coveragerc` or `pyproject.toml`, coverage.py may measure coverage of test files and third-party packages instead of your source code. LucidShark auto-detects `src/` or the package directory, but explicit configuration is more reliable.
+
+#### JavaScript/TypeScript with Jest (istanbul)
+
+**Expected files:** `coverage/coverage-summary.json` or `coverage/coverage-final.json` (at project root)
+
+LucidShark's Jest runner automatically adds `--coverage`, which generates Istanbul-format reports in the `coverage/` directory.
+
+```yaml
+# Option A: Use the built-in Jest runner (recommended, automatic coverage)
+pipeline:
+  testing:
+    enabled: true
+    tools: [jest]
+  coverage:
+    enabled: true
+    tools: [istanbul]
+```
+
+**Jest configuration (jest.config.js or package.json):**
+
+```js
+// jest.config.js
+module.exports = {
+  coverageDirectory: "coverage",              // DEFAULT — must match what istanbul plugin expects
+  coverageReporters: ["json-summary", "text"], // REQUIRED: json-summary for LucidShark
+  collectCoverageFrom: [
+    "src/**/*.{js,ts,jsx,tsx}",
+    "!src/**/*.d.ts",
+    "!src/**/index.{js,ts}",
+  ],
+};
+```
+
+Or in `package.json`:
+
+```json
+{
+  "jest": {
+    "coverageDirectory": "coverage",
+    "coverageReporters": ["json-summary", "text"],
+    "collectCoverageFrom": ["src/**/*.{js,ts,jsx,tsx}"]
+  }
+}
+```
+
+**Common pitfall:** If `coverageDirectory` is set to a custom path (e.g., `reports/coverage/`), the istanbul plugin will not find the report. Either use the default `coverage/` directory, or use a custom test command that outputs to the expected location.
+
+**Fallback:** If no `coverage/` directory is found, the istanbul plugin falls back to `.nyc_output/` and runs `nyc report` to generate a summary. This requires `nyc` to be installed.
+
+#### JavaScript/TypeScript with Vitest (vitest_coverage)
+
+**Expected files:** `coverage/coverage-summary.json` or `coverage/coverage-final.json` (at project root)
+
+LucidShark's Vitest runner automatically adds `--coverage --coverage.reporter=json-summary`.
+
+```yaml
+# Option A: Use the built-in Vitest runner (recommended, automatic coverage)
+pipeline:
+  testing:
+    enabled: true
+    tools: [vitest]
+  coverage:
+    enabled: true
+    tools: [vitest_coverage]
+```
+
+**Vitest configuration (vitest.config.ts):**
+
+```ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    coverage: {
+      provider: 'v8',                         // or 'istanbul'
+      reporter: ['json-summary', 'text'],      // REQUIRED: json-summary for LucidShark
+      reportsDirectory: './coverage',          // DEFAULT — must match what plugin expects
+      include: ['src/**/*.{js,ts,jsx,tsx}'],
+    },
+  },
+});
+```
+
+**Common pitfall:** You must install a coverage provider: `npm install @vitest/coverage-v8 --save-dev` (or `@vitest/coverage-istanbul`). Without it, `--coverage` silently produces no output.
+
+#### Java with Maven (jacoco)
+
+**Expected files (Maven):** `target/site/jacoco/jacoco.xml`, `target/jacoco.xml`, or `jacoco/jacoco.xml`
+**Expected files (Gradle):** `build/reports/jacoco/test/jacocoTestReport.xml`
+
+LucidShark's Maven runner automatically runs `mvn test jacoco:report` (or `gradle test jacocoTestReport`).
+
+```yaml
+# Option A: Use the built-in Maven runner (recommended)
+pipeline:
+  testing:
+    enabled: true
+    tools: [maven]
+  coverage:
+    enabled: true
+    tools: [jacoco]
+```
+
+**Maven configuration (pom.xml) — JaCoCo plugin must be present:**
+
+```xml
+<build>
+  <plugins>
+    <plugin>
+      <groupId>org.jacoco</groupId>
+      <artifactId>jacoco-maven-plugin</artifactId>
+      <version>0.8.12</version>
+      <executions>
+        <execution>
+          <goals><goal>prepare-agent</goal></goals>
+        </execution>
+        <execution>
+          <id>report</id>
+          <phase>test</phase>
+          <goals><goal>report</goal></goals>
+        </execution>
+      </executions>
+    </plugin>
+  </plugins>
+</build>
+```
+
+**Gradle configuration (build.gradle):**
+
+```groovy
+plugins {
+    id 'jacoco'
+}
+
+jacocoTestReport {
+    reports {
+        xml.required = true   // REQUIRED: LucidShark reads XML reports
+        html.required = true  // Optional: for human viewing
+    }
+}
+
+test {
+    finalizedBy jacocoTestReport  // Auto-generate report after tests
+}
+```
+
+**Common pitfall:** If the JaCoCo plugin is not configured in `pom.xml`/`build.gradle`, `mvn test` runs tests but produces no coverage data. The plugin must be declared in the build configuration.
+
+#### Go (go_cover)
+
+**Expected file:** `coverage.out` (at project root)
+
+LucidShark's go_test runner automatically adds `-coverprofile=coverage.out` when the coverage domain is enabled.
+
+```yaml
+# Option A: Use the built-in go_test runner (recommended, automatic coverage)
+pipeline:
+  testing:
+    enabled: true
+    tools: [go_test]
+  coverage:
+    enabled: true
+    tools: [go_cover]
+```
+
+If using a custom command:
+
+```yaml
+# Option B: Custom command — must write coverage.out at project root
+pipeline:
+  testing:
+    enabled: true
+    command: "go test -coverprofile=coverage.out ./..."
+  coverage:
+    enabled: true
+    tools: [go_cover]
+```
+
+**Common pitfall:** The `-coverprofile` flag must write to `coverage.out` at the project root. If your tests write to a different path (e.g., `build/coverage.out`), the go_cover plugin will not find it.
+
+#### Rust (tarpaulin)
+
+**Expected file:** `target/tarpaulin/tarpaulin-report.json`
+
+Tarpaulin is special: it both runs tests AND produces coverage data. LucidShark's cargo runner automatically uses `cargo tarpaulin` instead of `cargo test` when the coverage domain is enabled.
+
+```yaml
+# Option A: Use the built-in cargo runner (recommended, automatic coverage)
+pipeline:
+  testing:
+    enabled: true
+    tools: [cargo]
+  coverage:
+    enabled: true
+    tools: [tarpaulin]
+```
+
+If using a custom command:
+
+```yaml
+# Option B: Custom command — must write report to target/tarpaulin/
+pipeline:
+  testing:
+    enabled: true
+    command: "cargo tarpaulin --out json --output-dir target/tarpaulin"
+  coverage:
+    enabled: true
+    tools: [tarpaulin]
+```
+
+**Prerequisite:** Install tarpaulin: `cargo install cargo-tarpaulin`
+
+#### C (gcov)
+
+**Expected files:** `coverage.info` or `lcov.info` (at project root or build directory)
+
+```yaml
+pipeline:
+  testing:
+    enabled: true
+    tools: [ctest]
+  coverage:
+    enabled: true
+    tools: [gcov]
+```
+
+**CMake configuration for coverage:**
+
+```cmake
+# Add coverage flags
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --coverage")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+
+# Add a coverage target
+add_custom_target(coverage
+    COMMAND lcov --capture --directory . --output-file coverage.info
+    COMMAND lcov --remove coverage.info '/usr/*' --output-file coverage.info
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+```
+
+If using a custom command:
+
+```yaml
+pipeline:
+  testing:
+    enabled: true
+    command: "cmake --build build && ctest --test-dir build --output-on-failure"
+    post_command: "lcov --capture --directory build --output-file coverage.info && lcov --remove coverage.info '/usr/*' --output-file coverage.info"
+  coverage:
+    enabled: true
+    tools: [gcov]
+```
+
+### Coverage File Path Summary
+
+Each coverage plugin looks for files at specific paths relative to the project root. If your test runner writes coverage data to a non-default location, coverage analysis will fail with a `no_coverage_data` error.
+
+| Plugin | Expected Path(s) | Produced By |
+|--------|-------------------|-------------|
+| **coverage_py** | `.coverage` | `coverage run -m pytest` |
+| **istanbul** | `coverage/coverage-summary.json`, `coverage/coverage-final.json`, or `.nyc_output/` | `jest --coverage` or `nyc` |
+| **vitest_coverage** | `coverage/coverage-summary.json` or `coverage/coverage-final.json` | `vitest run --coverage` |
+| **jacoco** (Maven) | `target/site/jacoco/jacoco.xml`, `target/jacoco.xml` | `mvn test jacoco:report` |
+| **jacoco** (Gradle) | `build/reports/jacoco/test/jacocoTestReport.xml` | `gradle test jacocoTestReport` |
+| **tarpaulin** | `target/tarpaulin/tarpaulin-report.json` | `cargo tarpaulin --out json` |
+| **go_cover** | `coverage.out` | `go test -coverprofile=coverage.out` |
+| **gcov** | `coverage.info` or `lcov.info` (root or build dir) | `lcov --capture` after compile with `--coverage` |
+
+### Troubleshooting: "No coverage data found"
+
+If you see a `no_coverage_data` error:
+
+1. **Check that testing is enabled** — coverage requires the testing domain to run first
+2. **Verify the coverage file exists** — after running tests, check that the expected file (see table above) exists at the project root
+3. **Check your test runner configuration** — ensure it's configured to produce coverage output (see per-language sections above)
+4. **Check the output path** — if your test runner uses a custom output directory, it must match what the coverage plugin expects
+5. **Check reporter format** — for JS/TS, ensure `json-summary` is in the reporters list; for Java, ensure XML reports are enabled
+
 ### CLI Usage
 
 When running scans from the command line:
