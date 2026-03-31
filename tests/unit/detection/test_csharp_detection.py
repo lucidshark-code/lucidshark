@@ -12,7 +12,6 @@ from lucidshark.detection.languages import (
     detect_languages,
 )
 from lucidshark.detection.frameworks import (
-    _get_csharp_dependencies,
     _parse_csproj_deps,
     detect_frameworks,
 )
@@ -60,9 +59,7 @@ class TestCSharpVersionDetection:
     def test_from_global_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            (project_root / "global.json").write_text(
-                '{"sdk": {"version": "8.0.100"}}'
-            )
+            (project_root / "global.json").write_text('{"sdk": {"version": "8.0.100"}}')
             version = _detect_csharp_version(project_root)
             assert version == "8.0"
 
@@ -101,9 +98,7 @@ class TestCSharpVersionDetection:
     def test_prefers_global_json_over_csproj(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             project_root = Path(tmpdir)
-            (project_root / "global.json").write_text(
-                '{"sdk": {"version": "9.0.100"}}'
-            )
+            (project_root / "global.json").write_text('{"sdk": {"version": "9.0.100"}}')
             (project_root / "MyApp.csproj").write_text(
                 "<Project>\n"
                 "  <PropertyGroup>\n"
