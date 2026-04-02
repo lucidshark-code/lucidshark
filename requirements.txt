@@ -41,13 +41,14 @@ orjson==3.11.7
 packaging==26.0
 pathspec==1.0.4
 pluggy==1.6.0
+posthog>=3.0.0,<4.0.0
 prompt_toolkit==3.0.52
 pycparser==3.0
 pydantic==2.12.5
 pydantic-settings==2.13.1
 pydantic_core==2.41.5
 Pygments==2.20.0
-PyJWT==2.11.0
+PyJWT==2.12.0
 pyproject_hooks==1.2.0
 pyright==1.1.408
 pytest==9.0.2

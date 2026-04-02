@@ -60,15 +60,19 @@ EXTENSION_MAP = {
     ".scala": "scala",
     ".sc": "scala",
     ".rb": "ruby",
+    ".rake": "ruby",
+    ".gemspec": "ruby",
     ".php": "php",
     ".cs": "csharp",
     ".swift": "swift",
     ".c": "c",
     ".h": "c",
-    ".cpp": "cpp",
-    ".cc": "cpp",
-    ".cxx": "cpp",
-    ".hpp": "cpp",
+    ".cpp": "c++",
+    ".cc": "c++",
+    ".cxx": "c++",
+    ".hpp": "c++",
+    ".hh": "c++",
+    ".hxx": "c++",
 }
 
 # Marker files that indicate a language
@@ -89,7 +93,7 @@ MARKER_FILES = {
     "ruby": ["Gemfile", "Rakefile"],
     "php": ["composer.json"],
     "c": ["CMakeLists.txt", "Makefile", "makefile", "GNUmakefile", "meson.build"],
-    "cpp": ["CMakeLists.txt"],
+    "c++": ["CMakeLists.txt"],
     "swift": ["Package.swift"],
 }
 
@@ -315,8 +319,9 @@ def _detect_java_version(project_root: Path) -> Optional[str]:
         try:
             content = pom_xml.read_text()
             # Look for maven.compiler.source or java.version property
+            # Supports both modern (17) and legacy (1.8) version formats
             match = re.search(
-                r"<(?:maven\.compiler\.source|java\.version)>(\d+)</",
+                r"<(?:maven\.compiler\.source|java\.version)>(\d+(?:\.\d+)?)</",
                 content,
             )
             if match:
@@ -409,6 +414,19 @@ def _detect_csharp_version(project_root: Path) -> Optional[str]:
             )
             if match:
                 return match.group(1)
+            # Match <TargetFramework>netstandard2.1</TargetFramework>
+            match = re.search(
+                r"<TargetFramework>netstandard(\d+\.\d+)</TargetFramework>", content
+            )
+            if match:
+                return match.group(1)
+            # Match .NET Framework: <TargetFramework>net48</TargetFramework>
+            match = re.search(
+                r"<TargetFramework>net(\d{2,3})</TargetFramework>", content
+            )
+            if match:
+                raw = match.group(1)
+                return f"{raw[0]}.{raw[1:]}"
         except Exception:
             pass
 
@@ -431,8 +449,10 @@ def _detect_scala_version(project_root: Path) -> Optional[str]:
             content = build_sbt.read_text()
             # Match patterns like: scalaVersion := "3.3.1"
             # or: ThisBuild / scalaVersion := "2.13.12"
+            # or: scalaVersion in ThisBuild := "2.13.12" (older sbt 0.13 syntax)
             match = re.search(
-                r'scalaVersion\s*:=\s*["\'](\d+\.\d+(?:\.\d+)?)["\']', content
+                r'scalaVersion\s*(?:in\s+\w+\s*)?\s*:=\s*["\'](\d+\.\d+(?:\.\d+)?)["\']',
+                content,
             )
             if match:
                 return match.group(1)
