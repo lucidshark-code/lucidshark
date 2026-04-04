@@ -8,6 +8,11 @@ downloads the new binary to .lucidshark/cache/pending-update/.
 
 Phase B (apply): On the next CLI invocation, if a pending update exists,
 the binary is validated, atomically swapped in, and the process re-execs.
+
+High-level entry points (used by CLI and MCP server):
+  - maybe_apply_pending_and_reexec: Phase B — apply + re-exec (CLI startup)
+  - maybe_start_background_check:  Phase A — background thread (CLI commands)
+  - maybe_check_apply_and_reexec:  Phase A+B — sync check + apply + re-exec (MCP startup)
 """
 
 from __future__ import annotations
@@ -77,6 +82,16 @@ def get_self_binary_path() -> Optional[Path]:
     if binary.exists():
         return binary
     return None
+
+
+def _get_cache_dir() -> Optional[Path]:
+    """Return the cache directory, or None on any error."""
+    try:
+        from lucidshark.bootstrap.paths import LucidsharkPaths
+
+        return LucidsharkPaths.default().cache_dir
+    except Exception:
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -307,6 +322,39 @@ def _write_check_cache(
         pass
 
 
+def _fetch_and_stage_update(cache_dir: Path, current_version: str) -> bool:
+    """Check GitHub for a newer version and download it to the staging area.
+
+    Shared core for both background_update_check and check_and_apply_update.
+    Respects the 24h check interval and avoids re-downloading an already
+    staged version.
+
+    Returns True if a new version is staged (or was already staged), False
+    otherwise.
+    """
+    if not should_check_for_update(cache_dir):
+        return False
+
+    result = check_for_update(cache_dir, current_version)
+    if result is None:
+        return False
+
+    # Don't re-download if we already have this version staged
+    pending_version_file = cache_dir / PENDING_UPDATE_DIR / PENDING_VERSION_FILE
+    if pending_version_file.exists():
+        try:
+            with open(pending_version_file, "r") as f:
+                existing = json.load(f)
+            if existing.get("version") == result["version"]:
+                return True
+        except Exception:
+            pass
+
+    return download_pending_update(
+        cache_dir, result["download_url"], result["version"]
+    )
+
+
 def background_update_check(cache_dir: Path, current_version: str) -> None:
     """Orchestrate the background update check and download.
 
@@ -314,29 +362,7 @@ def background_update_check(cache_dir: Path, current_version: str) -> None:
     are caught and logged at debug level.
     """
     try:
-        if not should_check_for_update(cache_dir):
-            return
-
-        result = check_for_update(cache_dir, current_version)
-        if result is None:
-            return
-
-        # Don't re-download if we already have this version staged
-        pending_version_file = cache_dir / PENDING_UPDATE_DIR / PENDING_VERSION_FILE
-        if pending_version_file.exists():
-            try:
-                with open(pending_version_file, "r") as f:
-                    existing = json.load(f)
-                if existing.get("version") == result["version"]:
-                    return
-            except Exception:
-                pass
-
-        download_pending_update(
-            cache_dir,
-            result["download_url"],
-            result["version"],
-        )
+        _fetch_and_stage_update(cache_dir, current_version)
     except Exception as e:
         LOGGER.debug(f"Background update check failed: {e}")
 
@@ -354,3 +380,107 @@ def start_background_update_check(cache_dir: Path, current_version: str) -> None
         name="lucidshark-update-check",
     )
     thread.start()
+
+
+def check_and_apply_update(cache_dir: Path, current_version: str) -> Optional[str]:
+    """Synchronous update: check GitHub, download if newer, apply.
+
+    Respects the same 24h check interval as the CLI background check.
+
+    Returns the new version string if an update was applied, None otherwise.
+    All exceptions are caught — this must never block the caller.
+    """
+    try:
+        # First, apply any previously downloaded pending update
+        new_version = apply_pending_update(cache_dir, current_version)
+        if new_version is not None:
+            return new_version
+
+        # Fetch and stage a new version (if available)
+        _fetch_and_stage_update(cache_dir, current_version)
+
+        # Apply whatever was staged
+        return apply_pending_update(cache_dir, current_version)
+    except Exception as e:
+        LOGGER.debug(f"Startup update check failed: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# High-level entry points
+# ---------------------------------------------------------------------------
+# These handle the frozen-binary guard, cache-dir resolution, auto_update
+# config check, and re-exec — so callers stay thin.
+
+
+def maybe_apply_pending_and_reexec(current_version: str) -> None:
+    """Phase B entry point: apply a staged update and re-exec.
+
+    Called once at CLI startup (before any command runs). Only active
+    for frozen (PyInstaller) binaries.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+    try:
+        binary_path = get_self_binary_path()
+        if binary_path is None:
+            return
+        cache_dir = _get_cache_dir()
+        if cache_dir is None:
+            return
+        new_version = apply_pending_update(cache_dir, current_version)
+        if new_version is not None:
+            print(f"LucidShark updated to v{new_version} (was v{current_version})")
+            re_exec()  # replaces process — does not return
+    except Exception:
+        pass  # Never let update logic block the CLI
+
+
+def maybe_start_background_check(
+    current_version: str, *, auto_update: bool = True
+) -> None:
+    """Phase A entry point: spawn a background check+download thread.
+
+    Called by CLI commands (except serve) after parsing arguments. Only
+    active for frozen binaries with auto_update enabled.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+    if auto_update is False:
+        return
+    try:
+        cache_dir = _get_cache_dir()
+        if cache_dir is None:
+            return
+        start_background_update_check(cache_dir, current_version)
+    except Exception:
+        pass  # Never let update logic crash the CLI
+
+
+def maybe_check_apply_and_reexec(
+    current_version: str, *, auto_update: bool = True
+) -> None:
+    """Phase A+B entry point: sync check, download, apply, re-exec.
+
+    Called at MCP server startup so it always runs the latest version.
+    Only active for frozen binaries with auto_update enabled.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+    if auto_update is False:
+        return
+    try:
+        binary_path = get_self_binary_path()
+        if binary_path is None:
+            return
+        cache_dir = _get_cache_dir()
+        if cache_dir is None:
+            return
+        new_version = check_and_apply_update(cache_dir, current_version)
+        if new_version is not None:
+            LOGGER.info(
+                f"Updated to v{new_version} (was v{current_version}), restarting"
+            )
+            re_exec()  # replaces process — does not return
+    except Exception:
+        pass  # Never let update logic block the MCP server

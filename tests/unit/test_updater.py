@@ -19,14 +19,19 @@ from lucidshark.updater import (
     PENDING_VERSION_FILE,
     UPDATE_CHECK_FILE,
     _cleanup_pending,
+    _fetch_and_stage_update,
     _is_newer,
     _parse_version,
     _write_check_cache,
     apply_pending_update,
     background_update_check,
+    check_and_apply_update,
     check_for_update,
     download_pending_update,
     get_self_binary_path,
+    maybe_apply_pending_and_reexec,
+    maybe_check_apply_and_reexec,
+    maybe_start_background_check,
     should_check_for_update,
     start_background_update_check,
 )
@@ -630,3 +635,371 @@ class TestStartBackgroundUpdateCheck:
 
         assert len(daemon_flags) == 1
         assert daemon_flags[0] is True
+
+
+# ---------------------------------------------------------------------------
+# check_and_apply_update
+# ---------------------------------------------------------------------------
+
+
+class TestCheckAndApplyUpdate:
+    """Tests for check_and_apply_update (synchronous startup update)."""
+
+    def _stage_pending_update(
+        self,
+        cache_dir: Path,
+        version: str = "0.8.0",
+        binary_size: int = MIN_BINARY_SIZE + 1,
+        executable: bool = True,
+    ) -> Path:
+        """Create a staged pending update in cache_dir."""
+        pending_dir = cache_dir / PENDING_UPDATE_DIR
+        pending_dir.mkdir(parents=True, exist_ok=True)
+
+        binary = pending_dir / "lucidshark"
+        binary.write_bytes(b"\x00" * binary_size)
+        if executable:
+            binary.chmod(binary.stat().st_mode | stat.S_IXUSR)
+
+        version_file = pending_dir / PENDING_VERSION_FILE
+        version_file.write_text(json.dumps({"version": version}))
+        return pending_dir
+
+    def test_applies_pending_update_without_checking_github(
+        self, tmp_path: Path
+    ) -> None:
+        """If a pending update exists, apply it without hitting GitHub."""
+        cache_dir = tmp_path / "cache"
+        install_dir = tmp_path / "bin"
+        install_dir.mkdir()
+        installed_binary = install_dir / "lucidshark"
+        installed_binary.write_bytes(b"OLD_BINARY")
+
+        self._stage_pending_update(cache_dir, version="0.8.0")
+
+        with patch(
+            "lucidshark.updater.get_self_binary_path",
+            return_value=installed_binary,
+        ):
+            with patch("lucidshark.updater.check_for_update") as mock_check:
+                result = check_and_apply_update(cache_dir, "0.7.0")
+
+        assert result == "0.8.0"
+        mock_check.assert_not_called()
+
+    def test_checks_github_and_downloads_when_newer(self, tmp_path: Path) -> None:
+        """No pending update, GitHub has newer version → download + apply."""
+        cache_dir = tmp_path / "cache"
+        cache_dir.mkdir(parents=True)
+        install_dir = tmp_path / "bin"
+        install_dir.mkdir()
+        installed_binary = install_dir / "lucidshark"
+        installed_binary.write_bytes(b"OLD_BINARY")
+
+        update_info = {
+            "version": "0.9.0",
+            "download_url": "https://example.com/lucidshark",
+            "tag": "v0.9.0",
+        }
+
+        def fake_download(_cache: Path, _url: str, version: str) -> bool:
+            self._stage_pending_update(_cache, version=version)
+            return True
+
+        with patch("lucidshark.updater.check_for_update", return_value=update_info):
+            with patch(
+                "lucidshark.updater.download_pending_update",
+                side_effect=fake_download,
+            ):
+                with patch(
+                    "lucidshark.updater.get_self_binary_path",
+                    return_value=installed_binary,
+                ):
+                    result = check_and_apply_update(cache_dir, "0.7.0")
+
+        assert result == "0.9.0"
+
+    def test_returns_none_when_up_to_date(self, tmp_path: Path) -> None:
+        """No pending update, GitHub shows same version → None."""
+        with patch("lucidshark.updater.check_for_update", return_value=None):
+            result = check_and_apply_update(tmp_path, "0.7.0")
+        assert result is None
+
+    def test_respects_24h_throttle(self, tmp_path: Path) -> None:
+        """Skip GitHub check if last check was recent."""
+        recent = datetime.now(timezone.utc) - timedelta(hours=1)
+        cache_file = tmp_path / UPDATE_CHECK_FILE
+        cache_file.write_text(json.dumps({"last_check_utc": recent.isoformat()}))
+
+        with patch("lucidshark.updater.check_for_update") as mock_check:
+            result = check_and_apply_update(tmp_path, "0.7.0")
+
+        assert result is None
+        mock_check.assert_not_called()
+
+    def test_returns_none_when_download_fails(self, tmp_path: Path) -> None:
+        update_info = {
+            "version": "0.9.0",
+            "download_url": "https://example.com/lucidshark",
+            "tag": "v0.9.0",
+        }
+
+        with patch("lucidshark.updater.check_for_update", return_value=update_info):
+            with patch(
+                "lucidshark.updater.download_pending_update", return_value=False
+            ):
+                result = check_and_apply_update(tmp_path, "0.7.0")
+
+        assert result is None
+
+    def test_applies_already_staged_matching_version(self, tmp_path: Path) -> None:
+        """If GitHub says 0.9.0 and we already have 0.9.0 staged, apply it."""
+        cache_dir = tmp_path / "cache"
+        install_dir = tmp_path / "bin"
+        install_dir.mkdir()
+        installed_binary = install_dir / "lucidshark"
+        installed_binary.write_bytes(b"OLD_BINARY")
+
+        self._stage_pending_update(cache_dir, version="0.9.0")
+
+        update_info = {
+            "version": "0.9.0",
+            "download_url": "https://example.com/lucidshark",
+            "tag": "v0.9.0",
+        }
+
+        with patch("lucidshark.updater.check_for_update", return_value=update_info):
+            with patch(
+                "lucidshark.updater.get_self_binary_path",
+                return_value=installed_binary,
+            ):
+                with patch(
+                    "lucidshark.updater.download_pending_update"
+                ) as mock_download:
+                    result = check_and_apply_update(cache_dir, "0.7.0")
+
+        assert result == "0.9.0"
+        mock_download.assert_not_called()
+
+    def test_never_raises(self, tmp_path: Path) -> None:
+        """check_and_apply_update must swallow all exceptions."""
+        with patch(
+            "lucidshark.updater.apply_pending_update",
+            side_effect=RuntimeError("unexpected"),
+        ):
+            result = check_and_apply_update(tmp_path, "0.7.0")
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _fetch_and_stage_update
+# ---------------------------------------------------------------------------
+
+
+class TestFetchAndStageUpdate:
+    """Tests for _fetch_and_stage_update (shared fetch core)."""
+
+    def test_returns_false_when_check_not_due(self, tmp_path: Path) -> None:
+        recent = datetime.now(timezone.utc) - timedelta(hours=1)
+        cache_file = tmp_path / UPDATE_CHECK_FILE
+        cache_file.write_text(json.dumps({"last_check_utc": recent.isoformat()}))
+
+        result = _fetch_and_stage_update(tmp_path, "0.7.0")
+        assert result is False
+
+    def test_returns_false_when_up_to_date(self, tmp_path: Path) -> None:
+        with patch("lucidshark.updater.check_for_update", return_value=None):
+            result = _fetch_and_stage_update(tmp_path, "0.7.0")
+        assert result is False
+
+    def test_downloads_when_newer(self, tmp_path: Path) -> None:
+        update_info = {
+            "version": "0.8.0",
+            "download_url": "https://example.com/lucidshark",
+            "tag": "v0.8.0",
+        }
+        with patch("lucidshark.updater.check_for_update", return_value=update_info):
+            with patch(
+                "lucidshark.updater.download_pending_update", return_value=True
+            ) as mock_dl:
+                result = _fetch_and_stage_update(tmp_path, "0.7.0")
+
+        assert result is True
+        mock_dl.assert_called_once_with(
+            tmp_path, "https://example.com/lucidshark", "0.8.0"
+        )
+
+    def test_returns_true_when_already_staged(self, tmp_path: Path) -> None:
+        pending_dir = tmp_path / PENDING_UPDATE_DIR
+        pending_dir.mkdir(parents=True)
+        (pending_dir / PENDING_VERSION_FILE).write_text(
+            json.dumps({"version": "0.8.0"})
+        )
+
+        update_info = {
+            "version": "0.8.0",
+            "download_url": "https://example.com/lucidshark",
+            "tag": "v0.8.0",
+        }
+        with patch("lucidshark.updater.check_for_update", return_value=update_info):
+            with patch("lucidshark.updater.download_pending_update") as mock_dl:
+                result = _fetch_and_stage_update(tmp_path, "0.7.0")
+
+        assert result is True
+        mock_dl.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# High-level entry points
+# ---------------------------------------------------------------------------
+
+
+class TestMaybeApplyPendingAndReexec:
+    """Tests for maybe_apply_pending_and_reexec (CLI Phase B entry point)."""
+
+    def test_skips_when_not_frozen(self) -> None:
+        with patch.object(sys, "frozen", False, create=True):
+            with patch("lucidshark.updater.apply_pending_update") as mock:
+                maybe_apply_pending_and_reexec("0.7.0")
+        mock.assert_not_called()
+
+    def test_skips_when_no_binary_path(self) -> None:
+        with patch.object(sys, "frozen", True, create=True):
+            with patch("lucidshark.updater.get_self_binary_path", return_value=None):
+                with patch("lucidshark.updater.apply_pending_update") as mock:
+                    maybe_apply_pending_and_reexec("0.7.0")
+        mock.assert_not_called()
+
+    def test_reexecs_when_update_applied(self, tmp_path: Path) -> None:
+        binary = tmp_path / "lucidshark"
+        binary.write_bytes(b"\x00")
+        with patch.object(sys, "frozen", True, create=True):
+            with patch("lucidshark.updater.get_self_binary_path", return_value=binary):
+                with patch(
+                    "lucidshark.updater._get_cache_dir",
+                    return_value=tmp_path / "cache",
+                ):
+                    with patch(
+                        "lucidshark.updater.apply_pending_update",
+                        return_value="0.8.0",
+                    ):
+                        with patch("lucidshark.updater.re_exec") as mock_re:
+                            maybe_apply_pending_and_reexec("0.7.0")
+        mock_re.assert_called_once()
+
+    def test_no_reexec_when_no_update(self, tmp_path: Path) -> None:
+        binary = tmp_path / "lucidshark"
+        binary.write_bytes(b"\x00")
+        with patch.object(sys, "frozen", True, create=True):
+            with patch("lucidshark.updater.get_self_binary_path", return_value=binary):
+                with patch(
+                    "lucidshark.updater._get_cache_dir",
+                    return_value=tmp_path / "cache",
+                ):
+                    with patch(
+                        "lucidshark.updater.apply_pending_update",
+                        return_value=None,
+                    ):
+                        with patch("lucidshark.updater.re_exec") as mock_re:
+                            maybe_apply_pending_and_reexec("0.7.0")
+        mock_re.assert_not_called()
+
+    def test_never_raises(self) -> None:
+        with patch.object(sys, "frozen", True, create=True):
+            with patch(
+                "lucidshark.updater.get_self_binary_path",
+                side_effect=RuntimeError("boom"),
+            ):
+                maybe_apply_pending_and_reexec("0.7.0")
+
+
+class TestMaybeStartBackgroundCheck:
+    """Tests for maybe_start_background_check (CLI Phase A entry point)."""
+
+    def test_skips_when_not_frozen(self) -> None:
+        with patch.object(sys, "frozen", False, create=True):
+            with patch("lucidshark.updater.start_background_update_check") as mock:
+                maybe_start_background_check("0.7.0")
+        mock.assert_not_called()
+
+    def test_skips_when_auto_update_false(self) -> None:
+        with patch.object(sys, "frozen", True, create=True):
+            with patch("lucidshark.updater.start_background_update_check") as mock:
+                maybe_start_background_check("0.7.0", auto_update=False)
+        mock.assert_not_called()
+
+    def test_starts_thread_when_enabled(self, tmp_path: Path) -> None:
+        with patch.object(sys, "frozen", True, create=True):
+            with patch(
+                "lucidshark.updater._get_cache_dir",
+                return_value=tmp_path,
+            ):
+                with patch("lucidshark.updater.start_background_update_check") as mock:
+                    maybe_start_background_check("0.7.0", auto_update=True)
+        mock.assert_called_once_with(tmp_path, "0.7.0")
+
+    def test_never_raises(self) -> None:
+        with patch.object(sys, "frozen", True, create=True):
+            with patch(
+                "lucidshark.updater._get_cache_dir",
+                side_effect=RuntimeError("boom"),
+            ):
+                maybe_start_background_check("0.7.0")
+
+
+class TestMaybeCheckApplyAndReexec:
+    """Tests for maybe_check_apply_and_reexec (MCP Phase A+B entry point)."""
+
+    def test_skips_when_not_frozen(self) -> None:
+        with patch.object(sys, "frozen", False, create=True):
+            with patch("lucidshark.updater.check_and_apply_update") as mock:
+                maybe_check_apply_and_reexec("0.7.0")
+        mock.assert_not_called()
+
+    def test_skips_when_auto_update_false(self) -> None:
+        with patch.object(sys, "frozen", True, create=True):
+            with patch("lucidshark.updater.check_and_apply_update") as mock:
+                maybe_check_apply_and_reexec("0.7.0", auto_update=False)
+        mock.assert_not_called()
+
+    def test_reexecs_when_update_applied(self, tmp_path: Path) -> None:
+        binary = tmp_path / "lucidshark"
+        binary.write_bytes(b"\x00")
+        with patch.object(sys, "frozen", True, create=True):
+            with patch("lucidshark.updater.get_self_binary_path", return_value=binary):
+                with patch(
+                    "lucidshark.updater._get_cache_dir",
+                    return_value=tmp_path / "cache",
+                ):
+                    with patch(
+                        "lucidshark.updater.check_and_apply_update",
+                        return_value="0.9.0",
+                    ):
+                        with patch("lucidshark.updater.re_exec") as mock_re:
+                            maybe_check_apply_and_reexec("0.7.0")
+        mock_re.assert_called_once()
+
+    def test_no_reexec_when_no_update(self, tmp_path: Path) -> None:
+        binary = tmp_path / "lucidshark"
+        binary.write_bytes(b"\x00")
+        with patch.object(sys, "frozen", True, create=True):
+            with patch("lucidshark.updater.get_self_binary_path", return_value=binary):
+                with patch(
+                    "lucidshark.updater._get_cache_dir",
+                    return_value=tmp_path / "cache",
+                ):
+                    with patch(
+                        "lucidshark.updater.check_and_apply_update",
+                        return_value=None,
+                    ):
+                        with patch("lucidshark.updater.re_exec") as mock_re:
+                            maybe_check_apply_and_reexec("0.7.0")
+        mock_re.assert_not_called()
+
+    def test_never_raises(self) -> None:
+        with patch.object(sys, "frozen", True, create=True):
+            with patch(
+                "lucidshark.updater.get_self_binary_path",
+                side_effect=RuntimeError("boom"),
+            ):
+                maybe_check_apply_and_reexec("0.7.0")

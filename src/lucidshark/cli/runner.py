@@ -63,29 +63,20 @@ class CLIRunner:
         Does a lightweight read of lucidshark.yml to check the auto_update
         setting without performing a full config load.
         """
-        try:
-            from lucidshark.bootstrap.paths import LucidsharkPaths
-            from lucidshark.updater import start_background_update_check
+        from lucidshark.updater import maybe_start_background_check
 
-            paths = LucidsharkPaths.default()
+        auto_update = True
+        project_config_path = find_project_config(Path.cwd())
+        if project_config_path:
+            try:
+                raw = load_yaml_file(project_config_path)
+                settings = raw.get("settings", {})
+                if isinstance(settings, dict) and settings.get("auto_update") is False:
+                    auto_update = False
+            except Exception:
+                pass  # Config parse error — don't block update check
 
-            # Quick check: is auto_update disabled in config?
-            project_config_path = find_project_config(Path.cwd())
-            if project_config_path:
-                try:
-                    raw = load_yaml_file(project_config_path)
-                    settings = raw.get("settings", {})
-                    if (
-                        isinstance(settings, dict)
-                        and settings.get("auto_update") is False
-                    ):
-                        return
-                except Exception:
-                    pass  # Config parse error — don't block update check
-
-            start_background_update_check(paths.cache_dir, self._version)
-        except Exception:
-            pass  # Never let update logic crash the CLI
+        maybe_start_background_check(self._version, auto_update=auto_update)
 
     @property
     def init_cmd(self):
@@ -108,8 +99,6 @@ class CLIRunner:
         Returns:
             Exit code.
         """
-        import sys
-
         # Handle --help specially to return 0
         if argv is not None:
             argv_list = list(argv)
@@ -136,10 +125,10 @@ class CLIRunner:
         # Dispatch to appropriate command handler
         command = getattr(args, "command", None)
 
-        # Phase A: Start background update check (frozen binaries only).
-        # Skip for 'serve' — the MCP server is long-lived and the update
-        # will be applied on the next normal CLI invocation.
-        if getattr(sys, "frozen", False) and command != "serve":
+        # Phase A: Start background update check.
+        # Skip for 'serve' — it does its own synchronous check+apply+re-exec
+        # at startup via maybe_check_apply_and_reexec().
+        if command != "serve":
             self._maybe_start_update_check()
 
         if command == "init":

@@ -77,18 +77,23 @@ class TestServeCommand:
         """Test MCP server runs successfully."""
         args = Namespace(path=str(tmp_path), mcp=True, watch=False)
         config = MagicMock(spec=LucidSharkConfig)
+        config.settings = MagicMock()
+        config.settings.auto_update = True
 
         mock_server = MagicMock()
 
         with patch(
-            "lucidshark.mcp.server.LucidSharkMCPServer",
-            return_value=mock_server,
+            "lucidshark.updater.maybe_check_apply_and_reexec",
         ):
-            with patch("asyncio.run"):
-                cmd = ServeCommand(version="1.0.0")
-                result = cmd._run_mcp_server(args, config, tmp_path)
+            with patch(
+                "lucidshark.mcp.server.LucidSharkMCPServer",
+                return_value=mock_server,
+            ):
+                with patch("asyncio.run"):
+                    cmd = ServeCommand(version="1.0.0")
+                    result = cmd._run_mcp_server(args, config, tmp_path)
 
-                assert result == EXIT_SUCCESS
+                    assert result == EXIT_SUCCESS
 
     def test_run_mcp_server_import_error(self, tmp_path: Path) -> None:
         """Test MCP server handles import error."""
@@ -108,18 +113,23 @@ class TestServeCommand:
         """Test MCP server handles runtime error."""
         args = Namespace(path=str(tmp_path), mcp=True, watch=False)
         config = MagicMock(spec=LucidSharkConfig)
+        config.settings = MagicMock()
+        config.settings.auto_update = True
 
         mock_server = MagicMock()
 
         with patch(
-            "lucidshark.mcp.server.LucidSharkMCPServer",
-            return_value=mock_server,
+            "lucidshark.updater.maybe_check_apply_and_reexec",
         ):
-            with patch("asyncio.run", side_effect=RuntimeError("Server failed")):
-                cmd = ServeCommand(version="1.0.0")
-                result = cmd._run_mcp_server(args, config, tmp_path)
+            with patch(
+                "lucidshark.mcp.server.LucidSharkMCPServer",
+                return_value=mock_server,
+            ):
+                with patch("asyncio.run", side_effect=RuntimeError("Server failed")):
+                    cmd = ServeCommand(version="1.0.0")
+                    result = cmd._run_mcp_server(args, config, tmp_path)
 
-                assert result == EXIT_SCANNER_ERROR
+                    assert result == EXIT_SCANNER_ERROR
 
     def test_run_file_watcher_success(self, tmp_path: Path) -> None:
         """Test file watcher runs successfully."""
@@ -206,3 +216,65 @@ class TestServeCommand:
                 # Check that default debounce of 1000 was used
                 call_kwargs = mock_watcher_class.call_args[1]
                 assert call_kwargs["debounce_ms"] == 1000
+
+
+class TestServeCommandAutoUpdate:
+    """Tests for MCP server startup auto-update integration."""
+
+    def test_mcp_server_calls_maybe_check_apply_and_reexec(
+        self, tmp_path: Path
+    ) -> None:
+        """_run_mcp_server calls the updater entry point before serving."""
+        args = Namespace(path=str(tmp_path), mcp=True, watch=False)
+        config = MagicMock(spec=LucidSharkConfig)
+        config.settings = MagicMock()
+        config.settings.auto_update = True
+        mock_server = MagicMock()
+
+        with patch("lucidshark.updater.maybe_check_apply_and_reexec") as mock_update:
+            with patch(
+                "lucidshark.mcp.server.LucidSharkMCPServer",
+                return_value=mock_server,
+            ):
+                with patch("asyncio.run"):
+                    cmd = ServeCommand(version="1.0.0")
+                    cmd._run_mcp_server(args, config, tmp_path)
+
+        mock_update.assert_called_once_with("1.0.0", auto_update=True)
+
+    def test_mcp_server_passes_auto_update_false(self, tmp_path: Path) -> None:
+        """auto_update=False from config is passed through to updater."""
+        args = Namespace(path=str(tmp_path), mcp=True, watch=False)
+        config = MagicMock(spec=LucidSharkConfig)
+        config.settings = MagicMock()
+        config.settings.auto_update = False
+        mock_server = MagicMock()
+
+        with patch("lucidshark.updater.maybe_check_apply_and_reexec") as mock_update:
+            with patch(
+                "lucidshark.mcp.server.LucidSharkMCPServer",
+                return_value=mock_server,
+            ):
+                with patch("asyncio.run"):
+                    cmd = ServeCommand(version="1.0.0")
+                    cmd._run_mcp_server(args, config, tmp_path)
+
+        mock_update.assert_called_once_with("1.0.0", auto_update=False)
+
+    def test_mcp_server_handles_no_settings(self, tmp_path: Path) -> None:
+        """Defaults to auto_update=True when config.settings is None."""
+        args = Namespace(path=str(tmp_path), mcp=True, watch=False)
+        config = MagicMock(spec=LucidSharkConfig)
+        config.settings = None
+        mock_server = MagicMock()
+
+        with patch("lucidshark.updater.maybe_check_apply_and_reexec") as mock_update:
+            with patch(
+                "lucidshark.mcp.server.LucidSharkMCPServer",
+                return_value=mock_server,
+            ):
+                with patch("asyncio.run"):
+                    cmd = ServeCommand(version="1.0.0")
+                    cmd._run_mcp_server(args, config, tmp_path)
+
+        mock_update.assert_called_once_with("1.0.0", auto_update=True)

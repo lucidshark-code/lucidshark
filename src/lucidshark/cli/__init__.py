@@ -37,27 +37,10 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     """
     # Phase B: Apply a pending auto-update before anything else.
     # Only active for PyInstaller frozen binaries (not development).
-    import sys
+    from lucidshark import __version__
+    from lucidshark.updater import maybe_apply_pending_and_reexec
 
-    if getattr(sys, "frozen", False):
-        try:
-            from lucidshark.updater import (
-                apply_pending_update,
-                get_self_binary_path,
-                re_exec,
-            )
-            from lucidshark.bootstrap.paths import LucidsharkPaths
-            from lucidshark import __version__
-
-            binary_path = get_self_binary_path()
-            if binary_path is not None:
-                paths = LucidsharkPaths.default()
-                new_version = apply_pending_update(paths.cache_dir, __version__)
-                if new_version is not None:
-                    print(f"LucidShark updated to v{new_version} (was v{__version__})")
-                    re_exec()  # replaces process — does not return
-        except Exception:
-            pass  # Never let update logic block the CLI
+    maybe_apply_pending_and_reexec(__version__)
 
     runner = CLIRunner()
     return runner.run(argv)

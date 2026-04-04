@@ -78,6 +78,12 @@ class ServeCommand(Command):
         Returns:
             Exit code.
         """
+        # Auto-update: check, download, apply, and re-exec before serving
+        from lucidshark.updater import maybe_check_apply_and_reexec
+
+        auto_update = config.settings.auto_update if config.settings else True
+        maybe_check_apply_and_reexec(self._version, auto_update=auto_update)
+
         try:
             from lucidshark.mcp.server import LucidSharkMCPServer
 
