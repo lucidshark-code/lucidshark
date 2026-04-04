@@ -273,9 +273,7 @@ class TestSbtTestcaseToIssue:
     def test_testcase_uses_correct_tool_name(self) -> None:
         import defusedxml.ElementTree as ET
 
-        testcase_xml = (
-            '<testcase classname="com.example.Spec" name="test" time="0.1"/>'
-        )
+        testcase_xml = '<testcase classname="com.example.Spec" name="test" time="0.1"/>'
         failure_xml = '<failure type="TestFailed" message="oops"/>'
         testcase = ET.fromstring(testcase_xml)
         failure = ET.fromstring(failure_xml)

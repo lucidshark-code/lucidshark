@@ -62,9 +62,7 @@ class TestIsEnabled:
         monkeypatch.delenv("CI", raising=False)
         optout_file = tmp_path / "telemetry-optout"
         optout_file.touch()
-        monkeypatch.setattr(
-            telemetry, "_get_lucidshark_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr(telemetry, "_get_lucidshark_dir", lambda: tmp_path)
         assert telemetry.is_enabled() is False
 
     def test_enabled_by_default(self, monkeypatch, tmp_path):
@@ -72,18 +70,14 @@ class TestIsEnabled:
         monkeypatch.delenv("DO_NOT_TRACK", raising=False)
         monkeypatch.delenv("CI", raising=False)
         # Point to a dir without optout file
-        monkeypatch.setattr(
-            telemetry, "_get_lucidshark_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr(telemetry, "_get_lucidshark_dir", lambda: tmp_path)
         assert telemetry.is_enabled() is True
 
     def test_enabled_caches_result(self, monkeypatch, tmp_path):
         monkeypatch.delenv("LUCIDSHARK_TELEMETRY", raising=False)
         monkeypatch.delenv("DO_NOT_TRACK", raising=False)
         monkeypatch.delenv("CI", raising=False)
-        monkeypatch.setattr(
-            telemetry, "_get_lucidshark_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr(telemetry, "_get_lucidshark_dir", lambda: tmp_path)
         assert telemetry.is_enabled() is True
         # Should return cached value even if env changes
         monkeypatch.setenv("LUCIDSHARK_TELEMETRY", "0")
@@ -94,17 +88,13 @@ class TestAnonymousId:
     """Tests for anonymous ID generation and persistence."""
 
     def test_generates_uuid(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            telemetry, "_get_lucidshark_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr(telemetry, "_get_lucidshark_dir", lambda: tmp_path)
         anon_id = telemetry._get_anonymous_id()
         assert len(anon_id) == 36  # UUID format
         assert "-" in anon_id
 
     def test_persists_to_file(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            telemetry, "_get_lucidshark_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr(telemetry, "_get_lucidshark_dir", lambda: tmp_path)
         anon_id = telemetry._get_anonymous_id()
 
         id_file = tmp_path / "anonymous-id"
@@ -112,9 +102,7 @@ class TestAnonymousId:
         assert id_file.read_text().strip() == anon_id
 
     def test_reads_existing_id(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            telemetry, "_get_lucidshark_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr(telemetry, "_get_lucidshark_dir", lambda: tmp_path)
         id_file = tmp_path / "anonymous-id"
         id_file.write_text("existing-test-id-12345")
 
@@ -122,9 +110,7 @@ class TestAnonymousId:
         assert anon_id == "existing-test-id-12345"
 
     def test_returns_stable_id(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(
-            telemetry, "_get_lucidshark_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr(telemetry, "_get_lucidshark_dir", lambda: tmp_path)
         id1 = telemetry._get_anonymous_id()
         # Reset the cached value but keep the file
         telemetry._anonymous_id = None
@@ -155,9 +141,7 @@ class TestTrackEvent:
         monkeypatch.delenv("LUCIDSHARK_TELEMETRY", raising=False)
         monkeypatch.delenv("DO_NOT_TRACK", raising=False)
         monkeypatch.delenv("CI", raising=False)
-        monkeypatch.setattr(
-            telemetry, "_get_lucidshark_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr(telemetry, "_get_lucidshark_dir", lambda: tmp_path)
 
         # Mock _get_client to raise
         monkeypatch.setattr(
@@ -170,9 +154,7 @@ class TestTrackEvent:
         monkeypatch.delenv("LUCIDSHARK_TELEMETRY", raising=False)
         monkeypatch.delenv("DO_NOT_TRACK", raising=False)
         monkeypatch.delenv("CI", raising=False)
-        monkeypatch.setattr(
-            telemetry, "_get_lucidshark_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr(telemetry, "_get_lucidshark_dir", lambda: tmp_path)
 
         mock_client = MagicMock()
         monkeypatch.setattr(telemetry, "_get_client", lambda: mock_client)
@@ -192,9 +174,7 @@ class TestTrackEvent:
         monkeypatch.delenv("LUCIDSHARK_TELEMETRY", raising=False)
         monkeypatch.delenv("DO_NOT_TRACK", raising=False)
         monkeypatch.delenv("CI", raising=False)
-        monkeypatch.setattr(
-            telemetry, "_get_lucidshark_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr(telemetry, "_get_lucidshark_dir", lambda: tmp_path)
 
         mock_client = MagicMock()
         monkeypatch.setattr(telemetry, "_get_client", lambda: mock_client)
@@ -215,9 +195,7 @@ class TestTrackCommand:
         monkeypatch.delenv("LUCIDSHARK_TELEMETRY", raising=False)
         monkeypatch.delenv("DO_NOT_TRACK", raising=False)
         monkeypatch.delenv("CI", raising=False)
-        monkeypatch.setattr(
-            telemetry, "_get_lucidshark_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr(telemetry, "_get_lucidshark_dir", lambda: tmp_path)
 
         mock_client = MagicMock()
         monkeypatch.setattr(telemetry, "_get_client", lambda: mock_client)
@@ -237,9 +215,7 @@ class TestTrackScanCompleted:
         monkeypatch.delenv("LUCIDSHARK_TELEMETRY", raising=False)
         monkeypatch.delenv("DO_NOT_TRACK", raising=False)
         monkeypatch.delenv("CI", raising=False)
-        monkeypatch.setattr(
-            telemetry, "_get_lucidshark_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr(telemetry, "_get_lucidshark_dir", lambda: tmp_path)
 
         mock_client = MagicMock()
         monkeypatch.setattr(telemetry, "_get_client", lambda: mock_client)
@@ -285,9 +261,7 @@ class TestTrackScanCompleted:
         monkeypatch.delenv("LUCIDSHARK_TELEMETRY", raising=False)
         monkeypatch.delenv("DO_NOT_TRACK", raising=False)
         monkeypatch.delenv("CI", raising=False)
-        monkeypatch.setattr(
-            telemetry, "_get_lucidshark_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr(telemetry, "_get_lucidshark_dir", lambda: tmp_path)
 
         mock_client = MagicMock()
         monkeypatch.setattr(telemetry, "_get_client", lambda: mock_client)
@@ -317,9 +291,7 @@ class TestReset:
         monkeypatch.delenv("LUCIDSHARK_TELEMETRY", raising=False)
         monkeypatch.delenv("DO_NOT_TRACK", raising=False)
         monkeypatch.delenv("CI", raising=False)
-        monkeypatch.setattr(
-            telemetry, "_get_lucidshark_dir", lambda: tmp_path
-        )
+        monkeypatch.setattr(telemetry, "_get_lucidshark_dir", lambda: tmp_path)
 
         # Prime caches
         telemetry.is_enabled()
