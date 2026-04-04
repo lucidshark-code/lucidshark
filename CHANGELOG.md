@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-04-04
+
+### Added
+- **Background auto-update for standalone binaries** — binary installations now check for updates automatically and self-update in the background
+- **Anonymous opt-out telemetry** — usage analytics via PostHog to help prioritize development, with full opt-out support in settings
+  - MCP tool invocations instrumented for telemetry
+
+### Fixed
+- **Extensive plugin bug fixes across all languages** — comprehensive quality pass after 0.7.0 language expansion
+  - Python: 8 bugs fixed in plugin support
+  - Go: 6 bugs fixed in plugin support
+  - Java: multiple bugs in language support
+  - Scala: 5 bugs in language support
+  - Kotlin: duplicate files from overlapping directories, unhandled RuntimeError
+  - PHP: double-counting, binary lookup order, dead code
+  - Ruby: detection, doc URLs, SimpleCov, and init consistency
+  - Swift: multiple bugs in language support
+  - C#: regex, formatter stats, version detection, shared utils
+  - C++: various support bugs and quality scan issues
+  - Rust: severity mapping, error handling, and dead code
+- Added missing `.mts`/`.cts`/`.mjs`/`.cjs` file extension support across JavaScript/TypeScript plugins
+- Bumped vulnerable dependencies flagged by Trivy SCA
+
+## [0.7.0] - 2026-03-29
+
+### Added
+- **Full Kotlin language support** — ktlint linter, detekt static analyzer, and duplication detection
+- **Full C# language support** — linting, formatting, type checking, testing, and coverage via dotnet toolchain
+- **Full C language support** — clang-tidy, clang-format, cppcheck, ctest, and gcov
+- **Full C++ language support** — same toolchain as C with C++-specific configuration
+- **Full Scala language support** — scalafmt, scalafix, sbt test, and coverage
+- **Full Swift language support** — SwiftLint, swift-format, swift build, swift test, and coverage
+- **Full Ruby language support** — RuboCop, RSpec, SimpleCov, and duplication detection
+- **Full PHP language support** — PHP_CodeSniffer, PHPStan, PHPUnit, and coverage
+- Comprehensive coverage configuration guidance added to help and autoconfigure documentation
+- Documentation updated for all newly supported languages (Kotlin, PHP, C#, C/C++, Scala, Swift, Ruby)
+
+### Changed
+- Increased duplo `min_lines` default from 7 to 10
+- Bumped tool versions: opengrep, checkov, gosec, pmd, ktlint, detekt, duplo
+- Bumped codecov/codecov-action in GitHub Actions
+
+### Fixed
+- Use `defusedxml` for all XML parsing to prevent XXE vulnerabilities
+- Build Linux binaries with glibc 2.31 for broader compatibility
+- Bundle `help.md` directly in binary instead of symlink
+- JaCoCo absolute paths during partial scans
+- PyInstaller hidden imports for all new language plugins
+- Various CI, type checking, and formatting fixes across new plugins
+
 ## [0.6.15] - 2026-03-23
 
 ### Improved
@@ -254,6 +304,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - YAML configuration system
 - CI/CD integration support
 
+[0.7.1]: https://github.com/toniantunovi/lucidshark/compare/v0.7.0...v0.7.1
+[0.7.0]: https://github.com/toniantunovi/lucidshark/compare/v0.6.15...v0.7.0
+[0.6.15]: https://github.com/toniantunovi/lucidshark/compare/v0.6.4...v0.6.15
 [0.6.4]: https://github.com/toniantunovi/lucidshark/compare/v0.6.0...v0.6.4
 [0.5.57]: https://github.com/toniantunovi/lucidshark/compare/v0.5.54...v0.5.57
 [0.5.54]: https://github.com/toniantunovi/lucidshark/compare/v0.5.50...v0.5.54
